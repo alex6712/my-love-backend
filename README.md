@@ -64,11 +64,17 @@ docker-compose up -d
 
 ```bash
 # Установите зависимости
+
+# pip
 pip install -r requirements.txt
 pip install -r requirements-dev.txt  # для разработки
 
+# uv
+uv sync
+uv sync --group dev   # для разработки
+
 # Настройте переменные окружения
-export DATABASE_URL="postgresql://user:pass@localhost/love_journal"
+export DATABASE_URL="postgresql://user:pass@localhost/my_love"
 export REDIS_URL="redis://localhost:6379"
 
 # Запустите PostgreSQL и Redis через Docker
@@ -78,7 +84,7 @@ docker-compose up db redis -d
 alembic upgrade head
 
 # Запустите сервер
-uvicorn app.main:app --reload
+fastapi dev ./app/main.py
 
 # Запустите Celery worker (в отдельном терминале)
 celery - app.tasks.worker worker --loglevel=info
