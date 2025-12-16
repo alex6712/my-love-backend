@@ -1,0 +1,9 @@
+services:
+  my_love_backend:
+    container_name: my_love_backend
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    env_file: ./.env
+    ports:
+      - "127.0.0.1:8000:8000"
