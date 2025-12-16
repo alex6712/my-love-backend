@@ -1,0 +1,52 @@
+# Игнорируем всё ненужное
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.venv
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Статические файлы и сборки
+staticfiles/
+media/
+*.log
+logs/
+*.sqlite3
+*.db
+
+# IDE файлы
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Тесты и покрытие
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Операционные системы
+.DS_Store
+Thumbs.db
+
+# Миграции (если хотите генерировать их внутри контейнера)
+migrations/versions/
+!migrations/versions/.keep
+
+# Временные файлы
+tmp/
+*.tmp
