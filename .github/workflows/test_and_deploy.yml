@@ -63,14 +63,14 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ~/my-love-backend"
   
-          rsync -az --delete ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/my-love-backend
+          rsync -az ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/my-love-backend
           
       - name: Deploy with Docker Compose
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << EOF
             cd ~/my-love-backend
             
-            docker compose down --remove-orphans
-            docker compose build --pull
-            docker compose up -d --wait
+            docker compose --env-file .env down --remove-orphans
+            docker compose --env-file .env build --pull
+            docker compose --env-file .env up -d --wait
           EOF

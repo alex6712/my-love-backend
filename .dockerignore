@@ -14,6 +14,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Utility скрипты
+scripts/
+
 # Статические файлы и сборки
 staticfiles/
 media/
@@ -43,9 +46,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Миграции (если хотите генерировать их внутри контейнера)
-migrations/versions/
-!migrations/versions/.keep
+# Миграции
+alembic/versions/
+!alembic/versions/.keep
 
 # Временные файлы
 tmp/

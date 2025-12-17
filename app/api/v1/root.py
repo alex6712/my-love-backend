@@ -1,7 +1,8 @@
 from fastapi import APIRouter, status
 
-from app.core.dependencies import SettingsDependency
-from app.schemas.v1.responses import AppInfoResponse, StandardResponse
+from app.core.dependencies.settings import SettingsDependency
+from app.schemas.v1.responses.app_info import AppInfoResponse
+from app.schemas.v1.responses.standard import StandardResponse
 
 router = APIRouter(
     tags=["root"],

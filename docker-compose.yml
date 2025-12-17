@@ -1,9 +1,31 @@
 services:
   my_love_backend:
     container_name: my_love_backend
-    build:
-      context: .
-      dockerfile: ./Dockerfile
-    env_file: ./.env
+    build: .
     ports:
       - "127.0.0.1:8000:8000"
+    depends_on:
+      - my_love_database
+    networks:
+      - my_love_application_net
+
+  my_love_database:
+    image: postgres:17
+    container_name: my_love_database
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DATABASE_NAME:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:${POSTGRES_PORT:-5432}"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - my_love_application_net
+
+volumes:
+  pgdata:
+
+networks:
+  my_love_application_net:
+    driver: bridge

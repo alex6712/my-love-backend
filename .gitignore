@@ -205,3 +205,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Security keys
+keys/
+*.pem
+*.pem.enc
+
+# Alembic
+alembic/versions/
+!alembic/versions/.keep

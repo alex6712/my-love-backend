@@ -1,7 +1,9 @@
 from functools import lru_cache
 from os.path import abspath
 
-from pydantic import EmailStr, field_validator
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
+from pydantic import EmailStr, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict, BaseSettings
 
 
@@ -48,6 +50,12 @@ class Settings(BaseSettings):
         Название базы данных.
     POSTGRES_DSN : PostgresDsn
         Строка подключения (ссылка) к базе данных.
+    PRIVATE_KEY_PASSWORD : str
+        Пароль для дешифровки приватного ключа кодирования JWT.
+    PRIVATE_KEY : RSAPrivateKey | None
+        Приватный ключ шифрования JWT.
+    PUBLIC_KEY : RSAPublicKey | None
+        Публичный ключ шифрования JWT.
     JWT_ALGORITHM : str
         Алгоритм кодирования JWT.
     ACCESS_TOKEN_LIFETIME_MINUTES : int
@@ -83,6 +91,8 @@ class Settings(BaseSettings):
 
     POSTGRES_DSN: str
 
+    PRIVATE_KEY_PASSWORD: str
+
     JWT_ALGORITHM: str
     ACCESS_TOKEN_LIFETIME_MINUTES: int
     REFRESH_TOKEN_LIFETIME_DAYS: int
@@ -94,6 +104,35 @@ class Settings(BaseSettings):
         enable_decoding=False,
         extra="ignore",
     )
+
+    PRIVATE_KEY: RSAPrivateKey | None = None
+    PUBLIC_KEY: RSAPublicKey | None = None
+
+    @model_validator(mode="after")
+    def load_keys(self) -> "Settings":
+        """Загружает приватный и публичный ключи после инициализации модели"""
+        public_key_path = abspath("keys/public_key.pem")
+
+        with open(public_key_path, "rb") as key_file:
+            self.PUBLIC_KEY = serialization.load_pem_public_key(key_file.read())  # type: ignore
+
+        if not self.PRIVATE_KEY_PASSWORD:
+            raise ValueError("PRIVATE_KEY_PASSWORD is required to load the private key")
+
+        private_key_path = abspath("keys/private_key.pem.enc")
+
+        with open(private_key_path, "rb") as key_file:
+            encrypted_key = key_file.read()
+            try:
+                private_key = serialization.load_pem_private_key(
+                    encrypted_key, password=self.PRIVATE_KEY_PASSWORD.encode("utf-8")
+                )
+            except Exception as e:
+                raise ValueError(f"Failed to decrypt private key: {e}")
+
+            self.PRIVATE_KEY = private_key  # type: ignore
+
+        return self
 
 
 @lru_cache
