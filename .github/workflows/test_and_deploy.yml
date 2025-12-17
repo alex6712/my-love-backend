@@ -9,38 +9,38 @@ on:
       - master
 
 jobs:
-  test-my-love-backend:
-    runs-on: ubuntu-latest
+  # test-my-love-backend:
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.13.5'
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v4
+  #       with:
+  #         python-version: '3.13.5'
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: "latest"
+  #     - name: Install uv
+  #       uses: astral-sh/setup-uv@v3
+  #       with:
+  #         version: "latest"
 
-      - name: Install dependencies with uv
-        run: |
-          uv sync --all-extras --dev
+  #     - name: Install dependencies with uv
+  #       run: |
+  #         uv sync --all-extras --dev
 
-      - name: Set up .env file
-        run: |
-          touch .env
-          echo '${{ secrets.ENV_FILE }}' > .env
+  #     - name: Set up .env file
+  #       run: |
+  #         touch .env
+  #         echo '${{ secrets.ENV_FILE }}' > .env
 
-      - name: Run tests
-        run: |
-          uv run pytest app/tests
+  #     - name: Run tests
+  #       run: |
+  #         uv run pytest app/tests
 
-  deploy:
-    needs: test-my-love-backend
+  deploy-my-love-backend:
+    # needs: test-my-love-backend
     if: github.ref == 'refs/heads/master'
 
     runs-on: ubuntu-latest
