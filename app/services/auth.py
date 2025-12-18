@@ -159,12 +159,12 @@ class AuthService:
         return await self._get_new_jwt_pair(user)
 
     async def logout(self, access_token: Token) -> None:
-        """Выполняет выход пользователя из системы путем инвалидации refresh токена.
+        """Выполняет выход пользователя из системы путем инвалидации JWT.
 
         Parameters
         ----------
         access_token : Token
-            Валидный JWT access токен пользователя, полученный при аутентификации.
+            Валидный access токен пользователя, полученный при аутентификации.
             Должен содержать актуальный payload с идентификатором пользователя (sub).
 
         Returns
@@ -177,7 +177,7 @@ class AuthService:
         UserNotFoundException
             Возникает если пользователь, указанный в payload токена, не существует в системе.
         """
-        payload: Payload = await AuthService._validate_token(access_token)
+        payload: Payload = await self.validate_access_token(access_token)
 
         exp_timestamp: int | None = payload.get("exp")
 

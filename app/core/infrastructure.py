@@ -21,9 +21,12 @@ engine: AsyncEngine = create_async_engine(
     echo=False,
     pool_pre_ping=True,
 )
+"""SQLAlchemy async engine, который используется в этом проекте."""
+
 AsyncSessionMaker: async_sessionmaker[AsyncSession] = async_sessionmaker(
     bind=engine, class_=AsyncSession, expire_on_commit=False
 )
+"""Фабрика асинхронных сессий SQLAlchemy."""
 
 
 class UnitOfWork:

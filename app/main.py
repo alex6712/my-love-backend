@@ -102,40 +102,11 @@ async def credentials_exception_handler(
     """
     details: dict[str, str] = {
         "password": "Incorrect username or password.",
-        "token": "Incorrect token passed.",
+        "token": str(exc),
     }
 
     return JSONResponse(
         content={"detail": details.get(exc.credentials_type)},
-        status_code=status.HTTP_401_UNAUTHORIZED,
-    )
-
-
-@my_love_backend.exception_handler(TokenRevokedException)
-async def token_revoked_exception_handler(
-    request: Request,
-    exc: TokenRevokedException,
-) -> JSONResponse:
-    """Обрабатывает исключения TokenRevokedException.
-
-    Специализированный обработчик для случаев использования отозванного токена.
-
-    Parameters
-    ----------
-    request : Request
-        Объект входящего HTTP-запроса (не используется).
-    exc : TokenRevokedException
-        Объект исключения с информацией о токене.
-
-    Returns
-    -------
-    JSONResponse
-        Ответ с ошибкой 401.
-    """
-    return JSONResponse(
-        content={
-            "detail": "Access token revoked.",
-        },
         status_code=status.HTTP_401_UNAUTHORIZED,
     )
 
@@ -165,6 +136,35 @@ async def token_not_passed_exception_handler(
     return JSONResponse(
         content={
             "detail": f"{exc.token_type.capitalize()} token is missing in headers.",
+        },
+        status_code=status.HTTP_401_UNAUTHORIZED,
+    )
+
+
+@my_love_backend.exception_handler(TokenRevokedException)
+async def token_revoked_exception_handler(
+    request: Request,
+    exc: TokenRevokedException,
+) -> JSONResponse:
+    """Обрабатывает исключения TokenRevokedException.
+
+    Специализированный обработчик для случаев использования отозванного токена.
+
+    Parameters
+    ----------
+    request : Request
+        Объект входящего HTTP-запроса (не используется).
+    exc : TokenRevokedException
+        Объект исключения с информацией о токене.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 401.
+    """
+    return JSONResponse(
+        content={
+            "detail": "Access token has been revoked.",
         },
         status_code=status.HTTP_401_UNAUTHORIZED,
     )

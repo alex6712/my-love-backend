@@ -5,7 +5,6 @@ from app.core.dependencies.auth import (
     ExtractAccessTokenDependency,
     ExtractRefreshTokenDependency,
     SignInCredentialsDependency,
-    StrictAuthenticationDependency,
 )
 from app.core.security import Tokens
 from app.schemas.v1.requests.register import RegisterRequest
@@ -158,13 +157,3 @@ async def logout(
     await auth_service.logout(access_token)
 
     return StandardResponse(message="User successfully logout.")
-
-
-@router.get(
-    "/verify",
-    response_model=StandardResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Проверка валидности токена доступа",
-)
-async def verify(_: StrictAuthenticationDependency) -> StandardResponse:
-    return StandardResponse(message="Token validation is successful.")
