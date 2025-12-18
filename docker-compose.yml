@@ -32,7 +32,7 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
     command: >
       redis-server
-      --requirepass $${REDIS_PASSWORD}
+      --requirepass ${REDIS_PASSWORD}
       --appendonly yes
     volumes:
       - redis_data:/data
