@@ -46,7 +46,7 @@ class Settings(BaseSettings):
         Порт базы данных.
     CURRENT_API_PATH : str
         URL текущей версии API.
-    POSTGRES_DATABASE_NAME : str
+    POSTGRES_DB : str
         Название базы данных.
     POSTGRES_DSN : PostgresDsn
         Строка подключения (ссылка) к базе данных.
@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_PORT: int
-    POSTGRES_DATABASE_NAME: str
+    POSTGRES_DB: str
 
     POSTGRES_DSN: str
 
