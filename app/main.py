@@ -5,7 +5,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1 import api_v1_router
 from app.config import Settings, get_settings
-from app.exceptions import (
+from app.core.exceptions import (
     CredentialsException,
     TokenNotPassedException,
     UserNotFoundException,

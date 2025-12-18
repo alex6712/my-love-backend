@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import UserModel
-from app.exceptions import UserNotFoundException, UsernameAlreadyExistsException
+from app.core.exceptions import UserNotFoundException, UsernameAlreadyExistsException
 from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.user import UserDTO
 
@@ -136,7 +136,7 @@ class UserRepository(RepositoryInterface):
         )
 
     async def update_refresh_token_hash(
-        self, user_dto: UserDTO, refresh_token_hash: str | None
+        self, user_id: UUID, refresh_token_hash: str | None
     ):
         """Перезаписывает токен обновления пользователя.
 
@@ -148,14 +148,14 @@ class UserRepository(RepositoryInterface):
 
         Parameters
         ----------
-        user_dto : UserDTO
-            DTO пользователя, у которого необходимо изменить хеш токена.
+        user_id : UUID
+            UUID пользователя, у которого необходимо изменить хеш токена.
         refresh_token_hash : str | None
             Новый токен обновления в хэшированном виде.
         """
-        user: UserModel | None = await self._get_user_by_id(user_dto.id)
+        user: UserModel | None = await self._get_user_by_id(user_id)
 
         if user is None:
-            raise UserNotFoundException(detail=f"User with id={user_dto.id} not found.")
+            raise UserNotFoundException(detail=f"User with id={user_id} not found.")
 
         user.refresh_token_hash = refresh_token_hash

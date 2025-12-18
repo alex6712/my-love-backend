@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from jose import ExpiredSignatureError, JWTError
 
 from app.core.security import (
@@ -9,33 +11,34 @@ from app.core.security import (
     hash_,
     verify,
 )
-from app.core.unit_of_work import UnitOfWork
-from app.exceptions import (
+from app.core.infrastructure import UnitOfWork, RedisClient
+from app.core.exceptions import (
     CredentialsException,
     TokenNotPassedException,
 )
 from app.repositories.user import UserRepository
 from app.schemas.dto.user import UserDTO
-from app.services.interface import ServiceInterface
 
 
-class AuthService(ServiceInterface):
+class AuthService:
     """Сервис аутентификации и авторизации.
 
     Реализует бизнес-логику для:
-    - Регистрации и аутентификации пользователей
-    - Генерации, валидации и обновления JWT
-    - Управления токенами в базе данных
+    - Регистрации и аутентификации пользователей;
+    - Генерации, валидации и обновления JWT;
+    - Управления токенами в базе данных.
 
     Attributes
     ----------
-    unit_of_work : UnitOfWork
-        Объект асинхронного контекста транзакции.
+    _redis_client : RedisClient
+        Клиент для работы с Redis.
     _user_repo : UserRepository
         Репозиторий для операций с пользователями в БД.
 
     Methods
     -------
+    register(username, password)
+        Регистрирует пользователя в системе.
     login(form_data)
         Аутентифицирует пользователя по логину/паролю.
     refresh()
@@ -50,12 +53,11 @@ class AuthService(ServiceInterface):
         Генерирует новую пару JWT.
     """
 
-    def __init__(self, unit_of_work: UnitOfWork):
-        super().__init__(unit_of_work)
+    def __init__(self, unit_of_work: UnitOfWork, redis_client: RedisClient):
+        super().__init__()
 
-        self._user_repo: UserRepository = self.unit_of_work.get_repository(
-            UserRepository
-        )
+        self._redis_client: RedisClient = redis_client
+        self._user_repo: UserRepository = unit_of_work.get_repository(UserRepository)
 
     async def register(self, username: str, password: str) -> None:
         """Регистрирует пользователя в системе.
@@ -171,16 +173,26 @@ class AuthService(ServiceInterface):
 
         Raises
         ------
-        TokenNotPassedException
-            Отсутствует токен обновления в cookies.
         UserNotFoundException
             Возникает если пользователь, указанный в payload токена, не существует в системе.
         """
         payload: Payload = await AuthService._validate_token(access_token)
 
-        user: UserDTO = await self._user_repo.get_user_by_id(payload["sub"])
+        exp_timestamp: int | None = payload.get("exp")
 
-        await self._user_repo.update_refresh_token_hash(user, None)
+        if exp_timestamp is None:
+            raise CredentialsException(
+                detail="Could not validate credentials.",
+                credentials_type="token",
+            )
+
+        current_time = datetime.now(timezone.utc).timestamp()
+        ttl = int(exp_timestamp - current_time)
+
+        if ttl > 0:
+            await self._redis_client.revoke_token(token=access_token, ttl=ttl)
+
+        await self._user_repo.update_refresh_token_hash(payload["sub"], None)
 
     async def validate_access_token(self, access_token: Token | None) -> Payload:
         """Проверяет валидность access-токена.
@@ -188,7 +200,7 @@ class AuthService(ServiceInterface):
         Parameters
         ----------
         access_token : Token | None
-            Токен доступа, полученный из cookies.
+            Токен доступа, полученный из headers.
 
         Returns
         -------
@@ -198,11 +210,11 @@ class AuthService(ServiceInterface):
         Raises
         ------
         TokenNotPassedException
-            Отсутствует токен обновления в cookies.
+            Отсутствует токен обновления в headers.
         """
         if access_token is None:
             raise TokenNotPassedException(
-                detail="Access token is missing in cookies.",
+                detail="Access token is missing in headers.",
                 token_type="access",
             )
 
@@ -276,6 +288,8 @@ class AuthService(ServiceInterface):
                 "name": user.username,
             }
         )
-        await self._user_repo.update_refresh_token_hash(user, hash_(tokens["refresh"]))
+        await self._user_repo.update_refresh_token_hash(
+            user.id, hash_(tokens["refresh"])
+        )
 
         return tokens

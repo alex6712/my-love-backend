@@ -23,8 +23,26 @@ services:
     networks:
       - my_love_application_net
 
+  my_love_redis:
+    image: redis:7-alpine
+    container_name: my_love_redis
+    ports:
+      - "${REDIS_PORT:-6379}:${REDIS_PORT:-6379}"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    command: >
+      redis-server
+      --requirepass $${REDIS_PASSWORD}
+      --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - my_love_application_net
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  redis_data:
 
 networks:
   my_love_application_net:

@@ -113,6 +113,8 @@ python-multipart==0.0.20
     # via fastapi
 pyyaml==6.0.3
     # via uvicorn
+redis==7.1.0
+    # via my-love-backend (pyproject.toml)
 rich==14.2.0
     # via
     #   rich-toolkit

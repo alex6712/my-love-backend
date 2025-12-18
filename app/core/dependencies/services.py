@@ -1,56 +1,37 @@
-from typing import Annotated, Callable, TypeVar
+from typing import Annotated
 
 from fastapi import Depends
 
-from app.core.dependencies.database import UnitOfWorkDependency
+from app.core.dependencies.database import UnitOfWorkDependency, RedisClientDependency
 from app.services.auth import AuthService
-from app.services.interface import ServiceInterface
-
-T = TypeVar("T", bound=ServiceInterface)
-
-type ServiceDependencyCallable = Callable[[UnitOfWorkDependency], ServiceInterface]
-"""Тип для вызываемого объекта зависимости сервисов"""
 
 
-def get_service(service_type: type[T]) -> ServiceDependencyCallable:
-    """Фабрика зависимостей для создания экземпляров сервисов.
+def get_auth_service(
+    unit_of_work: UnitOfWorkDependency, redis_client: RedisClientDependency
+) -> AuthService:
+    """Фабрика зависимостей для создания экземпляра сервиса аутентификации и авторизации.
 
     Создает и возвращает функцию-зависимость, которая инстанцирует
-    сервис указанного типа, используя зависимость Unit of Work.
+    экземпляр сервиса аутентификации и авторизации, используя
+    зависимость Unit of Work и RedisClient.
 
     Parameters
     ----------
-    service_type : type[T]
-        Класс сервиса для инстанцирования. Должен принимать в конструкторе
-        экземпляр UnitOfWork в качестве единственного аргумента.
+    unit_of_work : UnitOfWorkDependency
+        Зависимость Unit of Work, которая будет передана
+        в конструктор сервиса аутентификации и авторизации.
+    redis_client : RedisClientDependency
+        Зависимость RedisClient, которая будет передана
+        в конструктор сервиса аутентификации и авторизации.
 
     Returns
     -------
-    ServiceDependencyCallable
-        Функция-зависимость, которая при вызове возвращает
-        экземпляр указанного сервиса.
+    AuthService
+        Экземпляр сервиса аутентификации и авторизации с внедренными
+        Unit of Work и RedisClient.
     """
-
-    def dependency(unit_of_work: UnitOfWorkDependency) -> T:
-        """Внутренняя функция-зависимость для создания сервиса.
-
-        Создает экземпляр сервиса, используя переданный Unit of Work.
-
-        Parameters
-        ----------
-        unit_of_work : UnitOfWorkDependency
-            Зависимость Unit of Work, которая будет передана
-            в конструктор сервиса.
-
-        Returns
-        -------
-        T
-            Экземпляр запрошенного сервиса с внедренной Unit of Work.
-        """
-        return service_type(unit_of_work)
-
-    return dependency
+    return AuthService(unit_of_work, redis_client)
 
 
-AuthServiceDependency = Annotated[AuthService, Depends(get_service(AuthService))]
+AuthServiceDependency = Annotated[AuthService, Depends(get_auth_service)]
 """Зависимость на получение сервиса аутентификации и авторизации"""

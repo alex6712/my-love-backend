@@ -2,7 +2,7 @@ from typing import Annotated, Any, AsyncGenerator
 
 from fastapi import Depends
 
-from app.core.unit_of_work import UnitOfWork
+from app.core.infrastructure import UnitOfWork, RedisClient
 
 
 async def get_unit_of_work() -> AsyncGenerator[UnitOfWork, Any]:
@@ -23,5 +23,30 @@ async def get_unit_of_work() -> AsyncGenerator[UnitOfWork, Any]:
         yield uow
 
 
+async def get_redis() -> AsyncGenerator[RedisClient, Any]:
+    """Фабрика для создания зависимости Redis.
+
+    Используется для автоматического менеджмента соединения с Redis.
+    При входе в контекст (async with) создается новое соединение,
+    при выходе — закрывается. Если в контексте возникнет исключение,
+    оно будет проброшено дальше.
+
+    Yields
+    ------
+    RedisClient
+        Экземпляр клиента Redis.
+
+    Note
+    ----
+    При закрытии контекста (даже не в случае исключения или выхода из области видимости),
+    соединение с Redis будет закрыто. Все дальнейшие запросы будут отклонены.
+    """
+    async with RedisClient() as redis:
+        yield redis
+
+
 UnitOfWorkDependency = Annotated[UnitOfWork, Depends(get_unit_of_work)]
-"""Зависимость на получение экземпляра Unit of Work в асинхронном контексте"""
+"""Зависимость на получение экземпляра Unit of Work в асинхронном контексте."""
+
+RedisClientDependency = Annotated[RedisClient, Depends(get_redis)]
+"""Зависимость на получение экземпляра Redis в асинхронном контексте."""

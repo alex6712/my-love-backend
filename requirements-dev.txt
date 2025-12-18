@@ -148,6 +148,8 @@ pytokens==0.3.0
     # via black
 pyyaml==6.0.3
     # via uvicorn
+redis==7.1.0
+    # via my-love-backend (pyproject.toml)
 rich==14.2.0
     # via
     #   rich-toolkit

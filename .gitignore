@@ -210,7 +210,3 @@ __marimo__/
 keys/
 *.pem
 *.pem.enc
-
-# Alembic
-alembic/versions/
-!alembic/versions/.keep

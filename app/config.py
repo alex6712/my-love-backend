@@ -50,6 +50,16 @@ class Settings(BaseSettings):
         Название базы данных.
     POSTGRES_DSN : PostgresDsn
         Строка подключения (ссылка) к базе данных.
+    REDIS_HOST : str
+        Хост Redis.
+    REDIS_PASSWORD : str
+        Пароль для подключения к Redis.
+    REDIS_PORT : int
+        Порт Redis.
+    REDIS_DB : int
+        Номер базы данных Redis.
+    REDIS_URL : str
+        URL Redis.
     PRIVATE_KEY_PASSWORD : str
         Пароль для дешифровки приватного ключа кодирования JWT.
     PRIVATE_KEY : RSAPrivateKey | None
@@ -90,6 +100,13 @@ class Settings(BaseSettings):
     POSTGRES_DATABASE_NAME: str
 
     POSTGRES_DSN: str
+
+    REDIS_HOST: str
+    REDIS_PASSWORD: str
+    REDIS_PORT: int
+    REDIS_DB: int
+
+    REDIS_URL: str
 
     PRIVATE_KEY_PASSWORD: str
 
