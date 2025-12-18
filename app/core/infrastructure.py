@@ -163,7 +163,6 @@ class RedisClient:
         """
         self._pool = redis.ConnectionPool.from_url(  # type: ignore
             settings.REDIS_URL,
-            password=settings.REDIS_PASSWORD,
             decode_responses=True,
             max_connections=10,
         )
