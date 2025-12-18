@@ -105,6 +105,18 @@ class TokenNotPassedException(UserDomainException):
         self.token_type: TokenType = token_type
 
 
+class TokenRevokedException(UserDomainException):
+    """Исключение при попытке использования отозванного токена.
+
+    Notes
+    -----
+    Возникает в случае, когда токен, предоставленный в запросе, отозван.
+    Это может произойти, например, при выходе пользователя из системы.
+    """
+
+    pass
+
+
 class UserNotFoundException(UserDomainException):
     """Исключение при отсутствии запрашиваемого пользователя.
 
@@ -120,8 +132,8 @@ class UserNotFoundException(UserDomainException):
 class UsernameAlreadyExistsException(UserDomainException):
     """Исключение при попытке создать пользователя с существующим username.
 
-    Note
-    ----
+    Notes
+    -----
     Возникает при попытке регистрации нового пользователя по `username`,
     который уже существует в базе данных.
     """

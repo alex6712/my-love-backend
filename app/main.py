@@ -8,6 +8,7 @@ from app.config import Settings, get_settings
 from app.core.exceptions import (
     CredentialsException,
     TokenNotPassedException,
+    TokenRevokedException,
     UserNotFoundException,
     UsernameAlreadyExistsException,
 )
@@ -106,6 +107,35 @@ async def credentials_exception_handler(
 
     return JSONResponse(
         content={"detail": details.get(exc.credentials_type)},
+        status_code=status.HTTP_401_UNAUTHORIZED,
+    )
+
+
+@my_love_backend.exception_handler(TokenRevokedException)
+async def token_revoked_exception_handler(
+    request: Request,
+    exc: TokenRevokedException,
+) -> JSONResponse:
+    """Обрабатывает исключения TokenRevokedException.
+
+    Специализированный обработчик для случаев использования отозванного токена.
+
+    Parameters
+    ----------
+    request : Request
+        Объект входящего HTTP-запроса (не используется).
+    exc : TokenRevokedException
+        Объект исключения с информацией о токене.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 401.
+    """
+    return JSONResponse(
+        content={
+            "detail": "Access token revoked.",
+        },
         status_code=status.HTTP_401_UNAUTHORIZED,
     )
 

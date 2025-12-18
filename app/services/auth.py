@@ -15,6 +15,7 @@ from app.core.infrastructure import UnitOfWork, RedisClient
 from app.core.exceptions import (
     CredentialsException,
     TokenNotPassedException,
+    TokenRevokedException,
 )
 from app.repositories.user import UserRepository
 from app.schemas.dto.user import UserDTO
@@ -217,6 +218,9 @@ class AuthService:
                 detail="Access token is missing in headers.",
                 token_type="access",
             )
+
+        if await self._redis_client.is_token_revoked(access_token):
+            raise TokenRevokedException(detail="Access token has been revoked.")
 
         return await AuthService._validate_token(access_token)
 
