@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config import Settings, get_settings
-from app.core.infrastructure import AsyncSessionMaker
 from app.core.exceptions import UnitOfWorkContextClosedException
 from app.repositories.interface import RepositoryInterface
 
