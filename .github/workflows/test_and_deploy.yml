@@ -73,4 +73,6 @@ jobs:
             docker compose --env-file .env down --remove-orphans
             docker compose --env-file .env build --pull
             docker compose --env-file .env up -d --wait
+
+            docker exec my_love_backend alembic upgrade head
           EOF

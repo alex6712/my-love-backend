@@ -46,10 +46,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Миграции
-alembic/versions/
-!alembic/versions/.keep
-
 # Временные файлы
 tmp/
 *.tmp

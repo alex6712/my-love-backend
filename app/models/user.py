@@ -1,9 +1,13 @@
+from typing import Any, List, TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Boolean, String, Uuid
 
 from app.models.base import BaseModel
+
+if TYPE_CHECKING:
+    from app.models.media_album import MediaAlbumModel
 
 
 class UserModel(BaseModel):
@@ -38,6 +42,12 @@ class UserModel(BaseModel):
         comment="Хеш токена обновления (Argon2id)",
     )
 
+    avatar_url: Mapped[str] = mapped_column(
+        String(512),
+        nullable=True,
+        comment="URL аватара пользователя",
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean(),
         default=False,
@@ -46,5 +56,17 @@ class UserModel(BaseModel):
         comment="Статус пользователя (активный или заблокирован)",
     )
 
-    def __repr__(self) -> str:
-        return f"<User(id={self.id}, username={self.username})>"
+    media_albums: Mapped[List["MediaAlbumModel"]] = relationship(
+        "MediaAlbumModel",
+        back_populates="creator",
+        lazy="select",
+    )
+
+    def __repr__(self, **_) -> str:
+        attrs: dict[str, Any] = {
+            "id": self.id,
+            "username": self.username,
+            "avatar_url": self.avatar_url,
+        }
+
+        return super().__repr__(**attrs)
