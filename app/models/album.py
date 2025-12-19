@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     from app.models.user import UserModel
 
 
-class MediaAlbumModel(BaseModel):
-    __tablename__ = "media_albums"
+class AlbumModel(BaseModel):
+    __tablename__ = "albums"
     __table_args__ = {"comment": "Созданные пользователями альбомы медиа"}
 
     id: Mapped[UUID] = mapped_column(

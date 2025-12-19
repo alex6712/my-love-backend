@@ -139,3 +139,27 @@ class UsernameAlreadyExistsException(UserDomainException):
     """
 
     pass
+
+
+class MediaDomainException(BaseApplicationException):
+    """Базовое исключение для ошибок, связанных с доменной логикой медиа альбомов и файлов.
+
+    Notes
+    -----
+    Специализированное исключение для группировки всех ошибок,
+    связанных с бизнес-логикой медиа домена.
+    """
+
+    pass
+
+
+class MediaNotFoundException(MediaDomainException):
+    """Исключение при отсутствии запрашиваемого медиа.
+
+    Notes
+    -----
+    Возникает при попытке доступа к несуществующему медиа
+    или когда медиа не найдено в базе данных по предоставленным критериям.
+    """
+
+    pass

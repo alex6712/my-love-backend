@@ -7,7 +7,7 @@ from sqlalchemy.types import Boolean, String, Uuid
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.models.media_album import MediaAlbumModel
+    from app.models.album import AlbumModel
 
 
 class UserModel(BaseModel):
@@ -56,8 +56,8 @@ class UserModel(BaseModel):
         comment="Статус пользователя (активный или заблокирован)",
     )
 
-    media_albums: Mapped[List["MediaAlbumModel"]] = relationship(
-        "MediaAlbumModel",
+    media_albums: Mapped[List["AlbumModel"]] = relationship(
+        "AlbumModel",
         back_populates="creator",
         lazy="select",
     )
