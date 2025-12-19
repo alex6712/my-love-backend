@@ -34,7 +34,10 @@ async def post_albums(
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """ """
-    return StandardResponse(message="New album created!")
+    return StandardResponse(
+        code=status.HTTP_201_CREATED,
+        message="New album created!",
+    )
 
 
 @router.delete(

@@ -72,7 +72,7 @@ async def not_found_exception_handler(
     """
     return JSONResponse(
         content={
-            "detail": f"Resource you're looking not exists or you're lack of rights.",
+            "detail": "Resource you're looking not exists or you're lack of rights.",
         },
         status_code=status.HTTP_404_NOT_FOUND,
     )

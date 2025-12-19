@@ -60,6 +60,18 @@ class Settings(BaseSettings):
         Номер базы данных Redis.
     REDIS_URL : str
         URL Redis.
+    MINIO_HOST: str
+        Наименование хоста, на котором размещён сервер MinIO.
+    MINIO_ROOT_USER: str
+        MinIO Access key (root пользователь).
+    MINIO_ROOT_PASSWORD: str
+        MinIO Secret key (пароль root пользователя).
+    MINIO_PORT: int
+        Порт, на котором на указанном хосте доступен MinIO.
+    MINIO_CONSOLE_PORT: int
+        Порт, на котором на указанном хосте доступна консоль управления MinIO.
+    MINIO_ENDPOINT: str
+        Полная ссылка на сервер MinIO.
     PRIVATE_KEY_PASSWORD : str
         Пароль для дешифровки приватного ключа кодирования JWT.
     PRIVATE_KEY : RSAPrivateKey | None
@@ -107,6 +119,14 @@ class Settings(BaseSettings):
     REDIS_DB: int
 
     REDIS_URL: str
+
+    MINIO_HOST: str
+    MINIO_ROOT_USER: str
+    MINIO_ROOT_PASSWORD: str
+    MINIO_PORT: int
+    MINIO_CONSOLE_PORT: int
+
+    MINIO_ENDPOINT: str
 
     PRIVATE_KEY_PASSWORD: str
 

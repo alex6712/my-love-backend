@@ -11,7 +11,8 @@ from app.core.security import (
     hash_,
     verify,
 )
-from app.core.infrastructure import UnitOfWork, RedisClient
+from app.infrastructure.postgresql import UnitOfWork
+from app.infrastructure.redis import RedisClient
 from app.core.exceptions import (
     CredentialsException,
     TokenNotPassedException,

@@ -6,6 +6,8 @@ services:
       - "127.0.0.1:8000:8000"
     depends_on:
       - my_love_database
+      - my_love_redis
+      - my_love_minio
     networks:
       - my_love_application_net
 
@@ -26,23 +28,37 @@ services:
   my_love_redis:
     image: redis:7-alpine
     container_name: my_love_redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "${REDIS_PORT:-6379}:${REDIS_PORT:-6379}"
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-    command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD}
-      --appendonly yes
     volumes:
       - redis_data:/data
     networks:
       - my_love_application_net
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
     restart: unless-stopped
+
+  my_love_minio:
+    image: minio/minio
+    container_name: my_love_minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "${MINIO_PORT:-9000}:${MINIO_PORT:-9000}"
+      - "${MINIO_CONSOLE_PORT:-9001}:${MINIO_CONSOLE_PORT:-9001}"
+    volumes:
+      - minio_data:/data
+    command: server --console-address ":${MINIO_CONSOLE_PORT:-9001}" /data
 
 volumes:
   pgdata:
   redis_data:
+  minio_data:
 
 networks:
   my_love_application_net:

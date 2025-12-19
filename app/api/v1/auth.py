@@ -47,7 +47,8 @@ async def register(
     await auth_service.register(form_data.username, form_data.password)
 
     return StandardResponse(
-        code=status.HTTP_201_CREATED, message="Пользователь успешно зарегистрирован."
+        code=status.HTTP_201_CREATED,
+        message="User created successfully.",
     )
 
 

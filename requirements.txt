@@ -12,7 +12,9 @@ anyio==4.12.0
     #   starlette
     #   watchfiles
 argon2-cffi==25.1.0
-    # via passlib
+    # via
+    #   minio
+    #   passlib
 argon2-cffi-bindings==25.1.0
     # via argon2-cffi
 asyncpg==0.31.0
@@ -21,6 +23,7 @@ certifi==2025.11.12
     # via
     #   httpcore
     #   httpx
+    #   minio
     #   sentry-sdk
 cffi==2.0.0
     # via
@@ -84,6 +87,8 @@ markupsafe==3.0.3
     #   mako
 mdurl==0.1.2
     # via markdown-it-py
+minio==7.2.20
+    # via my-love-backend (pyproject.toml)
 passlib==1.7.4
     # via my-love-backend (pyproject.toml)
 pyasn1==0.6.1
@@ -92,6 +97,8 @@ pyasn1==0.6.1
     #   rsa
 pycparser==2.23
     # via cffi
+pycryptodome==3.23.0
+    # via minio
 pydantic==2.12.5
     # via
     #   fastapi
@@ -147,6 +154,7 @@ typing-extensions==4.15.0
     # via
     #   alembic
     #   fastapi
+    #   minio
     #   pydantic
     #   pydantic-core
     #   rich-toolkit
@@ -158,7 +166,9 @@ typing-inspection==0.4.2
     #   pydantic
     #   pydantic-settings
 urllib3==2.6.2
-    # via sentry-sdk
+    # via
+    #   minio
+    #   sentry-sdk
 uvicorn==0.38.0
     # via
     #   fastapi
