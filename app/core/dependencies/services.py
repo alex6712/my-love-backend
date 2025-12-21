@@ -2,7 +2,10 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from app.core.dependencies.clients import UnitOfWorkDependency, RedisClientDependency
+from app.core.dependencies.infrastructure import (
+    UnitOfWorkDependency,
+    RedisClientDependency,
+)
 from app.services.auth import AuthService
 
 

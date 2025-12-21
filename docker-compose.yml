@@ -53,6 +53,8 @@ services:
       - "${MINIO_CONSOLE_PORT:-9001}:${MINIO_CONSOLE_PORT:-9001}"
     volumes:
       - minio_data:/data
+    networks:
+      - my_love_application_net
     command: server --console-address ":${MINIO_CONSOLE_PORT:-9001}" /data
 
 volumes:
