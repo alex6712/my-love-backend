@@ -43,14 +43,14 @@ class AuthService:
     -------
     register(username, password)
         Регистрирует пользователя в системе.
-    login(form_data)
+    login(username, password)
         Аутентифицирует пользователя по логину/паролю.
-    refresh()
+    refresh(refresh_token)
         Обновляет пару токенов по валидному refresh-токену.
-    validate_access_token()
+    logout(access_token)
+        Выполняет выход пользователя из системы путем инвалидации JWT.
+    validate_access_token(access_token)
         Проверяет валидность access-токена.
-    require_roles(required_roles)
-        Проверяет наличие ролей у пользователя.
     _validate_token(token)
         Проверяет подпись токена.
     _get_jwt_pair(user)
@@ -296,14 +296,9 @@ class AuthService:
         Tokens
             Сгенерированная пара токенов.
 
-        Raises
-        ------
-        HTTPException
-            400: Ошибка целостности данных при обновлении БД.
-
         Notes
         -----
-        Обязательное поле в payload: {"sub": username}
+        Обязательное поле в payload: {"sub": user_id}
         """
         tokens: Tokens = create_jwt_pair(
             {

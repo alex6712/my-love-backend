@@ -10,7 +10,23 @@ from app.schemas.dto.user import PartnerDTO
 
 
 class UsersService:
-    """TODO: документация"""
+    """Сервис работы с пользователя.
+
+    Реализует бизнес-логику для регистрации и менеджмента
+    пар между пользователями.
+
+    Attributes
+    ----------
+    _user_repo : UserRepository
+        Репозиторий для операций с пользователями в БД.
+
+    Methods
+    -------
+    get_partner(user_id)
+        Получение информации о партнёре пользователя.
+    register_couple(user_id, partner_id)
+        Регистрация пары между пользователями.
+    """
 
     def __init__(self, unit_of_work: UnitOfWork):
         super().__init__()
@@ -18,7 +34,21 @@ class UsersService:
         self._user_repo: UserRepository = unit_of_work.get_repository(UserRepository)
 
     async def get_partner(self, user_id: UUID) -> PartnerDTO | None:
-        """TODO: документация"""
+        """Получение информации о партнёре пользователя.
+
+        Возвращает DTO пользователя-партнёра по UUID текущего
+        пользователя.
+
+        Parameters
+        ----------
+        user_id : UUID
+            UUID пользователя.
+
+        Returns
+        -------
+        PartnerDTO | None
+            Информация о партнёре пользователя.
+        """
         return await self._user_repo.get_partner_by_user_id(user_id)
 
     async def register_couple(self, user_id: UUID, partner_id: UUID) -> None:

@@ -26,8 +26,12 @@ class RedisClient:
         Закрытие пула подключений.
     client()
         Получение клиента Redis из пула подключений.
-    revoke_token(token: str, ttl: int)
+    revoke_token(token, ttl)
         Добавляет токен в черный список.
+    is_token_revoked(token)
+        Проверяет, находится ли токен в черном списке.
+    delete_token(token)
+        Удаление токена из черного списка.
     """
 
     def __init__(self):

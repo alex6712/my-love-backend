@@ -15,13 +15,14 @@ class MediaRepository(RepositoryInterface):
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
     Реализует основные CRUD операции с различными типами медиа.
 
-    Attributes
-    ----------
-    session : AsyncSession
-        Объект асинхронной сессии запроса.
-
     Methods
     -------
+    add_album(title, description, cover_url, is_private, created_by)
+        Добавляет в базу данных новую запись о медиа альбоме.
+    get_album_by_id(id_)
+        Возвращает DTO медиа альбома по его id.
+    get_albums_by_creator_id(creator_id)
+        Возвращает список DTO медиа альбомов по id их создателя.
     """
 
     def __init__(self, session: AsyncSession):
