@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import DateTime, text
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import DateTime, text
 
 
 class BaseModel(AsyncAttrs, DeclarativeBase):
@@ -13,7 +13,7 @@ class BaseModel(AsyncAttrs, DeclarativeBase):
         DateTime(timezone=True),
         server_default=text("TIMEZONE('UTC', NOW())"),
         nullable=False,
-        comment="Дата и время создания записи.",
+        comment="Дата и время создания записи",
     )
 
     def __repr__(self, **kwargs: dict[str, Any]) -> str:

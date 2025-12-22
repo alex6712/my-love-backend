@@ -1,8 +1,10 @@
-from uuid import UUID
-
 from fastapi import APIRouter, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
+from app.core.dependencies.services import MediaServiceDependency
+from app.schemas.dto.album import AlbumDTO
+from app.schemas.v1.requests.create_album import CreateAlbumRequest
+from app.schemas.v1.responses.albums import AlbumsResponse
 from app.schemas.v1.responses.standard import StandardResponse
 
 router = APIRouter(
@@ -13,15 +15,35 @@ router = APIRouter(
 
 @router.get(
     "/albums",
-    response_model=StandardResponse,
+    response_model=AlbumsResponse,
     status_code=status.HTTP_200_OK,
     summary="Получение списка всех доступных пользователю медиа альбомов.",
 )
 async def get_albums(
+    media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
-) -> StandardResponse:
-    """ """
-    return StandardResponse(message="There are your albums!")
+) -> AlbumsResponse:
+    """Получение списка всех доступных пользователю медиа альбомов.
+
+    Возвращает список всех медиа альбомов, для которых установлено,
+    что они доступны пользователю с UUID, переданным в токене доступа.
+
+    Parameters
+    ----------
+    media_service : MediaServiceDependency
+        Зависимость сервиса работы с медиа.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    AlbumsResponse
+        Список всех доступных пользователю медиа альбомов.
+    """
+    albums: list[AlbumDTO] = await media_service.get_albums(payload["sub"])
+
+    return AlbumsResponse(albums=albums, message=f"Found {len(albums)} albums.")
 
 
 @router.post(
@@ -31,24 +53,39 @@ async def get_albums(
     summary="Создать новый медиа альбом.",
 )
 async def post_albums(
+    form_data: CreateAlbumRequest,
+    media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
-    """ """
-    return StandardResponse(
-        code=status.HTTP_201_CREATED,
-        message="New album created!",
+    """Создание нового медиа альбома.
+
+    Создаёт новую запись в базе данных, устанавливая переданные в теле
+    запроса атрибуты.
+
+    Parameters
+    ----------
+    form_data : CreateAlbumRequest
+        Зависимость для получения данных из формы.
+    media_service : MediaServiceDependency
+        Зависимость сервиса работы с медиа.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    StandardResponse
+        Успешный ответ о создании нового альбома.
+    """
+    await media_service.create_album(
+        title=form_data.title,
+        description=form_data.description,
+        cover_url=form_data.cover_url,
+        is_private=form_data.is_private,
+        created_by=payload["sub"],
     )
 
-
-@router.delete(
-    "/albums/{album_id}",
-    response_model=StandardResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Удалить медиа альбом.",
-)
-async def delete_album(
-    album_id: UUID,
-    payload: StrictAuthenticationDependency,
-) -> StandardResponse:
-    """ """
-    return StandardResponse(message="Oh no, you killed Kenny!")
+    return StandardResponse(
+        code=status.HTTP_201_CREATED,
+        message="New album created successfully.",
+    )

@@ -6,11 +6,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.v1 import api_v1_router
 from app.config import Settings, get_settings
 from app.core.exceptions import (
+    CoupleAlreadyExistsException,
+    CoupleNotSelfException,
     CredentialsException,
     TokenNotPassedException,
     TokenRevokedException,
-    UserNotFoundException,
     UsernameAlreadyExistsException,
+    UserNotFoundException,
 )
 
 settings: Settings = get_settings()
@@ -23,6 +25,14 @@ tags_metadata = [
     {
         "name": "authorization",
         "description": "Операции **регистрации** и **аутентификации**.",
+    },
+    {
+        "name": "media",
+        "description": "Операции с **медиа** в приложении.",
+    },
+    {
+        "name": "users",
+        "description": "Операции с **пользователями** и **парами** между пользователями.",
     },
 ]
 
@@ -201,7 +211,7 @@ async def user_not_found_exception_handler(
 @my_love_backend.exception_handler(UsernameAlreadyExistsException)
 async def username_already_exists_exception_handler(
     request: Request,
-    _: UsernameAlreadyExistsException,
+    exc: UsernameAlreadyExistsException,
 ) -> JSONResponse:
     """Обрабатывает исключения UsernameAlreadyExistsException.
 
@@ -212,8 +222,8 @@ async def username_already_exists_exception_handler(
     ----------
     request : Request
         Объект запроса FastAPI, содержащий информацию о входящем HTTP-запросе (не используется).
-    _ : UserNotFoundException
-        Экземпляр вызванного исключения (не используется).
+    _ : UsernameAlreadyExistsException
+        Экземпляр вызванного исключения.
 
     Returns
     -------
@@ -221,6 +231,64 @@ async def username_already_exists_exception_handler(
         Ответ с ошибкой 409.
     """
     return JSONResponse(
-        content={"detail": "Username already exists."},
+        content={"detail": str(exc)},
         status_code=status.HTTP_409_CONFLICT,
+    )
+
+
+@my_love_backend.exception_handler(CoupleAlreadyExistsException)
+async def couple_already_exists_exception_handler(
+    request: Request,
+    exc: CoupleAlreadyExistsException,
+) -> JSONResponse:
+    """Обрабатывает исключения CoupleAlreadyExistsException.
+
+    Возвращает клиенту ответ с HTTP 409 в случае, если зафиксирована
+    попытка регистрации новой пары пользователей с уже существующей парой,
+    содержащей хотя бы один из их UUID.
+
+    Parameters
+    ----------
+    request : Request
+        Объект запроса FastAPI, содержащий информацию о входящем HTTP-запросе (не используется).
+    _ : CoupleAlreadyExistsException
+        Экземпляр вызванного исключения.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 409.
+    """
+    return JSONResponse(
+        content={"detail": str(exc)},
+        status_code=status.HTTP_409_CONFLICT,
+    )
+
+
+@my_love_backend.exception_handler(CoupleNotSelfException)
+async def couple_not_self_exception_handler(
+    request: Request,
+    exc: CoupleNotSelfException,
+) -> JSONResponse:
+    """Обрабатывает исключения CoupleNotSelfException.
+
+    Возвращает клиенту ответ с HTTP 400 в случае, если зафиксирована
+    попытка регистрации новой пары пользователей, при этом переданы
+    совпадающие UUID.
+
+    Parameters
+    ----------
+    request : Request
+        Объект запроса FastAPI, содержащий информацию о входящем HTTP-запросе (не используется).
+    _ : CoupleNotSelfException
+        Экземпляр вызванного исключения.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 400.
+    """
+    return JSONResponse(
+        content={"detail": str(exc)},
+        status_code=status.HTTP_400_BAD_REQUEST,
     )

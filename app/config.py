@@ -4,7 +4,7 @@ from os.path import abspath
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 from pydantic import EmailStr, field_validator, model_validator
-from pydantic_settings import SettingsConfigDict, BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):

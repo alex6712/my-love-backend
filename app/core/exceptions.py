@@ -73,7 +73,7 @@ class CredentialsException(UserDomainException):
     type _CredentialsType = Literal["password", "token"]
 
     def __init__(self, *args: Any, detail: str, credentials_type: _CredentialsType):
-        super().__init__(detail, *args)
+        super().__init__(*args, detail=detail)
         self.credentials_type = credentials_type
 
 
@@ -101,7 +101,7 @@ class TokenNotPassedException(UserDomainException):
     """
 
     def __init__(self, *args: Any, detail: str, token_type: TokenType):
-        super().__init__(detail, *args)
+        super().__init__(*args, detail=detail)
         self.token_type: TokenType = token_type
 
 
@@ -136,6 +136,43 @@ class UsernameAlreadyExistsException(UserDomainException):
     -----
     Возникает при попытке регистрации нового пользователя по `username`,
     который уже существует в базе данных.
+    """
+
+    pass
+
+
+class CoupleAlreadyExistsException(UserDomainException):
+    """Исключение при попытке создать уже существующую пару пользователей.
+
+    Notes
+    -----
+    Если при попытке регистрации новой пары пользователей по их UUID
+    в базе данных уже существует зарегистрированная пара пользователей
+    с такими же UUID, то будет выброшено это исключение.
+    """
+
+    pass
+
+
+class CoupleNotFoundException(UserDomainException):
+    """Исключение при отсутствии запрашиваемой пары между пользователями.
+
+    Notes
+    -----
+    Если при попытке получения пары пользователей по UUID партнёра
+    не было найдено ни одной записи, то будет вызвано это исключение.
+    """
+
+    pass
+
+
+class CoupleNotSelfException(UserDomainException):
+    """Нельзя образовать пару с самим собой.
+
+    Notes
+    -----
+    Если при попытке регистрации новой пары пользователей,
+    клиент передал два одинаковых UUID.
     """
 
     pass

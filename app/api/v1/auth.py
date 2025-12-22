@@ -21,7 +21,7 @@ router: APIRouter = APIRouter(
     "/register",
     response_model=StandardResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Регистрация пользователя",
+    summary="Регистрация пользователя.",
 )
 async def register(
     form_data: RegisterRequest,
@@ -56,7 +56,7 @@ async def register(
     "/login",
     response_model=TokensResponse,
     status_code=status.HTTP_200_OK,
-    summary="Аутентификация пользователя и установка токенов в cookies",
+    summary="Аутентификация пользователя.",
 )
 async def login(
     form_data: SignInCredentialsDependency,
@@ -93,7 +93,7 @@ async def login(
     "/refresh",
     response_model=TokensResponse,
     status_code=status.HTTP_200_OK,
-    summary="Обновление токенов доступа",
+    summary="Обновление токенов доступа.",
 )
 async def refresh(
     refresh_token: ExtractRefreshTokenDependency,
@@ -127,7 +127,7 @@ async def refresh(
     "/logout",
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
-    summary="Выход из системы",
+    summary="Выход из системы.",
 )
 async def logout(
     access_token: ExtractAccessTokenDependency,

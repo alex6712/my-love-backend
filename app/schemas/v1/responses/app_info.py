@@ -1,4 +1,4 @@
-from pydantic import Field, EmailStr
+from pydantic import EmailStr, Field
 
 from .standard import StandardResponse
 

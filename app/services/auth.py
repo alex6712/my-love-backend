@@ -2,22 +2,24 @@ from datetime import datetime, timezone
 
 from jose import ExpiredSignatureError, JWTError
 
-from app.core.security import (
-    Token,
-    Tokens,
-    Payload,
-    create_jwt_pair,
-    jwt_decode,
-    hash_,
-    verify,
-)
-from app.infrastructure.postgresql import UnitOfWork
-from app.infrastructure.redis import RedisClient
 from app.core.exceptions import (
     CredentialsException,
     TokenNotPassedException,
     TokenRevokedException,
+    UsernameAlreadyExistsException,
+    UserNotFoundException,
 )
+from app.core.security import (
+    Payload,
+    Token,
+    Tokens,
+    create_jwt_pair,
+    hash_,
+    jwt_decode,
+    verify,
+)
+from app.infrastructure.postgresql import UnitOfWork
+from app.infrastructure.redis import RedisClient
 from app.repositories.user import UserRepository
 from app.schemas.dto.user import UserDTO
 
@@ -76,6 +78,11 @@ class AuthService:
         UsernameAlreadyExistsException
            Пользователь с переданным username уже существует.
         """
+        if await self._user_repo.get_user_by_username(username) is not None:
+            raise UsernameAlreadyExistsException(
+                detail=f"User with username={username} already exists.",
+            )
+
         await self._user_repo.add_user(username, hash_(password))
 
     async def login(self, username: str, password: str) -> Tokens:
@@ -100,7 +107,12 @@ class AuthService:
         CredentialsException
             Несовпадение пароля и его хеша в БД.
         """
-        user: UserDTO = await self._user_repo.get_user_by_username(username)
+        user: UserDTO | None = await self._user_repo.get_user_by_username(username)
+
+        if user is None:
+            raise UserNotFoundException(
+                detail=f"User with username={username} not found."
+            )
 
         if not verify(password, user.password_hash):
             raise CredentialsException(
@@ -120,7 +132,7 @@ class AuthService:
         Parameters
         ----------
         refresh_token : Token | None
-            Токен обновления, полученный из cookies.
+            Токен обновления, полученный из headers.
 
         Returns
         -------
@@ -134,17 +146,23 @@ class AuthService:
         UserNotFoundException
             Пользователь с user_id из токена не найден в БД.
         CredentialsException
-            Хеш токена обновления из cookies и хеш из БД не совпадают.
+            Хеш токена обновления из headers и хеш из БД не совпадают.
         """
         if refresh_token is None:
             raise TokenNotPassedException(
-                detail="Refresh token is missing in cookies.",
+                detail="Refresh token is missing in headers.",
                 token_type="refresh",
             )
 
         payload: Payload = await AuthService._validate_token(refresh_token)
 
-        user: UserDTO = await self._user_repo.get_user_by_id(payload["sub"])
+        user: UserDTO | None = await self._user_repo.get_user_by_id(payload["sub"])
+
+        if user is None:
+            raise CredentialsException(
+                detail="Unknown user: there's no user with such id.",
+                credentials_type="token",
+            )
 
         credentials_exception: CredentialsException = CredentialsException(
             detail="The passed refresh token and the hash from the database do not match.",

@@ -1,4 +1,4 @@
-from typing import Any, cast, Self, TypeVar
+from typing import Any, Self, TypeVar, cast
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,

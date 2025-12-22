@@ -41,7 +41,7 @@ async def get_unit_of_work() -> AsyncGenerator[UnitOfWork, Any]:
         yield uow
 
 
-async def get_redis() -> AsyncGenerator[RedisClient, Any]:
+async def get_redis_client() -> AsyncGenerator[RedisClient, Any]:
     """Фабрика для создания зависимости Redis.
 
     Используется для автоматического менеджмента соединения с Redis.
@@ -69,5 +69,5 @@ MinioClientDependency = Annotated[Minio, Depends(get_minio_client)]
 UnitOfWorkDependency = Annotated[UnitOfWork, Depends(get_unit_of_work)]
 """Зависимость на получение экземпляра Unit of Work в асинхронном контексте."""
 
-RedisClientDependency = Annotated[RedisClient, Depends(get_redis)]
+RedisClientDependency = Annotated[RedisClient, Depends(get_redis_client)]
 """Зависимость на получение клиента Redis в асинхронном контексте."""

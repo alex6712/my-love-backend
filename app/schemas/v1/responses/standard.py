@@ -22,5 +22,13 @@ class StandardResponse(BaseModel):
         Сообщение с сервера.
     """
 
-    code: int = Field(default=status.HTTP_200_OK, examples=[status.HTTP_200_OK])
-    message: str = Field(default="Success!", examples=["Success!"])
+    code: int = Field(
+        default=status.HTTP_200_OK,
+        description="HTTP-статус ответа от сервера",
+        examples=[status.HTTP_200_OK],
+    )
+    message: str = Field(
+        default="Success!",
+        description="Сообщение о выполненных на сервере действиях",
+        examples=["Success!"],
+    )

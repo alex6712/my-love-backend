@@ -22,7 +22,7 @@ async def root() -> StandardResponse:
 
     Returns
     -------
-    response : StandardResponse
+    StandardResponse
         Ответ о корректной работе сервера.
     """
     return StandardResponse(message="API works!")
@@ -52,7 +52,7 @@ async def app_info(settings: SettingsDependency) -> AppInfoResponse:
 
     Returns
     -------
-    response : AppInfoResponse
+    AppInfoResponse
         Ответ, содержащий информацию о серверной стороне приложения.
     """
     return AppInfoResponse(

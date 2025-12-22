@@ -1,4 +1,4 @@
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import ForeignKey
@@ -21,26 +21,22 @@ class AlbumModel(BaseModel):
         primary_key=True,
         comment="Уникальный идентификатор альбома",
     )
-
     title: Mapped[str] = mapped_column(
         String(64),
         default="Новый альбом",
         nullable=False,
         comment="Наименование альбома",
     )
-
-    description: Mapped[str] = mapped_column(
+    description: Mapped[str | None] = mapped_column(
         Text(),
         nullable=True,
         comment="Описание альбома",
     )
-
-    cover_url: Mapped[str] = mapped_column(
+    cover_url: Mapped[str | None] = mapped_column(
         String(512),
         nullable=True,
         comment="URL обложки альбома",
     )
-
     is_private: Mapped[bool] = mapped_column(
         Boolean(),
         default=False,
@@ -48,7 +44,6 @@ class AlbumModel(BaseModel):
         index=True,
         comment="Видимость альбома (личный или публичный)",
     )
-
     created_by: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id"),
@@ -59,7 +54,8 @@ class AlbumModel(BaseModel):
     creator: Mapped["UserModel"] = relationship(
         "UserModel",
         back_populates="media_albums",
-        lazy="select",
+        viewonly=True,
+        lazy="selectin",
     )
 
     def __repr__(self, **_) -> str:

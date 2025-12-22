@@ -14,5 +14,7 @@ class RegisterRequest(BaseModel):
         Пароль пользователя.
     """
 
-    username: str = Field(examples=["someone"])
-    password: str = Field(examples=["password"])
+    username: str = Field(description="Логин пользователя", examples=["someone"])
+    password: str = Field(
+        description="Пароль пользователя в открытом формате", examples=["password"]
+    )

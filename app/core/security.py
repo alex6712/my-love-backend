@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta, timezone
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.ciphers import algorithms, Cipher, modes
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from jose import jwt
 from passlib.context import CryptContext
 
@@ -32,7 +32,9 @@ def _jwt_encode(payload: Payload) -> str:
         JSON Web Token.
     """
     return jwt.encode(
-        payload, key=settings.PRIVATE_KEY, algorithm=settings.JWT_ALGORITHM  # type: ignore
+        payload,
+        key=settings.PRIVATE_KEY,  # type: ignore
+        algorithm=settings.JWT_ALGORITHM,
     )
 
 
@@ -50,7 +52,9 @@ def jwt_decode(token: str) -> Payload:
         Словарь с информацией из JWT.
     """
     return jwt.decode(
-        token, key=settings.PUBLIC_KEY, algorithms=[settings.JWT_ALGORITHM]  # type: ignore
+        token,
+        key=settings.PUBLIC_KEY,  # type: ignore
+        algorithms=[settings.JWT_ALGORITHM],
     )
 
 
