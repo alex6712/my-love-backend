@@ -37,7 +37,7 @@
 
 ### Предварительные требования
 - Docker и Docker Compose
-- Python 3.11+ (для локальной разработки)
+- Python 3.13+ (для локальной разработки)
 
 ### Запуск в Docker (рекомендуется)
 
@@ -46,66 +46,85 @@
 git clone https://github.com/alex6712/my-love-backend.git
 cd my-love-backend
 
-# Создайте .env файл из примера
+# Сгенерируйте ключи шифрования AES-256
+openssl genrsa -aes256 -passout pass:{password} -out keys/private_key.pem.enc 2048
+openssl rsa -in private_key.pem.enc -pubout -out keys/public_key.pem
+
+# Создайте .env файл из примера и отредактируйте его
 cp .env.example .env
-# Отредактируйте .env при необходимости
 
 # Запустите все сервисы
-docker-compose up -d
+docker compose --env-file .env up -d --wait
+
+# Примените миграции
+docker compose exec my_love_backend alembic upgrade head
 ```
 
 Приложение будет доступно по адресу:
 - Backend API: http://localhost:8000
-- MinIO (файлы): http://localhost:9001
-- pgAdmin: http://localhost:5050
-- Документация API: http://localhost:8000/docs
+- PostgreSQL: http://localhost:5432
+- Redis: http://localhost:6379
+- MinIO Console: http://localhost:9001
 
 ### Локальная разработка
 
 ```bash
 # Установите зависимости
 
-# pip
+# через pip...
 pip install -r requirements.txt
 pip install -r requirements-dev.txt  # для разработки
-
-# uv
+# или с помощью uv
 uv sync
 uv sync --group dev   # для разработки
 
-# Настройте переменные окружения
-export DATABASE_URL="postgresql://user:pass@localhost/my_love"
-export REDIS_URL="redis://localhost:6379"
+# Сгенерируйте ключи шифрования AES-256
+openssl genrsa -aes256 -passout pass:{password} -out keys/private_key.pem.enc 2048
+openssl rsa -in private_key.pem.enc -pubout -out keys/public_key.pem
 
-# Запустите PostgreSQL и Redis через Docker
-docker-compose up db redis -d
+# Создайте .env файл из примера и отредактируйте его
+cp .env.example .env
+
+# Настройте свои или запустите сервисы PostgreSQL, Redis и MinIO через Docker
+docker compose up my_love_database my_love_redis my_love_minio -d --wait
 
 # Примените миграции
 alembic upgrade head
+# или
+uv run alembic upgrade head
 
 # Запустите сервер
 fastapi dev ./app/main.py
-
-# Запустите Celery worker (в отдельном терминале)
-celery - app.tasks.worker worker --loglevel=info
+# или
+uv run fastapi dev ./app/main.py
 ```
 
 ## 📁 Структура проекта
 
 ```
-my-love-backend/         # FastAPI приложение
-├── app/    
-│   ├── api/             # Эндпоинты
-│   ├── core/            # Конфигурация, безопасность
-│   ├── models/          # SQLAlchemy модели
-│   ├── schemas/         # Pydantic схемы
-│   ├── services/        # Бизнес-логика
-│   └── tasks/           # Фоновые задачи Celery
-├── migrations/          # Alembic миграции
-├── tests/               # Тесты
-├── docker/              # Docker конфиги
-├── docker-compose.yml   # Контейнеры для разработки
-└── .github/             # CI/CD workflow
+my-love-backend/            # FastAPI приложение
+├── .github/workflows/      # CI/CD workflow
+├── alembic/                # Alembic миграции
+├── app/
+│   ├── api/                # Эндпоинты
+│   │   └── v1/
+│   ├── core/               # Конфигурация, безопасность
+│   │   └── dependencies/   # Зависимости для DI
+│   ├── infrastructure/     # Инфраструктурные классы
+│   ├── models/             # SQLAlchemy модели
+│   ├── repositories/       # Репозитории для работы с БД
+│   ├── schemas/            # Pydantic схемы
+│   │   ├── dto/            # Схемы DTO
+│   │   └── v1/
+│   │       ├── requests/   # Схемы запросов
+│   │       └── responses/  # Схемы ответов
+│   ├── services/           # Бизнес-логика
+│   └── tests/              # Тестирование
+├── keys/                   # Ключи шифрования и подписи
+├── scripts/                # Utility-скрипты
+├── .env                    # Значения конфигурации приложения
+├── pyproject.toml          # Зависимости (uv)
+└── docker-compose.yml      # Контейнеры для разработки
 ```
 
 ## 📚 API Документация
@@ -118,26 +137,25 @@ my-love-backend/         # FastAPI приложение
 
 | Метод | Путь | Описание |
 |-------|------|----------|
-| POST | `/auth/login` | Вход в систему |
-| POST | `/auth/refresh` | Обновление токена |
-| POST | `/users/pair` | Привязка аккаунтов |
-| GET | `/albums` | Список альбомов |
-| POST | `/media/upload` | Загрузка медиа |
-| GET | `/notes` | Все заметки |
-| POST | `/games/start` | Начать игру |
-| WS | `/ws/games/{id}` | WebSocket для игры |
+| GET | `/v1/` | Healthcheck |
+| GET | `/v1/app_info` | Информация о приложении |
+| POST | `/v1/auth/register` | Регистрация |
+| POST | `/v1/auth/login` | Вход в систему |
+| GET | `/v1/auth/refresh` | Обновление токена |
+| POST | `/v1/auth/logout` | Выход из системы |
+| POST | `/v1/users/couple` | Создание пары |
+| GET | `/v1/users/partner` | Информация о партнёре |
+| GET | `/v1/media/albums` | Список альбомов |
+| POST | `/v1/media/albums` | Создание альбома |
 
 ## 🧪 Тестирование
 
 ```bash
 # Запуск тестов
-pytest
+uv run pytest ./app/tests/
 
 # С покрытием кода
-pytest --cov=app tests/
-
-# Запуск линтеров
-black app/
+uv run pytest --cov=app ./app/tests/
 ```
 
 ## 📦 Деплой
@@ -145,30 +163,15 @@ black app/
 ### На VPS (например, Ubuntu + Nginx)
 
 ```bash
-# 1. Клонируйте репозиторий на сервер
+# 1. Клонируйте репозиторий на сервер, например
+rsync -az --delete ./ {ssh_user}@{ssh_host}:~/my-love-backend
+
 # 2. Настройте .env для продакшена
-# 3. Запустите через Docker Compose production
-docker-compose -f docker-compose.prod.yml up -d
+# 3. Запустите через Docker Compose
+docker compose --env-file .env up -d --wait
 
 # 4. Настройте Nginx как reverse proxy
 # 5. Настройте SSL через Let's Encrypt
-```
-
-### Docker Compose для продакшена
-
-```yaml
-# docker-compose.prod.yml
-version: '3.8'
-services:
-  backend:
-    build: .
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-    env_file:
-      - .env.prod
-    depends_on:
-      - postgres
-      - redis
-    restart: always
 ```
 
 ## 🌱 Планы по развитию
