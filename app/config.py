@@ -38,14 +38,14 @@ class Settings(BaseSettings):
         Email для связи с ответственным лицом.
     BACKEND_CORS_ORIGINS : List[str]
         Список источников для CORS Middleware.
+    CURRENT_API_PATH : str
+        URL текущей версии API.
     POSTGRES_USER : str
         Пользователь базы данных для подключения.
     POSTGRES_PASSWORD : str
         Пароль пользователя для подключения к базе данных.
     POSTGRES_PORT : int
         Порт базы данных.
-    CURRENT_API_PATH : str
-        URL текущей версии API.
     POSTGRES_DB : str
         Название базы данных.
     POSTGRES_DSN : PostgresDsn

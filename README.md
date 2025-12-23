@@ -29,9 +29,9 @@
 
 ### 🔒 **Максимальная приватность**
 - Только два пользователя в системе
-- End-to-end шифрование заметок (в планах)
+- End-to-end шифрование информации (в планах)
 - Файлы хранятся в приватном бакете
-- JWT аутентификация с refresh-токенами
+- Аутентификация на JSON Web Token (JWT)
 
 ## 🚀 Быстрый старт
 
@@ -69,14 +69,16 @@ docker compose exec my_love_backend alembic upgrade head
 ### Локальная разработка
 
 ```bash
+# Клонируйте репозиторий
+git clone https://github.com/alex6712/my-love-backend.git
+cd my-love-backend
+
 # Установите зависимости
 
 # через pip...
-pip install -r requirements.txt
-pip install -r requirements-dev.txt  # для разработки
+pip install -r requirements-dev.txt
 # или с помощью uv
-uv sync
-uv sync --group dev   # для разработки
+uv sync --group dev
 
 # Сгенерируйте ключи шифрования AES-256
 openssl genrsa -aes256 -passout pass:{password} -out keys/private_key.pem.enc 2048
@@ -85,18 +87,19 @@ openssl rsa -in private_key.pem.enc -pubout -out keys/public_key.pem
 # Создайте .env файл из примера и отредактируйте его
 cp .env.example .env
 
-# Настройте свои или запустите сервисы PostgreSQL, Redis и MinIO через Docker
-docker compose up my_love_database my_love_redis my_love_minio -d --wait
+# Настройте свои сервисы PostgreSQL, Redis и MinIO или запустите готовые через Docker
+docker compose --env-file .env up my_love_database my_love_redis my_love_minio -d --wait
+
+# Активируйте виртуальное окружение
+source ./.venv/scripts/activate
+# или запускайте следующие команды с помощью
+uv run [COMMAND]
 
 # Примените миграции
 alembic upgrade head
-# или
-uv run alembic upgrade head
 
 # Запустите сервер
 fastapi dev ./app/main.py
-# или
-uv run fastapi dev ./app/main.py
 ```
 
 ## 📁 Структура проекта

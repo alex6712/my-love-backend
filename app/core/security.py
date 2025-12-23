@@ -28,7 +28,7 @@ def _jwt_encode(payload: Payload) -> str:
 
     Returns
     -------
-    token : str
+    str
         JSON Web Token.
     """
     return jwt.encode(
@@ -48,7 +48,7 @@ def jwt_decode(token: str) -> Payload:
 
     Returns
     -------
-    dictionary : Payload
+    Payload
         Словарь с информацией из JWT.
     """
     return jwt.decode(
@@ -72,18 +72,13 @@ def create_jwt(payload: Payload, expires_delta: timedelta) -> str:
 
     Returns
     -------
-    token : str
+    str
         JSON Web Token.
     """
     to_encode = payload.copy()
 
     now: datetime = datetime.now(timezone.utc)
-    to_encode.update(
-        {
-            "iat": now,
-            "exp": now + expires_delta,
-        }
-    )
+    to_encode.update({"iat": now, "exp": now + expires_delta})
 
     return _jwt_encode(to_encode)
 
@@ -111,7 +106,7 @@ def create_jwt_pair(
 
     Returns
     -------
-    tokens : Tokens
+    Tokens
         Пара JWT (токен доступа + токен обновления).
     """
     if rt_payload is None:
@@ -185,7 +180,7 @@ def verify(
 
     Returns
     -------
-    equality : bool
+    bool
         ``True``, если хеш секрета соответствует переданному секрету, в ином случае ``False``.
     """
     return pwd_context.verify(secret, hashed, scheme, category)
