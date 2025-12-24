@@ -32,10 +32,8 @@ jobs:
 
       - name: Creating AES-256 signing keys
         run: |
-          mkdir ./keys
-
-          openssl genrsa -aes256 -passout pass:${{ secrets.PRIVATE_KEY_PASSWORD }} -out keys/private_key.pem.enc 2048
-          openssl rsa -passin pass:${{ secrets.PRIVATE_KEY_PASSWORD }} -in keys/private_key.pem.enc -pubout -out keys/public_key.pem
+          chmod +x ./scripts/gen_keys.sh
+          ./scripts/gen_keys.sh
 
       - name: Set up .env file
         run: |
@@ -78,7 +76,7 @@ jobs:
             cd ~/my-love-backend
 
             chmod +x ./scripts/gen_keys.sh
-            ./scripts/gen_key.sh
+            ./scripts/gen_keys.sh
             
             docker compose --env-file .env down --remove-orphans
             docker compose --env-file .env build --pull
