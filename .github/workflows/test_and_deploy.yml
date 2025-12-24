@@ -30,15 +30,15 @@ jobs:
         run: |
           uv sync --all-extras --dev
 
-      - name: Creating AES-256 signing keys
-        run: |
-          chmod +x ./scripts/gen_keys.sh
-          ./scripts/gen_keys.sh
-
       - name: Set up .env file
         run: |
           touch .env
           echo '${{ secrets.ENV_FILE }}' > .env
+
+      - name: Creating AES-256 signing keys
+        run: |
+          chmod +x ./scripts/gen_keys.sh
+          ./scripts/gen_keys.sh
 
       - name: Run tests
         run: |
