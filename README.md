@@ -47,21 +47,18 @@
 git clone https://github.com/alex6712/my-love-backend.git
 cd my-love-backend
 
-# Создайте директорию для ключей
-mkdir keys
-
-# Сгенерируйте ключи подписи и шифрования AES-256
-openssl genrsa -aes256 -passout pass:your_secure_password -out keys/private_key.pem.enc 2048
-openssl rsa -passin pass:your_secure_password -in keys/private_key.pem.enc -pubout -out keys/public_key.pem
-
 # Создайте .env файл из примера и отредактируйте его
 cp .env.example .env
+
+# Сгенерируйте ключи подписи и шифрования AES-256
+chmod +x ./scripts/gen_keys.sh
+./scripts/gen_key.sh
 
 # Запустите все сервисы
 docker compose --env-file .env up -d --wait
 
 # Примените миграции
-docker compose exec my_love_backend alembic upgrade head
+docker compose exec my-love-backend alembic upgrade head
 ```
 
 Сервисы будут доступны по следующим адресам:
@@ -91,18 +88,15 @@ source ./.venv/bin/activate
 # и установите зависимости через pip
 pip install -r requirements-dev.txt
 
-# Создайте директорию для ключей
-mkdir keys
-
-# Сгенерируйте ключи подписи и шифрования AES-256
-openssl genrsa -aes256 -passout pass:your_secure_password -out keys/private_key.pem.enc 2048
-openssl rsa -passin pass:your_secure_password -in keys/private_key.pem.enc -pubout -out keys/public_key.pem
-
 # Создайте .env файл из примера и отредактируйте его
 cp .env.example .env
 
+# Сгенерируйте ключи подписи и шифрования AES-256
+chmod +x ./scripts/gen_keys.sh
+./scripts/gen_key.sh
+
 # Настройте свои сервисы PostgreSQL, Redis и MinIO или запустите готовые через Docker
-docker compose --env-file .env up my_love_database my_love_redis my_love_minio -d --wait
+docker compose --env-file .env up my-love-database my-love-redis my-love-minio -d --wait
 
 # Примените миграции
 alembic upgrade head
