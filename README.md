@@ -52,7 +52,7 @@ cp .env.example .env
 
 # Сгенерируйте ключи подписи и шифрования AES-256
 chmod +x ./scripts/gen_keys.sh
-./scripts/gen_key.sh
+./scripts/gen_keys.sh
 
 # Запустите все сервисы
 docker compose --env-file .env up -d --wait
@@ -93,7 +93,7 @@ cp .env.example .env
 
 # Сгенерируйте ключи подписи и шифрования AES-256
 chmod +x ./scripts/gen_keys.sh
-./scripts/gen_key.sh
+./scripts/gen_keys.sh
 
 # Настройте свои сервисы PostgreSQL, Redis и MinIO или запустите готовые через Docker
 docker compose --env-file .env up my-love-database my-love-redis my-love-minio -d --wait
