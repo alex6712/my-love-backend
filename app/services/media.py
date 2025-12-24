@@ -1,5 +1,9 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 
+from fastapi import UploadFile
+from minio import Minio
+
+from app.core.exceptions.media import UnsupportedFileTypeException
 from app.infrastructure.postgresql import UnitOfWork
 from app.repositories.media import MediaRepository
 from app.schemas.dto.album import AlbumDTO
@@ -17,6 +21,8 @@ class MediaService:
     ----------
     _media_repo : MediaRepository
         Репозиторий для операций с медиа в БД.
+    _minio_client : Minio
+        Клиент для операций с файлами в S3 хранилище.
 
     Methods
     -------
@@ -26,10 +32,11 @@ class MediaService:
         Получение всех альбомов по UUID создателя.
     """
 
-    def __init__(self, unit_of_work: UnitOfWork):
+    def __init__(self, unit_of_work: UnitOfWork, minio_client: Minio):
         super().__init__()
 
         self._media_repo: MediaRepository = unit_of_work.get_repository(MediaRepository)
+        self._minio_client: Minio = minio_client
 
     async def create_album(
         self,
@@ -80,3 +87,40 @@ class MediaService:
             Список альбомов пользователя.
         """
         return await self._media_repo.get_albums_by_creator_id(creator_id)
+
+    async def upload_file(self, file: UploadFile, owner_id: UUID) -> None:
+        """TODO: Документация, сохранение информации о загруженном файле в базу данных."""
+        file.file.seek(0, 2)
+        file_size: int = file.file.tell()
+        file.file.seek(0)
+
+        supported_types: tuple[str, ...] = (
+            "image/jpeg",
+            "image/png",
+            "video/mp4",
+            "video/quicktime",
+        )
+
+        if file.content_type not in supported_types:
+            raise UnsupportedFileTypeException(
+                detail=f"File type '{file.content_type}' is not supported {str(supported_types)}."
+            )
+
+        filename: str = uuid4().hex
+        file_extension: str = ""
+
+        if file.filename is not None and file.filename.find(".") != -1:
+            file_extension = file.filename.split(".")[1]
+
+        if file_extension not in ("jpeg", "jpg", "png", "mp4"):
+            file_extension = file.content_type.split("/")[1]
+
+        file_path: str = f"uploads/{filename}.{file_extension}"
+
+        _ = self._minio_client.put_object(
+            "my-love-bucket",
+            file_path,
+            data=file.file,
+            length=file_size,
+            content_type=file.content_type,
+        )

@@ -1,3 +1,6 @@
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -14,6 +17,8 @@ from app.core.exceptions.auth import (
 )
 from app.core.exceptions.base import AlreadyExistsException, NotFoundException
 from app.core.exceptions.couple import CoupleNotSelfException
+from app.core.exceptions.media import UnsupportedFileTypeException
+from app.infrastructure.minio import minio_client
 from app.schemas.v1.responses.standard import StandardResponse
 
 settings: Settings = get_settings()
@@ -37,16 +42,44 @@ tags_metadata = [
     },
 ]
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncGenerator[None, Any]:
+    """Менеджер срока службы FastAPI-приложения.
+
+    Используется для менеджмента самого приложения в процессе
+    его работы.
+
+    В данном случае выполняет следующие действия:
+    - Инициализирует бакет через клиент MinIO.
+
+    Parameters
+    ----------
+    _ : FastAPI
+        Объект приложения для менеджмента (не используется).
+
+    Yields
+    ------
+    None
+        При успешном выполнении ничего не возвращает.
+    """
+    if not minio_client.bucket_exists(settings.MINIO_BUCKET_NAME):
+        minio_client.make_bucket(settings.MINIO_BUCKET_NAME)
+
+    yield
+
+
 my_love_backend = FastAPI(
     title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-    description=settings.APP_DESCRIPTION,
     summary=settings.APP_SUMMARY,
+    description=settings.APP_DESCRIPTION,
+    version=settings.APP_VERSION,
+    openapi_tags=tags_metadata,
+    lifespan=lifespan,
     contact={
         "name": settings.ADMIN_NAME,
         "email": settings.ADMIN_EMAIL,
     },
-    openapi_tags=tags_metadata,
 )
 
 my_love_backend.add_middleware(
@@ -275,6 +308,37 @@ async def couple_not_self_exception_handler(
     return JSONResponse(
         content=StandardResponse(
             code=APICode.COUPLE_NOT_SELF,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+@my_love_backend.exception_handler(UnsupportedFileTypeException)
+async def unsupported_file_type_exception_handler(
+    request: Request,
+    exc: UnsupportedFileTypeException,
+) -> JSONResponse:
+    """Обрабатывает исключения UnsupportedFileTypeException.
+
+    Возвращает клиенту ответ с HTTP 400 в случае, если зафиксирована
+    попытка загрузки файла с необрабатываемым типом.
+
+    Parameters
+    ----------
+    request : Request
+        Объект запроса FastAPI, содержащий информацию о входящем HTTP-запросе (не используется).
+    exc : UnsupportedFileTypeException
+        Экземпляр исключения, из которого получаются данные для более точного ответа.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 400.
+    """
+    return JSONResponse(
+        content=StandardResponse(
+            code=APICode.UNSUPPORTED_FILE_TYPE,
             detail=exc.detail,
         ).model_dump(mode="json"),
         status_code=status.HTTP_400_BAD_REQUEST,

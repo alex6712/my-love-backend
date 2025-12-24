@@ -47,9 +47,12 @@
 git clone https://github.com/alex6712/my-love-backend.git
 cd my-love-backend
 
-# Сгенерируйте ключи шифрования AES-256
+# Создайте директорию для ключей
+mkdir keys
+
+# Сгенерируйте ключи подписи и шифрования AES-256
 openssl genrsa -aes256 -passout pass:{password} -out keys/private_key.pem.enc 2048
-openssl rsa -in private_key.pem.enc -pubout -out keys/public_key.pem
+openssl rsa -passin pass:{password} -in keys/private_key.pem.enc -pubout -out keys/public_key.pem
 
 # Создайте .env файл из примера и отредактируйте его
 cp .env.example .env
@@ -84,9 +87,12 @@ source ./.venv/bin/activate
 # и установите зависимости через pip
 pip install -r requirements-dev.txt
 
-# Сгенерируйте ключи шифрования AES-256
+# Создайте директорию для ключей
+mkdir keys
+
+# Сгенерируйте ключи подписи и шифрования AES-256
 openssl genrsa -aes256 -passout pass:{password} -out keys/private_key.pem.enc 2048
-openssl rsa -in private_key.pem.enc -pubout -out keys/public_key.pem
+openssl rsa -passin pass:{password} -in keys/private_key.pem.enc -pubout -out keys/public_key.pem
 
 # Создайте .env файл из примера и отредактируйте его
 cp .env.example .env
@@ -115,7 +121,8 @@ my-love-backend/            # FastAPI приложение
 │   ├── api/                # Эндпоинты
 │   │   └── v1/
 │   ├── core/               # Конфигурация, безопасность
-│   │   └── dependencies/   # Зависимости для DI
+│   │   ├── dependencies/   # Зависимости для DI
+│   │   └── exceptions/     # Исключения приложения
 │   ├── infrastructure/     # Инфраструктурные классы
 │   ├── models/             # SQLAlchemy модели
 │   ├── repositories/       # Репозитории для работы с БД

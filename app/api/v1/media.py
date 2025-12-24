@@ -1,4 +1,6 @@
-from fastapi import APIRouter, status
+from typing import Annotated
+
+from fastapi import APIRouter, File, UploadFile, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import MediaServiceDependency
@@ -86,3 +88,20 @@ async def post_albums(
     )
 
     return StandardResponse(detail="New album created successfully.")
+
+
+@router.post(
+    "/upload",
+    response_model=StandardResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Загрузка медиа-файлов в приватное хранилище.",
+)
+async def upload(
+    file: Annotated[UploadFile, File(...)],
+    media_service: MediaServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> StandardResponse:
+    """TODO: Документация."""
+    await media_service.upload_file(file, payload["sub"])
+
+    return StandardResponse(detail="File uploaded successfully.")

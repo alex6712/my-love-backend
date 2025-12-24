@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import Depends
 
 from app.core.dependencies.infrastructure import (
+    MinioClientDependency,
     RedisClientDependency,
     UnitOfWorkDependency,
 )
@@ -39,19 +40,21 @@ def get_auth_service(
 
 
 def get_media_service(
-    unit_of_work: UnitOfWorkDependency,
+    unit_of_work: UnitOfWorkDependency, minio_client: MinioClientDependency
 ) -> MediaService:
     """Фабрика зависимостей для создания экземпляра сервиса работы с медиа.
 
     Создает и возвращает функцию-зависимость, которая инстанцирует
     экземпляр сервиса работы с медиа, используя
-    зависимость Unit of Work.
+    зависимости Unit of Work и MinIO Client.
 
     Parameters
     ----------
     unit_of_work : UnitOfWorkDependency
         Зависимость Unit of Work, которая будет передана
         в конструктор сервиса работы с медиа.
+    minio_client: MinioClientDependency
+        Зависимость MinioClient для работы с файловым хранилищем.
 
     Returns
     -------
@@ -59,7 +62,7 @@ def get_media_service(
         Экземпляр сервиса работы с медиа с внедренными
         Unit of Work.
     """
-    return MediaService(unit_of_work)
+    return MediaService(unit_of_work, minio_client)
 
 
 def get_users_service(

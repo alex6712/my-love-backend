@@ -27,6 +27,8 @@ class APICode(Enum):
         Конфликт уникальности.
     COUPLE_NOT_SELF
         Запрещена пользовательская пара с самим собой.
+    UNSUPPORTED_FILE_TYPE
+        Не поддерживаемый тип файла.
     """
 
     SUCCESS = "SUCCESS"
@@ -62,3 +64,6 @@ class APICode(Enum):
 
     COUPLE_NOT_SELF = "COUPLE_NOT_SELF"
     """При попытке создать пользовательскую пару с самим собой."""
+
+    UNSUPPORTED_FILE_TYPE = "UNSUPPORTED_FILE_TYPE"
+    """При попытке загрузить файл с необрабатываемым типом."""

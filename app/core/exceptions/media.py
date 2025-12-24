@@ -36,3 +36,15 @@ class MediaNotFoundException(MediaDomainException, NotFoundException):
     """
 
     pass
+
+
+class UnsupportedFileTypeException(MediaDomainException):
+    """Исключение при попытке загрузить на сервер файл недопустимого формата.
+
+    Notes
+    -----
+    Возникает при попытке загрузить на сервер файл с `content_type` не входящим
+    в `["image/jpeg", "image/png", "video/mp4", "video/quicktime"]`.
+    """
+
+    pass
