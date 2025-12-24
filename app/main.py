@@ -5,15 +5,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1 import api_v1_router
 from app.config import Settings, get_settings
-from app.core.exceptions import (
-    CoupleAlreadyExistsException,
-    CoupleNotSelfException,
+from app.core.enums import APICode
+from app.core.exceptions.auth import (
     CredentialsException,
+    CredentialsType,
     TokenNotPassedException,
     TokenRevokedException,
-    UsernameAlreadyExistsException,
-    UserNotFoundException,
 )
+from app.core.exceptions.base import AlreadyExistsException, NotFoundException
+from app.core.exceptions.couple import CoupleNotSelfException
+from app.schemas.v1.responses.standard import StandardResponse
 
 settings: Settings = get_settings()
 
@@ -81,9 +82,10 @@ async def not_found_exception_handler(
         Ответ с ошибкой 404.
     """
     return JSONResponse(
-        content={
-            "detail": "Resource you're looking not exists or you're lack of rights.",
-        },
+        content=StandardResponse(
+            code=APICode.RESOURCE_NOT_FOUND,
+            detail="Resource you're looking not exists or you're lack of rights.",
+        ).model_dump(mode="json"),
         status_code=status.HTTP_404_NOT_FOUND,
     )
 
@@ -102,21 +104,24 @@ async def credentials_exception_handler(
     ----------
     request : Request
         Объект запроса с информацией о входящем HTTP-запросе (не используется).
-    _ : CredentialsException
-        Экземпляр исключения (не используется).
+    exc : CredentialsException
+        Экземпляр исключения, из которого получаются данные для более точного ответа.
 
     Returns
     -------
     JSONResponse
         Ответ с ошибкой 401.
     """
-    details: dict[str, str] = {
-        "password": "Incorrect username or password.",
-        "token": str(exc),
+    type_to_code: dict[CredentialsType, APICode] = {
+        "password": APICode.INCORRECT_USERNAME_PASSWORD,
+        "token": APICode.INCORRECT_TOKEN,
     }
 
     return JSONResponse(
-        content={"detail": details.get(exc.credentials_type)},
+        content=StandardResponse(
+            code=type_to_code[exc.credentials_type],
+            detail=exc.detail,
+        ).model_dump(mode="json"),
         status_code=status.HTTP_401_UNAUTHORIZED,
     )
 
@@ -144,9 +149,10 @@ async def token_not_passed_exception_handler(
         Ответ с указанием типа отсутствующего токен.
     """
     return JSONResponse(
-        content={
-            "detail": f"{exc.token_type.capitalize()} token is missing in headers.",
-        },
+        content=StandardResponse(
+            code=APICode.TOKEN_NOT_PASSED,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
         status_code=status.HTTP_401_UNAUTHORIZED,
     )
 
@@ -173,57 +179,61 @@ async def token_revoked_exception_handler(
         Ответ с ошибкой 401.
     """
     return JSONResponse(
-        content={
-            "detail": "Access token has been revoked.",
-        },
+        content=StandardResponse(
+            code=APICode.TOKEN_REVOKED,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
         status_code=status.HTTP_401_UNAUTHORIZED,
     )
 
 
-@my_love_backend.exception_handler(UserNotFoundException)
-async def user_not_found_exception_handler(
+@my_love_backend.exception_handler(NotFoundException)
+async def domain_not_found_exception_handler(
     request: Request,
-    _: UserNotFoundException,
+    exc: NotFoundException,
 ) -> JSONResponse:
-    """Обрабатывает исключения UserNotFoundException.
+    """Обрабатывает исключения NotFoundException.
 
-    Возвращает клиенту ответ с HTTP 401 в случае, если пользователь
-    предоставил некорректное имя пользователя `username`.
+    Возвращает клиенту ответ с HTTP 404 в случае, если пользователь
+    предоставил некорректные данные для поиска записи.
 
     Parameters
     ----------
     request : Request
         Объект запроса FastAPI, содержащий информацию о входящем HTTP-запросе (не используется).
-    _ : UserNotFoundException
-        Экземпляр вызванного исключения (не используется).
+    exc : NotFoundException
+        Экземпляр исключения, из которого получаются данные для более точного ответа.
 
     Returns
     -------
     JSONResponse
-        Ответ с ошибкой 401.
+        Ответ с ошибкой 404.
     """
     return JSONResponse(
-        content={"detail": "Incorrect username or password."},
-        status_code=status.HTTP_401_UNAUTHORIZED,
+        content=StandardResponse(
+            code=APICode.RESOURCE_NOT_FOUND,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_404_NOT_FOUND,
     )
 
 
-@my_love_backend.exception_handler(UsernameAlreadyExistsException)
+@my_love_backend.exception_handler(AlreadyExistsException)
 async def username_already_exists_exception_handler(
     request: Request,
-    exc: UsernameAlreadyExistsException,
+    exc: AlreadyExistsException,
 ) -> JSONResponse:
-    """Обрабатывает исключения UsernameAlreadyExistsException.
+    """Обрабатывает исключения AlreadyExistsException.
 
     Возвращает клиенту ответ с HTTP 409 в случае, если зафиксирована
-    попытка регистрации нового пользователя с уже существующим `username`.
+    попытка регистрации новой записи с нарушением отношения уникальности.
 
     Parameters
     ----------
     request : Request
         Объект запроса FastAPI, содержащий информацию о входящем HTTP-запросе (не используется).
-    _ : UsernameAlreadyExistsException
-        Экземпляр вызванного исключения.
+    exc : AlreadyExistsException
+        Экземпляр исключения, из которого получаются данные для более точного ответа.
 
     Returns
     -------
@@ -231,36 +241,10 @@ async def username_already_exists_exception_handler(
         Ответ с ошибкой 409.
     """
     return JSONResponse(
-        content={"detail": str(exc)},
-        status_code=status.HTTP_409_CONFLICT,
-    )
-
-
-@my_love_backend.exception_handler(CoupleAlreadyExistsException)
-async def couple_already_exists_exception_handler(
-    request: Request,
-    exc: CoupleAlreadyExistsException,
-) -> JSONResponse:
-    """Обрабатывает исключения CoupleAlreadyExistsException.
-
-    Возвращает клиенту ответ с HTTP 409 в случае, если зафиксирована
-    попытка регистрации новой пары пользователей с уже существующей парой,
-    содержащей хотя бы один из их UUID.
-
-    Parameters
-    ----------
-    request : Request
-        Объект запроса FastAPI, содержащий информацию о входящем HTTP-запросе (не используется).
-    _ : CoupleAlreadyExistsException
-        Экземпляр вызванного исключения.
-
-    Returns
-    -------
-    JSONResponse
-        Ответ с ошибкой 409.
-    """
-    return JSONResponse(
-        content={"detail": str(exc)},
+        content=StandardResponse(
+            code=APICode.UNIQUE_CONFLICT,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
         status_code=status.HTTP_409_CONFLICT,
     )
 
@@ -280,8 +264,8 @@ async def couple_not_self_exception_handler(
     ----------
     request : Request
         Объект запроса FastAPI, содержащий информацию о входящем HTTP-запросе (не используется).
-    _ : CoupleNotSelfException
-        Экземпляр вызванного исключения.
+    exc : CoupleNotSelfException
+        Экземпляр исключения, из которого получаются данные для более точного ответа.
 
     Returns
     -------
@@ -289,6 +273,9 @@ async def couple_not_self_exception_handler(
         Ответ с ошибкой 400.
     """
     return JSONResponse(
-        content={"detail": str(exc)},
+        content=StandardResponse(
+            code=APICode.COUPLE_NOT_SELF,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
         status_code=status.HTTP_400_BAD_REQUEST,
     )

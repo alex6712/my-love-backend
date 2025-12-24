@@ -2,8 +2,8 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import MediaNotFoundException
 from app.models.album import AlbumModel
 from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.album import AlbumDTO
@@ -63,7 +63,7 @@ class MediaRepository(RepositoryInterface):
             )
         )
 
-    async def get_album_by_id(self, id_: UUID) -> AlbumDTO:
+    async def get_album_by_id(self, id_: UUID) -> AlbumDTO | None:
         """Возвращает DTO медиа альбома по его id.
 
         Parameters
@@ -77,13 +77,12 @@ class MediaRepository(RepositoryInterface):
             DTO записи альбома.
         """
         album: AlbumModel | None = await self.session.scalar(
-            select(AlbumModel).where(AlbumModel.id == id_)
+            select(AlbumModel)
+            .options(selectinload(AlbumModel.creator))
+            .where(AlbumModel.id == id_)
         )
 
-        if album is None:
-            raise MediaNotFoundException(detail=f"Media album with id={id_} not found.")
-
-        return AlbumDTO.model_validate(album)
+        return AlbumDTO.model_validate(album) if album else None
 
     async def get_albums_by_creator_id(self, creator_id: UUID) -> list[AlbumDTO]:
         """Возвращает список DTO медиа альбомов по id их создателя.
@@ -99,7 +98,9 @@ class MediaRepository(RepositoryInterface):
             Список DTO созданных пользователем альбомов.
         """
         albums = await self.session.scalars(
-            select(AlbumModel).where(AlbumModel.created_by == creator_id)
+            select(AlbumModel)
+            .options(selectinload(AlbumModel.creator))
+            .where(AlbumModel.created_by == creator_id)
         )
 
         return [AlbumDTO.model_validate(album) for album in albums.all()]

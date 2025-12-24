@@ -1,9 +1,10 @@
 from uuid import UUID
 
-from app.core.exceptions import (
+from app.core.exceptions.couple import (
     CoupleAlreadyExistsException,
     CoupleNotSelfException,
 )
+from app.core.exceptions.user import UserNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
 from app.repositories.user import UserRepository
 from app.schemas.dto.user import PartnerDTO
@@ -78,8 +79,11 @@ class UsersService:
             raise CoupleNotSelfException(detail="Cannot register couple with yourself!")
 
         # проверка на существование пользователей
-        _ = await self._user_repo.get_user_by_id(user_id)
-        _ = await self._user_repo.get_user_by_id(partner_id)
+        if not await self._user_repo.user_exists_by_id(user_id):
+            raise UserNotFoundException(detail=f"User with id={user_id} not found.")
+
+        if not await self._user_repo.user_exists_by_id(partner_id):
+            raise UserNotFoundException(detail=f"User with id={partner_id} not found.")
 
         # проверка, состоят ли пользователи в паре (не только между собой)
         if await self._user_repo.get_couple_by_partner_id(user_id):

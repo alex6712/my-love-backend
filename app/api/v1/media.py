@@ -43,7 +43,7 @@ async def get_albums(
     """
     albums: list[AlbumDTO] = await media_service.get_albums(payload["sub"])
 
-    return AlbumsResponse(albums=albums, message=f"Found {len(albums)} albums.")
+    return AlbumsResponse(albums=albums, detail=f"Found {len(albums)} albums.")
 
 
 @router.post(
@@ -85,7 +85,4 @@ async def post_albums(
         created_by=payload["sub"],
     )
 
-    return StandardResponse(
-        code=status.HTTP_201_CREATED,
-        message="New album created successfully.",
-    )
+    return StandardResponse(detail="New album created successfully.")

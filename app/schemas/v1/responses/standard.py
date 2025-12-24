@@ -1,5 +1,6 @@
-from fastapi import status
 from pydantic import BaseModel, Field
+
+from app.core.enums import APICode
 
 
 class StandardResponse(BaseModel):
@@ -8,7 +9,7 @@ class StandardResponse(BaseModel):
     Используется в качестве базовой модели ответа для любого запроса к этому приложению.
 
     Это означает, что любой ответ с сервера будет содержать код ответа ``code``
-    и сообщение с сервера ``message`` в теле ответа.
+    и сообщение с сервера ``detail`` в теле ответа.
 
     See Also
     --------
@@ -18,16 +19,16 @@ class StandardResponse(BaseModel):
     ----------
     code : int
         HTTP-код ответа сервера.
-    message : str
+    detail : str
         Сообщение с сервера.
     """
 
-    code: int = Field(
-        default=status.HTTP_200_OK,
-        description="HTTP-статус ответа от сервера",
-        examples=[status.HTTP_200_OK],
+    code: APICode = Field(
+        default=APICode.SUCCESS,
+        description="Статус ответа от сервера в виде API Enum",
+        examples=[APICode.SUCCESS],
     )
-    message: str = Field(
+    detail: str = Field(
         default="Success!",
         description="Сообщение о выполненных на сервере действиях",
         examples=["Success!"],

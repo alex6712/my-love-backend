@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config import Settings, get_settings
-from app.core.exceptions import UnitOfWorkContextClosedException
+from app.core.exceptions.base import UnitOfWorkContextClosedException
 from app.repositories.interface import RepositoryInterface
 
 T = TypeVar("T", bound=RepositoryInterface)
@@ -66,7 +66,7 @@ class UnitOfWork:
     @property
     def session(self) -> AsyncSession:
         if self._session is None:
-            raise UnitOfWorkContextClosedException()
+            raise UnitOfWorkContextClosedException(domain="application")
 
         return self._session
 

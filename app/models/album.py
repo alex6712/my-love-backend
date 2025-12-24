@@ -55,7 +55,7 @@ class AlbumModel(BaseModel):
         "UserModel",
         back_populates="media_albums",
         viewonly=True,
-        lazy="selectin",
+        lazy="select",
     )
 
     def __repr__(self, **_) -> str:

@@ -10,8 +10,8 @@ from fastapi.security import (
 
 from app.config import Settings, get_settings
 from app.core.dependencies.services import AuthServiceDependency
+from app.core.exceptions.auth import AuthDomainException
 from app.core.security import Payload
-from app.core.exceptions import UserDomainException
 
 SignInCredentialsDependency = Annotated[OAuth2PasswordRequestForm, Depends()]
 """Зависимость на получение реквизитов для входа в систему"""
@@ -19,12 +19,15 @@ SignInCredentialsDependency = Annotated[OAuth2PasswordRequestForm, Depends()]
 settings: Settings = get_settings()
 
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=f"/{settings.CURRENT_API_PATH}/auth/login"
+    tokenUrl=f"/{settings.CURRENT_API_PATH}/auth/login",
+    auto_error=False,
 )
 
 
 def dependency(
-    credentials: Annotated[HTTPAuthorizationCredentials, Security(HTTPBearer())],
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Security(HTTPBearer(auto_error=False))
+    ],
 ) -> str | None:
     """Функция-зависимость на получение значения токена обновления.
 
@@ -49,10 +52,10 @@ def dependency(
     значение. Эта функция достаёт из объекта учётных данных только необходимый
     токен обновления.
     """
-    return credentials.credentials
+    return credentials.credentials if credentials else None
 
 
-ExtractAccessTokenDependency = Annotated[str, Depends(oauth2_scheme)]
+ExtractAccessTokenDependency = Annotated[str | None, Depends(oauth2_scheme)]
 """Зависимость на получение токена доступа из заголовков запроса."""
 
 ExtractRefreshTokenDependency = Annotated[str | None, Depends(dependency)]
@@ -124,7 +127,7 @@ def check_auth(strict: bool = True) -> AuthDependencyCallable:
         """
         try:
             return await auth_service.validate_access_token(access_token)
-        except UserDomainException as e:
+        except AuthDomainException as e:
             if strict:
                 raise e
 

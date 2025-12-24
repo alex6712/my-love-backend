@@ -56,13 +56,13 @@ class UserModel(BaseModel):
         "CoupleModel",
         foreign_keys="CoupleModel.partner1_id",
         viewonly=True,
-        lazy="selectin",
+        lazy="select",
     )
     couples_as_partner2: Mapped[list["CoupleModel"]] = relationship(
         "CoupleModel",
         foreign_keys="CoupleModel.partner2_id",
         viewonly=True,
-        lazy="selectin",
+        lazy="select",
     )
     media_albums: Mapped[List["AlbumModel"]] = relationship(
         "AlbumModel",
@@ -71,13 +71,13 @@ class UserModel(BaseModel):
     )
 
     async def get_partner(self) -> "UserModel | None":
-        if self.couples_as_partner1:
-            couple: CoupleModel = self.couples_as_partner1[0]
+        if await self.awaitable_attrs.couples_as_partner1:
+            couple: CoupleModel = (await self.awaitable_attrs.couples_as_partner1)[0]
 
             return await couple.awaitable_attrs.partner2
 
-        if self.couples_as_partner2:
-            couple: CoupleModel = self.couples_as_partner2[0]
+        if await self.awaitable_attrs.couples_as_partner2:
+            couple: CoupleModel = (await self.awaitable_attrs.couples_as_partner2)[0]
 
             return await couple.awaitable_attrs.partner1
 

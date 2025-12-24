@@ -2,13 +2,12 @@ from datetime import datetime, timezone
 
 from jose import ExpiredSignatureError, JWTError
 
-from app.core.exceptions import (
+from app.core.exceptions.auth import (
     CredentialsException,
     TokenNotPassedException,
     TokenRevokedException,
-    UsernameAlreadyExistsException,
-    UserNotFoundException,
 )
+from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.core.security import (
     Payload,
     Token,
@@ -78,9 +77,9 @@ class AuthService:
         UsernameAlreadyExistsException
            Пользователь с переданным username уже существует.
         """
-        if await self._user_repo.get_user_by_username(username) is not None:
+        if await self._user_repo.user_exists_by_username(username):
             raise UsernameAlreadyExistsException(
-                detail=f"User with username={username} already exists.",
+                detail=f"User with username={username} already exists."
             )
 
         await self._user_repo.add_user(username, hash_(password))
@@ -102,23 +101,21 @@ class AuthService:
 
         Raises
         ------
-        UserNotFoundException
-            Не найден пользователь с переданным username.
         CredentialsException
-            Несовпадение пароля и его хеша в БД.
+            Не найден пользователь или несовпадение пароля и его хеша в БД.
         """
         user: UserDTO | None = await self._user_repo.get_user_by_username(username)
 
+        credentials_exception: CredentialsException = CredentialsException(
+            detail="Incorrect username or password.",
+            credentials_type="password",
+        )
+
         if user is None:
-            raise UserNotFoundException(
-                detail=f"User with username={username} not found."
-            )
+            raise credentials_exception
 
         if not verify(password, user.password_hash):
-            raise CredentialsException(
-                detail="The passed password and the hash from the database do not match.",
-                credentials_type="password",
-            )
+            raise credentials_exception
 
         return await self._get_new_jwt_pair(user)
 
@@ -141,16 +138,12 @@ class AuthService:
 
         Raises
         ------
-        TokenNotPassedException
-            Отсутствует refresh-токен.
-        UserNotFoundException
-            Пользователь с user_id из токена не найден в БД.
         CredentialsException
-            Хеш токена обновления из headers и хеш из БД не совпадают.
+            Не найден пользователь или несовпадение токена обновления и его хеша в БД.
         """
         if refresh_token is None:
             raise TokenNotPassedException(
-                detail="Refresh token is missing in headers.",
+                detail="Refresh token not found in Authorization header. Make sure to add it with Bearer scheme.",
                 token_type="refresh",
             )
 
@@ -160,7 +153,7 @@ class AuthService:
 
         if user is None:
             raise CredentialsException(
-                detail="Unknown user: there's no user with such id.",
+                detail="The passed token is damaged or poorly signed.",
                 credentials_type="token",
             )
 
@@ -177,12 +170,12 @@ class AuthService:
 
         return await self._get_new_jwt_pair(user)
 
-    async def logout(self, access_token: Token) -> None:
+    async def logout(self, access_token: Token | None) -> None:
         """Выполняет выход пользователя из системы путем инвалидации JWT.
 
         Parameters
         ----------
-        access_token : Token
+        access_token : Token | None
             Валидный access токен пользователя, полученный при аутентификации.
             Должен содержать актуальный payload с идентификатором пользователя (sub).
 
@@ -202,7 +195,7 @@ class AuthService:
 
         if exp_timestamp is None:
             raise CredentialsException(
-                detail="Could not validate credentials.",
+                detail="The passed token is damaged or poorly signed.",
                 credentials_type="token",
             )
 
@@ -210,7 +203,7 @@ class AuthService:
         ttl = int(exp_timestamp - current_time)
 
         if ttl > 0:
-            await self._redis_client.revoke_token(token=access_token, ttl=ttl)
+            await self._redis_client.revoke_token(token=access_token, ttl=ttl)  # type: ignore
 
         await self._user_repo.update_refresh_token_hash(payload["sub"], None)
 
@@ -219,22 +212,17 @@ class AuthService:
 
         Parameters
         ----------
-        access_token : Token | None
+        access_token : Token
             Токен доступа, полученный из headers.
 
         Returns
         -------
         Payload
             Расшифрованные данные токена.
-
-        Raises
-        ------
-        TokenNotPassedException
-            Отсутствует токен обновления в headers.
         """
         if access_token is None:
             raise TokenNotPassedException(
-                detail="Access token is missing in headers.",
+                detail="Access token not found in Authorization header. Make sure to add it with Bearer scheme.",
                 token_type="access",
             )
 
@@ -264,22 +252,23 @@ class AuthService:
             - Если подпись токена просрочена;
             - При любых иных ошибках JWT.
         """
+        damaged: CredentialsException = CredentialsException(
+            detail="The passed token is damaged or poorly signed.",
+            credentials_type="token",
+        )
+
         try:
-            if (payload := jwt_decode(token)).get("sub") is None:
-                raise CredentialsException(
-                    detail='There is no "sub" in token payload.',
-                    credentials_type="token",
-                )
+            payload: Payload = jwt_decode(token)
+
+            if not all(payload.get(name) for name in ("sub", "iat", "exp")):
+                raise damaged
         except ExpiredSignatureError:
             raise CredentialsException(
-                detail="Signature has expired.",
+                detail="Signature of passed token has expired.",
                 credentials_type="token",
             )
         except JWTError:
-            raise CredentialsException(
-                detail="Could not validate credentials.",
-                credentials_type="token",
-            )
+            raise damaged
 
         return payload
 
@@ -306,6 +295,7 @@ class AuthService:
                 "name": user.username,
             }
         )
+
         await self._user_repo.update_refresh_token_hash(
             user.id, hash_(tokens["refresh"])
         )

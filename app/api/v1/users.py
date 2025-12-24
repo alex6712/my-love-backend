@@ -44,7 +44,7 @@ async def get_partner(
 
     return PartnerResponse(
         partner=partner,
-        message="Partner found." if partner else "Partner not found.",
+        detail="Partner found." if partner else "Partner not found.",
     )
 
 
@@ -81,7 +81,4 @@ async def post_couple(
     """
     await users_service.register_couple(payload["sub"], form_data.partner_id)
 
-    return StandardResponse(
-        code=status.HTTP_201_CREATED,
-        message="Couple register successfully.",
-    )
+    return StandardResponse(detail="Couple register successfully.")

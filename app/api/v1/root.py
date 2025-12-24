@@ -25,7 +25,7 @@ async def root() -> StandardResponse:
     StandardResponse
         Ответ о корректной работе сервера.
     """
-    return StandardResponse(message="API works!")
+    return StandardResponse(detail="API works!")
 
 
 @router.get(

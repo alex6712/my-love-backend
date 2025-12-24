@@ -34,12 +34,12 @@ class CoupleModel(BaseModel):
     partner1: Mapped["UserModel"] = relationship(
         "UserModel",
         foreign_keys=[partner1_id],
-        lazy="selectin",
+        lazy="select",
     )
     partner2: Mapped["UserModel"] = relationship(
         "UserModel",
         foreign_keys=[partner2_id],
-        lazy="selectin",
+        lazy="select",
     )
 
     def __repr__(self, **_) -> str:

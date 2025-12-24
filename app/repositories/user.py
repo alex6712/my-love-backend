@@ -1,9 +1,9 @@
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import UserNotFoundException
 from app.models.couple import CoupleModel
 from app.models.user import UserModel
 from app.repositories.interface import RepositoryInterface
@@ -27,8 +27,12 @@ class UserRepository(RepositoryInterface):
         Добавляет в базу данных новую запись о пользователе.
     get_user_by_id(id_)
         Возвращает модель пользователя по его id.
+    user_exists_by_id(user_id)
+        Проверка на существование пользователя по его UUID.
     get_user_by_username(username)
         Возвращает модель пользователя по его username.
+    user_exists_by_username(username)
+        Проверка на существование пользователя по его username.
     get_partner_by_user_id(user_id)
         Получение информации о партнёре пользователя.
     get_couple_by_partner_id(partner_id)
@@ -76,6 +80,26 @@ class UserRepository(RepositoryInterface):
 
         return UserDTO.model_validate(user) if user else None
 
+    async def user_exists_by_id(self, user_id: UUID) -> bool:
+        """Проверка на существование пользователя по его UUID.
+
+        Получает на вход UUID пользователя, проверяет, существует ли такой
+        пользователь в базе данных.
+
+        Parameters
+        ----------
+        user_id : UUID
+            UUID пользователя для проверки.
+
+        Returns
+        -------
+        bool
+            Результат проверки:
+            - True если пользователь существует;
+            - False если пользователь не найден.
+        """
+        return await self._get_user_by_id(user_id) is not None
+
     async def _get_user_by_id(self, id_: UUID) -> UserModel | None:
         """Возвращает модель пользователя по его id.
 
@@ -108,6 +132,26 @@ class UserRepository(RepositoryInterface):
 
         return UserDTO.model_validate(user) if user else None
 
+    async def user_exists_by_username(self, username: str) -> bool:
+        """Проверка на существование пользователя по его username.
+
+        Получает на вход username пользователя, проверяет, существует ли такой
+        пользователь в базе данных.
+
+        Parameters
+        ----------
+        username : str
+            username пользователя для проверки.
+
+        Returns
+        -------
+        bool
+            Результат проверки:
+            - True если пользователь существует;
+            - False если пользователь не найден.
+        """
+        return await self._get_user_by_username(username) is not None
+
     async def _get_user_by_username(self, username: str) -> UserModel | None:
         """Возвращает модель пользователя по его username.
 
@@ -128,8 +172,8 @@ class UserRepository(RepositoryInterface):
     async def get_partner_by_user_id(self, user_id: UUID) -> PartnerDTO | None:
         """Получение информации о партнёре пользователя.
 
-        Получает UUID пользователя, проверяет его на существование,
-        возвращает сохранённую информацию о партнёре этого пользователя.
+        Получает UUID пользователя, загружает информацию о паре,
+        в которой этот пользователь состоит и возвращает DTO партнёра.
 
         Parameters
         ----------
@@ -142,20 +186,13 @@ class UserRepository(RepositoryInterface):
             Сохранённая о партнёре пользователя информация:
             - PartnerDTO если партнёр найден;
             - None если партнёр не найден.
-
-        Raises
-        ------
-        UserNotFoundException
-            Пользователь с таким UUID не найден.
         """
-        user: UserModel | None = await self._get_user_by_id(user_id)
+        couple: CoupleDTO | None = await self.get_couple_by_partner_id(user_id)
 
-        if user is None:
-            raise UserNotFoundException(detail=f"User with id={user_id} not found.")
+        if couple is None:
+            return None
 
-        partner: UserModel | None = await user.get_partner()
-
-        return PartnerDTO.model_validate(partner) if partner else None
+        return couple.partner1 if couple.partner2.id == user_id else couple.partner2
 
     async def get_couple_by_partner_id(self, partner_id: UUID) -> CoupleDTO | None:
         """Получение DTO пары по UUID одного из партнёров.
@@ -174,7 +211,12 @@ class UserRepository(RepositoryInterface):
             DTO пары между пользователем и его партнёром, None - если пользователь не состоит в паре.
         """
         couple: CoupleModel | None = await self.session.scalar(
-            select(CoupleModel).where(
+            select(CoupleModel)
+            .options(
+                selectinload(CoupleModel.partner1),
+                selectinload(CoupleModel.partner2),
+            )
+            .where(
                 or_(
                     CoupleModel.partner1_id == partner_id,
                     CoupleModel.partner2_id == partner_id,
@@ -208,26 +250,15 @@ class UserRepository(RepositoryInterface):
     ):
         """Перезаписывает токен обновления пользователя.
 
-        Notes
-        -----
-        В этом случае используются функции SQLAlchemy ORM, которые позволяют
-        изменить значение атрибута объекта записи пользователя,
-        и при закрытии сессии эти изменения будут сохранены в базе данных.
-
         Parameters
         ----------
         user_id : UUID
             UUID пользователя, у которого необходимо изменить хеш токена.
         refresh_token_hash : str | None
             Новый токен обновления в хэшированном виде.
-
-        Raises
-        ------
-        UserNotFoundException
-            Пользователь с таким UUID не найден.
         """
-        user: UserModel | None = await self._get_user_by_id(user_id)
-        if user is None:
-            raise UserNotFoundException(detail=f"User with id={user_id} not found.")
-
-        user.refresh_token_hash = refresh_token_hash
+        await self.session.execute(
+            update(UserModel)
+            .where(UserModel.id == user_id)
+            .values(refresh_token_hash=refresh_token_hash)
+        )

@@ -46,10 +46,7 @@ async def register(
     """
     await auth_service.register(form_data.username, form_data.password)
 
-    return StandardResponse(
-        code=status.HTTP_201_CREATED,
-        message="User created successfully.",
-    )
+    return StandardResponse(detail="User created successfully.")
 
 
 @router.post(
@@ -84,6 +81,7 @@ async def login(
     )
 
     return TokensResponse(
+        detail="Login successful.",
         access_token=tokens["access"],
         refresh_token=tokens["refresh"],
     )
@@ -118,6 +116,7 @@ async def refresh(
     tokens: Tokens = await auth_service.refresh(refresh_token)
 
     return TokensResponse(
+        detail="Refresh successful.",
         access_token=tokens["access"],
         refresh_token=tokens["refresh"],
     )
@@ -157,4 +156,4 @@ async def logout(
     """
     await auth_service.logout(access_token)
 
-    return StandardResponse(message="User successfully logout.")
+    return StandardResponse(detail="User successfully logout.")
