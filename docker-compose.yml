@@ -1,6 +1,6 @@
 services:
-  my_love_backend:
-    container_name: my_love_backend
+  my-love-backend:
+    container_name: my-love-backend
     build: .
     ports:
       - "127.0.0.1:8000:8000"
@@ -11,9 +11,9 @@ services:
     networks:
       - my_love_application_net
 
-  my_love_database:
+  my-love-database:
     image: postgres:17
-    container_name: my_love_database
+    container_name: my-love-database
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -25,9 +25,9 @@ services:
     networks:
       - my_love_application_net
 
-  my_love_redis:
+  my-love-redis:
     image: redis:7-alpine
-    container_name: my_love_redis
+    container_name: my-love-redis
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
@@ -37,14 +37,12 @@ services:
     networks:
       - my_love_application_net
     command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD}
-      --appendonly yes
+      redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
     restart: unless-stopped
 
-  my_love_minio:
+  my-love-minio:
     image: minio/minio
-    container_name: my_love_minio
+    container_name: my-love-minio
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -61,6 +59,7 @@ volumes:
   pgdata:
   redis_data:
   minio_data:
+
 
 networks:
   my_love_application_net:
