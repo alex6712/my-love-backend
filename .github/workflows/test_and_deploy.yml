@@ -9,38 +9,45 @@ on:
       - master
 
 jobs:
-  # test-my-love-backend:
-  #   runs-on: ubuntu-latest
+  test-my-love-backend:
+    runs-on: ubuntu-latest
 
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v3
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-  #     - name: Set up Python
-  #       uses: actions/setup-python@v4
-  #       with:
-  #         python-version: '3.13.5'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13.5'
 
-  #     - name: Install uv
-  #       uses: astral-sh/setup-uv@v3
-  #       with:
-  #         version: "latest"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
 
-  #     - name: Install dependencies with uv
-  #       run: |
-  #         uv sync --all-extras --dev
+      - name: Install dependencies with uv
+        run: |
+          uv sync --all-extras --dev
 
-  #     - name: Set up .env file
-  #       run: |
-  #         touch .env
-  #         echo '${{ secrets.ENV_FILE }}' > .env
+      - name: Creating AES-256 signing keys
+        run: |
+          mkdir ./keys
 
-  #     - name: Run tests
-  #       run: |
-  #         uv run pytest app/tests
+          openssl genrsa -aes256 -passout pass:${{ secrets.PRIVATE_KEY_PASSWORD }} -out keys/private_key.pem.enc 2048
+          openssl rsa -passin pass:${{ secrets.PRIVATE_KEY_PASSWORD }} -in keys/private_key.pem.enc -pubout -out keys/public_key.pem
+
+      - name: Set up .env file
+        run: |
+          touch .env
+          echo '${{ secrets.ENV_FILE }}' > .env
+
+      - name: Run tests
+        run: |
+          uv run pytest app/tests
 
   deploy-my-love-backend:
-    # needs: test-my-love-backend
+    needs: test-my-love-backend
     if: github.ref == 'refs/heads/master'
 
     runs-on: ubuntu-latest
@@ -63,12 +70,17 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ~/my-love-backend"
   
-          rsync -az ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/my-love-backend
-          
+          rsync -az --delete ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/my-love-backend
+
       - name: Deploy with Docker Compose
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << EOF
             cd ~/my-love-backend
+
+            mkdir ./keys
+
+            openssl genrsa -aes256 -passout pass:${{ secrets.PRIVATE_KEY_PASSWORD }} -out keys/private_key.pem.enc 2048
+            openssl rsa -passin pass:${{ secrets.PRIVATE_KEY_PASSWORD }} -in keys/private_key.pem.enc -pubout -out keys/public_key.pem
             
             docker compose --env-file .env down --remove-orphans
             docker compose --env-file .env build --pull
