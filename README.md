@@ -37,7 +37,7 @@
 
 ### Предварительные требования
 - Docker и Docker Compose (v2+)
-- Python 3.10+ и (для локальной разработки)
+- Python 3.10+ (для локальной разработки)
 - OpenSSL
 
 ### Запуск в Docker (рекомендуется)
@@ -51,8 +51,8 @@ cd my-love-backend
 mkdir keys
 
 # Сгенерируйте ключи подписи и шифрования AES-256
-openssl genrsa -aes256 -passout pass:{password} -out keys/private_key.pem.enc 2048
-openssl rsa -passin pass:{password} -in keys/private_key.pem.enc -pubout -out keys/public_key.pem
+openssl genrsa -aes256 -passout pass:your_secure_password -out keys/private_key.pem.enc 2048
+openssl rsa -passin pass:your_secure_password -in keys/private_key.pem.enc -pubout -out keys/public_key.pem
 
 # Создайте .env файл из примера и отредактируйте его
 cp .env.example .env
@@ -64,13 +64,17 @@ docker compose --env-file .env up -d --wait
 docker compose exec my_love_backend alembic upgrade head
 ```
 
-Приложение будет доступно по адресу:
+Сервисы будут доступны по следующим адресам:
 - Backend API: http://localhost:8000
 - PostgreSQL: http://localhost:5432
 - Redis: http://localhost:6379
-- MinIO Console: http://localhost:9001
+- MinIO: http://localhost:9000
+
+Также будет доступна MinIO Console: http://localhost:9001
 
 ### Локальная разработка
+
+Рекомендуется установить пакетный менеджер uv (см. [как установить](https://docs.astral.sh/uv/getting-started/installation/)). В ином случае используйте pip.
 
 ```bash
 # Клонируйте репозиторий
@@ -91,8 +95,8 @@ pip install -r requirements-dev.txt
 mkdir keys
 
 # Сгенерируйте ключи подписи и шифрования AES-256
-openssl genrsa -aes256 -passout pass:{password} -out keys/private_key.pem.enc 2048
-openssl rsa -passin pass:{password} -in keys/private_key.pem.enc -pubout -out keys/public_key.pem
+openssl genrsa -aes256 -passout pass:your_secure_password -out keys/private_key.pem.enc 2048
+openssl rsa -passin pass:your_secure_password -in keys/private_key.pem.enc -pubout -out keys/public_key.pem
 
 # Создайте .env файл из примера и отредактируйте его
 cp .env.example .env
@@ -115,7 +119,7 @@ uv run fastapi dev ./app/main.py
 
 ```
 my-love-backend/            # FastAPI приложение
-├── .github/workflows/      # CI/CD workflow
+├── .github/workflows/      # CI/CD workflow (тесты и деплой)
 ├── alembic/                # Alembic миграции
 ├── app/
 │   ├── api/                # Эндпоинты
@@ -134,7 +138,7 @@ my-love-backend/            # FastAPI приложение
 │   ├── services/           # Бизнес-логика
 │   └── tests/              # Тестирование
 ├── keys/                   # Ключи шифрования и подписи
-├── scripts/                # Utility-скрипты
+├── scripts/                # Утилиты для администрирования
 ├── .env                    # Значения конфигурации приложения
 ├── pyproject.toml          # Зависимости (uv)
 └── docker-compose.yml      # Контейнеры для разработки
@@ -148,18 +152,18 @@ my-love-backend/            # FastAPI приложение
 
 ## 🎯 Основные эндпоинты
 
-| Метод | Путь | Описание |
-|-------|------|----------|
-| GET | `/v1/` | Healthcheck |
-| GET | `/v1/app_info` | Информация о приложении |
-| POST | `/v1/auth/register` | Регистрация |
-| POST | `/v1/auth/login` | Вход в систему |
-| GET | `/v1/auth/refresh` | Обновление токена |
-| POST | `/v1/auth/logout` | Выход из системы |
-| POST | `/v1/users/couple` | Создание пары |
-| GET | `/v1/users/partner` | Информация о партнёре |
-| GET | `/v1/media/albums` | Список альбомов |
-| POST | `/v1/media/albums` | Создание альбома |
+| Метод | Путь | Описание | Авторизация |
+|-------|------|----------|-------------|
+| GET | `/v1/` | Healthcheck | ❌ |
+| GET | `/v1/app_info` | Информация о приложении | ❌ |
+| POST | `/v1/auth/register` | Регистрация | ❌ |
+| POST | `/v1/auth/login` | Вход в систему | ❌ |
+| GET | `/v1/auth/refresh` | Обновление токена | ✅ |
+| POST | `/v1/auth/logout` | Выход из системы | ✅ |
+| POST | `/v1/users/couple` | Создание пары | ✅ |
+| GET | `/v1/users/partner` | Информация о партнёре | ✅ |
+| GET | `/v1/media/albums` | Список альбомов | ✅ |
+| POST | `/v1/media/albums` | Создание альбома | ✅ |
 
 ## 🧪 Тестирование
 
@@ -167,8 +171,8 @@ my-love-backend/            # FastAPI приложение
 # Запуск тестов
 uv run pytest ./app/tests/
 
-# С покрытием кода
-uv run pytest --cov=app ./app/tests/
+# С покрытием кода (отчёт будет в папке htmlcov)
+uv run pytest --cov=app --cov-report html ./app/tests/
 ```
 
 ## 📦 Деплой

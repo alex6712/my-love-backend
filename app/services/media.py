@@ -110,7 +110,7 @@ class MediaService:
         file_extension: str = ""
 
         if file.filename is not None and file.filename.find(".") != -1:
-            file_extension = file.filename.split(".")[1]
+            file_extension = file.filename.rsplit(".")[0]
 
         if file_extension not in ("jpeg", "jpg", "png", "mp4"):
             file_extension = file.content_type.split("/")[1]
