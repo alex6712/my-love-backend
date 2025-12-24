@@ -5,9 +5,9 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
-      - my_love_database
-      - my_love_redis
-      - my_love_minio
+      - my-love-database
+      - my-love-redis
+      - my-love-minio
     networks:
       - my_love_application_net
 
