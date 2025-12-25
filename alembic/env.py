@@ -4,10 +4,11 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from alembic import context
 
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -28,7 +29,7 @@ target_metadata = BaseModel.metadata
 def run_migrations_offline() -> None:
     """Запуск миграций в оффлайн режиме."""
     context.configure(
-        url=settings.POSTGRES_DSN,
+        url=settings.POSTGRES_DSN.unicode_string(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -41,7 +42,7 @@ def run_migrations_offline() -> None:
 async def run_migrations_online() -> None:
     """Запуск миграций в онлайн режиме с асинхронным движком."""
     configuration: dict[str, str] = config.get_section(config.config_ini_section)  # type: ignore
-    configuration["sqlalchemy.url"] = settings.POSTGRES_DSN
+    configuration["sqlalchemy.url"] = settings.POSTGRES_DSN.unicode_string()
 
     connectable = async_engine_from_config(
         configuration,
