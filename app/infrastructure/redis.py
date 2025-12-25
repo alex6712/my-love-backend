@@ -48,7 +48,7 @@ class RedisClient:
             Если подключение уже было установлено
         """
         self._pool = redis.ConnectionPool.from_url(  # type: ignore
-            settings.REDIS_URL,
+            settings.REDIS_URL.unicode_string(),
             decode_responses=True,
             max_connections=10,
         )

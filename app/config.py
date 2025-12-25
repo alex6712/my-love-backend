@@ -2,8 +2,11 @@ from functools import lru_cache
 from os.path import abspath
 
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
-from pydantic import EmailStr, field_validator, model_validator
+from cryptography.hazmat.primitives.asymmetric.ec import (
+    EllipticCurvePrivateKey,
+    EllipticCurvePublicKey,
+)
+from pydantic import EmailStr, PostgresDsn, RedisDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -58,7 +61,7 @@ class Settings(BaseSettings):
         Порт Redis.
     REDIS_DB : int
         Номер базы данных Redis.
-    REDIS_URL : str
+    REDIS_URL : RedisDsn
         URL Redis.
     MINIO_HOST : str
         Наименование хоста, на котором размещён сервер MinIO.
@@ -74,12 +77,12 @@ class Settings(BaseSettings):
         Наименование бакета на сервере MinIO.
     MINIO_ENDPOINT : str
         Полная ссылка на сервер MinIO.
-    PRIVATE_KEY_PASSWORD : str
+    PRIVATE_SIGNATURE_KEY_PASSWORD: str
         Пароль для дешифровки приватного ключа кодирования JWT.
-    PRIVATE_KEY : RSAPrivateKey | None
-        Приватный ключ шифрования JWT.
-    PUBLIC_KEY : RSAPublicKey | None
-        Публичный ключ шифрования JWT.
+    PRIVATE_SIGNATURE_KEY : EllipticCurvePrivateKey | None
+        Приватный ключ подписи JWT.
+    PUBLIC_SIGNATURE_KEY : EllipticCurvePublicKey | None
+        Публичный ключ подписи JWT.
     JWT_ALGORITHM : str
         Алгоритм кодирования JWT.
     ACCESS_TOKEN_LIFETIME_MINUTES : int
@@ -113,14 +116,14 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int
     POSTGRES_DB: str
 
-    POSTGRES_DSN: str
+    POSTGRES_DSN: PostgresDsn
 
     REDIS_HOST: str
     REDIS_PASSWORD: str
     REDIS_PORT: int
     REDIS_DB: int
 
-    REDIS_URL: str
+    REDIS_URL: RedisDsn
 
     MINIO_HOST: str
     MINIO_ROOT_USER: str
@@ -131,7 +134,7 @@ class Settings(BaseSettings):
 
     MINIO_ENDPOINT: str
 
-    PRIVATE_KEY_PASSWORD: str
+    PRIVATE_SIGNATURE_KEY_PASSWORD: str
 
     JWT_ALGORITHM: str
     ACCESS_TOKEN_LIFETIME_MINUTES: int
@@ -145,8 +148,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    PRIVATE_KEY: RSAPrivateKey | None = None
-    PUBLIC_KEY: RSAPublicKey | None = None
+    PRIVATE_SIGNATURE_KEY: EllipticCurvePrivateKey | None = None
+    PUBLIC_SIGNATURE_KEY: EllipticCurvePublicKey | None = None
 
     @model_validator(mode="after")
     def load_keys(self) -> "Settings":
@@ -154,10 +157,14 @@ class Settings(BaseSettings):
         public_key_path = abspath("keys/public_key.pem")
 
         with open(public_key_path, "rb") as key_file:
-            self.PUBLIC_KEY = serialization.load_pem_public_key(key_file.read())  # type: ignore
+            self.PUBLIC_SIGNATURE_KEY = serialization.load_pem_public_key(  # type: ignore
+                key_file.read()
+            )
 
-        if not self.PRIVATE_KEY_PASSWORD:
-            raise ValueError("PRIVATE_KEY_PASSWORD is required to load the private key")
+        if not self.PRIVATE_SIGNATURE_KEY_PASSWORD:
+            raise ValueError(
+                "PRIVATE_SIGNATURE_KEY_PASSWORD is required to load the private key"
+            )
 
         private_key_path = abspath("keys/private_key.pem.enc")
 
@@ -165,12 +172,13 @@ class Settings(BaseSettings):
             encrypted_key = key_file.read()
             try:
                 private_key = serialization.load_pem_private_key(
-                    encrypted_key, password=self.PRIVATE_KEY_PASSWORD.encode("utf-8")
+                    encrypted_key,
+                    password=self.PRIVATE_SIGNATURE_KEY_PASSWORD.encode("utf-8"),
                 )
             except Exception as e:
                 raise ValueError(f"Failed to decrypt private key: {e}")
 
-            self.PRIVATE_KEY = private_key  # type: ignore
+            self.PRIVATE_SIGNATURE_KEY = private_key  # type: ignore
 
         return self
 

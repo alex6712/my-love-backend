@@ -16,7 +16,7 @@ T = TypeVar("T", bound=RepositoryInterface)
 settings: Settings = get_settings()
 
 engine: AsyncEngine = create_async_engine(
-    url=settings.POSTGRES_DSN,
+    url=settings.POSTGRES_DSN.unicode_string(),
     echo=False,
     pool_pre_ping=True,
 )

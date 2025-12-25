@@ -33,7 +33,7 @@ def _jwt_encode(payload: Payload) -> str:
     """
     return jwt.encode(
         payload,
-        key=settings.PRIVATE_KEY,  # type: ignore
+        key=settings.PRIVATE_SIGNATURE_KEY,  # type: ignore
         algorithm=settings.JWT_ALGORITHM,
     )
 
@@ -53,7 +53,7 @@ def jwt_decode(token: str) -> Payload:
     """
     return jwt.decode(
         token,
-        key=settings.PUBLIC_KEY,  # type: ignore
+        key=settings.PUBLIC_SIGNATURE_KEY,  # type: ignore
         algorithms=[settings.JWT_ALGORITHM],
     )
 
