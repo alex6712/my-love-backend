@@ -150,9 +150,13 @@ async def credentials_exception_handler(
         "token": APICode.INCORRECT_TOKEN,
     }
 
+    code: APICode = type_to_code[exc.credentials_type]
+    if exc.detail == "Signature of passed token has expired.":
+        code = APICode.TOKEN_SIGNATURE_EXPIRED
+
     return JSONResponse(
         content=StandardResponse(
-            code=type_to_code[exc.credentials_type],
+            code=code,
             detail=exc.detail,
         ).model_dump(mode="json"),
         status_code=status.HTTP_401_UNAUTHORIZED,

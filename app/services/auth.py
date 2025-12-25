@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from uuid import UUID
 
 from jose import ExpiredSignatureError, JWTError
 
@@ -270,6 +271,9 @@ class AuthService:
         except JWTError:
             raise damaged
 
+        # перевод обратно из строки в объект UUID (см. _get_new_jwt_pair)
+        payload["sub"] = UUID(payload["sub"])
+
         return payload
 
     async def _get_new_jwt_pair(self, user: UserDTO) -> Tokens:
@@ -291,6 +295,7 @@ class AuthService:
         """
         tokens: Tokens = create_jwt_pair(
             {
+                # перевод UUID в строку, т.к. этот объект не сериализуется
                 "sub": str(user.id),
                 "name": user.username,
             }

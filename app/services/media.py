@@ -1,11 +1,13 @@
+from typing import cast
 from uuid import UUID, uuid4
 
 from fastapi import UploadFile
 from minio import Minio
 
+from app.config import Settings
 from app.core.exceptions.media import UnsupportedFileTypeException
 from app.infrastructure.postgresql import UnitOfWork
-from app.repositories.media import MediaRepository
+from app.repositories.media import MediaRepository, MediaType
 from app.schemas.dto.album import AlbumDTO
 
 
@@ -32,11 +34,14 @@ class MediaService:
         Получение всех альбомов по UUID создателя.
     """
 
-    def __init__(self, unit_of_work: UnitOfWork, minio_client: Minio):
+    def __init__(
+        self, unit_of_work: UnitOfWork, minio_client: Minio, settings: Settings
+    ):
         super().__init__()
 
         self._media_repo: MediaRepository = unit_of_work.get_repository(MediaRepository)
         self._minio_client: Minio = minio_client
+        self._settings: Settings = settings
 
     async def create_album(
         self,
@@ -117,10 +122,20 @@ class MediaService:
 
         file_path: str = f"uploads/{filename}.{file_extension}"
 
-        _ = self._minio_client.put_object(
-            "my-love-bucket",
-            file_path,
-            data=file.file,
-            length=file_size,
-            content_type=file.content_type,
+        try:
+            _ = self._minio_client.put_object(
+                "my-love-bucket",
+                file_path,
+                data=file.file,
+                length=file_size,
+                content_type=file.content_type,
+            )
+        except Exception:
+            raise
+
+        await self._media_repo.add_file(
+            url=f"https://{self._settings.MINIO_ENDPOINT}/{file_path}",
+            type_=cast(MediaType, file.content_type.split("/")[0]),
+            created_by=owner_id,
+            album_id=UUID("5d322ae1-4313-4e25-8880-b09c485c285a"),
         )

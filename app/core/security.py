@@ -13,7 +13,7 @@ type TokenType = Literal["access", "refresh"]
 
 type Token = str
 type Tokens = dict[TokenType, Token]
-type Payload = dict[Any, Any]
+type Payload = dict[str, Any]
 
 settings: Settings = get_settings()
 

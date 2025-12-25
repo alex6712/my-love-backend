@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING, Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -8,6 +8,7 @@ from sqlalchemy.types import Boolean, String, Text, Uuid
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
+    from app.models.media import MediaModel
     from app.models.user import UserModel
 
 
@@ -15,12 +16,6 @@ class AlbumModel(BaseModel):
     __tablename__ = "albums"
     __table_args__ = {"comment": "Созданные пользователями альбомы медиа"}
 
-    id: Mapped[UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        default=uuid4,
-        primary_key=True,
-        comment="Уникальный идентификатор альбома",
-    )
     title: Mapped[str] = mapped_column(
         String(64),
         default="Новый альбом",
@@ -57,10 +52,15 @@ class AlbumModel(BaseModel):
         viewonly=True,
         lazy="select",
     )
+    items: Mapped[list["MediaModel"]] = relationship(
+        "MediaModel",
+        back_populates="album",
+        viewonly=True,
+        lazy="select",
+    )
 
     def __repr__(self, **_) -> str:
         attrs: dict[str, Any] = {
-            "id": self.id,
             "title": self.title,
             "description": self.description,
             "cover_url": self.cover_url,

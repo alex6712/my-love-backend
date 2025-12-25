@@ -1,26 +1,20 @@
-from typing import TYPE_CHECKING, Any, List
-from uuid import UUID, uuid4
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.types import Boolean, String, Uuid
+from sqlalchemy.types import Boolean, String
 
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
     from app.models.album import AlbumModel
     from app.models.couple import CoupleModel
+    from app.models.media import MediaModel
 
 
 class UserModel(BaseModel):
     __tablename__ = "users"
     __table_args__ = {"comment": "Аутентифицированные пользователи системы"}
 
-    id: Mapped[UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        default=uuid4,
-        primary_key=True,
-        comment="Уникальный идентификатор пользователя",
-    )
     username: Mapped[str] = mapped_column(
         String(64),
         nullable=False,
@@ -64,8 +58,13 @@ class UserModel(BaseModel):
         viewonly=True,
         lazy="select",
     )
-    media_albums: Mapped[List["AlbumModel"]] = relationship(
+    media_albums: Mapped[list["AlbumModel"]] = relationship(
         "AlbumModel",
+        back_populates="creator",
+        lazy="select",
+    )
+    media_items: Mapped[list["MediaModel"]] = relationship(
+        "MediaModel",
         back_populates="creator",
         lazy="select",
     )
@@ -85,7 +84,6 @@ class UserModel(BaseModel):
 
     def __repr__(self, **_) -> str:
         attrs: dict[str, Any] = {
-            "id": self.id,
             "username": self.username,
             "avatar_url": self.avatar_url,
             "is_active": self.is_active,

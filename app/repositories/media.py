@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -5,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.album import AlbumModel
+from app.models.media import MediaModel, MediaType
 from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.album import AlbumDTO
 
@@ -104,3 +106,26 @@ class MediaRepository(RepositoryInterface):
         )
 
         return [AlbumDTO.model_validate(album) for album in albums.all()]
+
+    async def add_file(
+        self,
+        url: str,
+        type_: MediaType,
+        created_by: UUID,
+        album_id: UUID,
+        title: str | None = None,
+        description: str | None = None,
+        geo_data: dict[str, Any] | None = None,
+    ) -> None:
+        """TODO: Документация."""
+        self.session.add(
+            MediaModel(
+                url=url,
+                type_=type_,
+                title=title,
+                description=description,
+                geo_data=geo_data,
+                created_by=created_by,
+                album_id=album_id,
+            )
+        )
