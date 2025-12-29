@@ -157,8 +157,11 @@ my-love-backend/            # FastAPI приложение
 | POST | `/v1/auth/login` | Вход в систему | ❌ |
 | GET | `/v1/auth/refresh` | Обновление токена | ✅ |
 | POST | `/v1/auth/logout` | Выход из системы | ✅ |
-| POST | `/v1/users/couple` | Создание пары | ✅ |
-| GET | `/v1/users/partner` | Информация о партнёре | ✅ |
+| GET | `/v1/couples/partner` | Информация о партнёре | ✅ |
+| POST | `/v1/couples/request` | Запрос на создание пары | ✅ |
+| POST | `/v1/couples/accept` | Принятие запроса | ✅ |
+| POST | `/v1/couples/decline` | Отклонение запроса | ✅ |
+| GET | `/v1/couples/pending` | Список запросов | ✅ |
 | GET | `/v1/media/albums` | Список альбомов | ✅ |
 | POST | `/v1/media/albums` | Создание альбома | ✅ |
 

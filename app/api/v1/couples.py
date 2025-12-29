@@ -150,7 +150,7 @@ async def decline_couple_request(
 @router.get(
     "/pending",
     response_model=CoupleRequestsResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_200_OK,
     summary="Получение списка текущих приглашений.",
 )
 async def get_couple_requests(
