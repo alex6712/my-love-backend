@@ -9,6 +9,7 @@ from app.core.dependencies.infrastructure import (
 )
 from app.core.dependencies.settings import SettingsDependency
 from app.services.auth import AuthService
+from app.services.couples import CouplesService
 from app.services.media import MediaService
 from app.services.users import UsersService
 
@@ -87,10 +88,32 @@ def get_users_service(
     Returns
     -------
     UsersService
-        Экземпляр сервиса пользователей с внедренными
-        Unit of Work.
+        Экземпляр сервиса пользователей с внедренным Unit of Work.
     """
     return UsersService(unit_of_work)
+
+
+def get_couples_service(
+    unit_of_work: UnitOfWorkDependency,
+) -> CouplesService:
+    """Фабрика зависимостей для создания экземпляра сервиса пар пользователей.
+
+    Создает и возвращает функцию-зависимость, которая инстанцирует
+    экземпляр сервиса пар пользователей, используя
+    зависимость Unit of Work.
+
+    Parameters
+    ----------
+    unit_of_work : UnitOfWorkDependency
+        Зависимость Unit of Work, которая будет передана
+        в конструктор сервиса пар пользователей.
+
+    Returns
+    -------
+    CouplesService
+        Экземпляр сервиса пар пользователей с внедренным Unit of Work.
+    """
+    return CouplesService(unit_of_work)
 
 
 AuthServiceDependency = Annotated[AuthService, Depends(get_auth_service)]
@@ -101,3 +124,6 @@ MediaServiceDependency = Annotated[MediaService, Depends(get_media_service)]
 
 UsersServiceDependency = Annotated[UsersService, Depends(get_users_service)]
 """Зависимость на получение сервиса пользователей."""
+
+CouplesServiceDependency = Annotated[CouplesService, Depends(get_couples_service)]
+"""Зависимость на получение сервиса пар пользователей."""

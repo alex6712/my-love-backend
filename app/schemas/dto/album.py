@@ -2,7 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 from app.schemas.dto.base import BaseDTO
-from app.schemas.dto.user import CreatorDTO
+from app.schemas.dto.users import CreatorDTO
 
 
 class AlbumDTO(BaseDTO):

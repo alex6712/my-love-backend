@@ -20,8 +20,8 @@ from app.core.security import (
 )
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
-from app.repositories.user import UserRepository
-from app.schemas.dto.user import UserDTO
+from app.repositories.users import UsersRepository
+from app.schemas.dto.users import UserWithCredentialsDTO
 
 
 class AuthService:
@@ -61,7 +61,7 @@ class AuthService:
         super().__init__()
 
         self._redis_client: RedisClient = redis_client
-        self._user_repo: UserRepository = unit_of_work.get_repository(UserRepository)
+        self._users_repo: UsersRepository = unit_of_work.get_repository(UsersRepository)
 
     async def register(self, username: str, password: str) -> None:
         """Регистрирует пользователя в системе.
@@ -78,12 +78,12 @@ class AuthService:
         UsernameAlreadyExistsException
            Пользователь с переданным username уже существует.
         """
-        if await self._user_repo.user_exists_by_username(username):
+        if await self._users_repo.user_exists_by_username(username):
             raise UsernameAlreadyExistsException(
                 detail=f"User with username={username} already exists."
             )
 
-        await self._user_repo.add_user(username, hash_(password))
+        await self._users_repo.add_user(username, hash_(password))
 
     async def login(self, username: str, password: str) -> Tokens:
         """Аутентифицирует пользователя и возвращает JWT.
@@ -105,7 +105,9 @@ class AuthService:
         CredentialsException
             Не найден пользователь или несовпадение пароля и его хеша в БД.
         """
-        user: UserDTO | None = await self._user_repo.get_user_by_username(username)
+        user: (
+            UserWithCredentialsDTO | None
+        ) = await self._users_repo.get_user_by_username(username)
 
         credentials_exception: CredentialsException = CredentialsException(
             detail="Incorrect username or password.",
@@ -150,7 +152,9 @@ class AuthService:
 
         payload: Payload = await AuthService._validate_token(refresh_token)
 
-        user: UserDTO | None = await self._user_repo.get_user_by_id(payload["sub"])
+        user: UserWithCredentialsDTO | None = await self._users_repo.get_user_by_id(
+            payload["sub"]
+        )
 
         if user is None:
             raise CredentialsException(
@@ -206,7 +210,7 @@ class AuthService:
         if ttl > 0:
             await self._redis_client.revoke_token(token=access_token, ttl=ttl)  # type: ignore
 
-        await self._user_repo.update_refresh_token_hash(payload["sub"], None)
+        await self._users_repo.update_refresh_token_hash(payload["sub"], None)
 
     async def validate_access_token(self, access_token: Token | None) -> Payload:
         """Проверяет валидность access-токена.
@@ -276,7 +280,7 @@ class AuthService:
 
         return payload
 
-    async def _get_new_jwt_pair(self, user: UserDTO) -> Tokens:
+    async def _get_new_jwt_pair(self, user: UserWithCredentialsDTO) -> Tokens:
         """Генерирует новую пару JWT и обновляет данные в БД ("приватный" метод).
 
         Parameters
@@ -301,7 +305,7 @@ class AuthService:
             }
         )
 
-        await self._user_repo.update_refresh_token_hash(
+        await self._users_repo.update_refresh_token_hash(
             user.id, hash_(tokens["refresh"])
         )
 

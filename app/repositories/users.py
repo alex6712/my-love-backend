@@ -1,16 +1,14 @@
 from uuid import UUID
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.models.couple import CoupleModel
 from app.models.user import UserModel
 from app.repositories.interface import RepositoryInterface
-from app.schemas.dto.user import CoupleDTO, PartnerDTO, UserDTO
+from app.schemas.dto.users import UserWithCredentialsDTO
 
 
-class UserRepository(RepositoryInterface):
+class UsersRepository(RepositoryInterface):
     """Репозиторий пользователя.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
@@ -33,12 +31,6 @@ class UserRepository(RepositoryInterface):
         Возвращает модель пользователя по его username.
     user_exists_by_username(username)
         Проверка на существование пользователя по его username.
-    get_partner_by_user_id(user_id)
-        Получение информации о партнёре пользователя.
-    get_couple_by_partner_id(partner_id)
-        Получение DTO пары по UUID одного из партнёров.
-    register_couple(partner1_id, partner2_id)
-        Регистрация пары между пользователями.
     update_refresh_token(user, refresh_token)
         Перезаписывает токен обновления пользователя.
     """
@@ -63,7 +55,7 @@ class UserRepository(RepositoryInterface):
             )
         )
 
-    async def get_user_by_id(self, id_: UUID) -> UserDTO | None:
+    async def get_user_by_id(self, id_: UUID) -> UserWithCredentialsDTO | None:
         """Возвращает DTO пользователя по его id.
 
         Parameters
@@ -78,7 +70,7 @@ class UserRepository(RepositoryInterface):
         """
         user: UserModel | None = await self._get_user_by_id(id_)
 
-        return UserDTO.model_validate(user) if user else None
+        return UserWithCredentialsDTO.model_validate(user) if user else None
 
     async def user_exists_by_id(self, user_id: UUID) -> bool:
         """Проверка на существование пользователя по его UUID.
@@ -115,7 +107,9 @@ class UserRepository(RepositoryInterface):
         """
         return await self.session.scalar(select(UserModel).where(UserModel.id == id_))
 
-    async def get_user_by_username(self, username: str) -> UserDTO | None:
+    async def get_user_by_username(
+        self, username: str
+    ) -> UserWithCredentialsDTO | None:
         """Возвращает DTO пользователя по его username.
 
         Parameters
@@ -130,7 +124,7 @@ class UserRepository(RepositoryInterface):
         """
         user: UserModel | None = await self._get_user_by_username(username)
 
-        return UserDTO.model_validate(user) if user else None
+        return UserWithCredentialsDTO.model_validate(user) if user else None
 
     async def user_exists_by_username(self, username: str) -> bool:
         """Проверка на существование пользователя по его username.
@@ -167,82 +161,6 @@ class UserRepository(RepositoryInterface):
         """
         return await self.session.scalar(
             select(UserModel).where(UserModel.username == username)
-        )
-
-    async def get_partner_by_user_id(self, user_id: UUID) -> PartnerDTO | None:
-        """Получение информации о партнёре пользователя.
-
-        Получает UUID пользователя, загружает информацию о паре,
-        в которой этот пользователь состоит и возвращает DTO партнёра.
-
-        Parameters
-        ----------
-        user_id : UUID
-            UUID пользователя в системе.
-
-        Returns
-        -------
-        PartnerDTO | None
-            Сохранённая о партнёре пользователя информация:
-            - PartnerDTO если партнёр найден;
-            - None если партнёр не найден.
-        """
-        couple: CoupleDTO | None = await self.get_couple_by_partner_id(user_id)
-
-        if couple is None:
-            return None
-
-        return couple.partner1 if couple.partner2.id == user_id else couple.partner2
-
-    async def get_couple_by_partner_id(self, partner_id: UUID) -> CoupleDTO | None:
-        """Получение DTO пары по UUID одного из партнёров.
-
-        Получает на вход UUID одного из партнёров и ищет в базе данных
-        запись о паре, в которой состоит данный пользователь.
-
-        Parameters
-        ----------
-        partner_id : UUID
-            UUID пользователя.
-
-        Returns
-        -------
-        CoupleDTO | None
-            DTO пары между пользователем и его партнёром, None - если пользователь не состоит в паре.
-        """
-        couple: CoupleModel | None = await self.session.scalar(
-            select(CoupleModel)
-            .options(
-                selectinload(CoupleModel.partner1),
-                selectinload(CoupleModel.partner2),
-            )
-            .where(
-                or_(
-                    CoupleModel.partner1_id == partner_id,
-                    CoupleModel.partner2_id == partner_id,
-                ),
-            )
-        )
-
-        return CoupleDTO.model_validate(couple) if couple else None
-
-    async def register_couple(self, partner1_id: UUID, partner2_id: UUID) -> None:
-        """Регистрация пары между пользователями.
-
-        Добавляет в базу данных запись о новой паре между пользователями.
-
-        Parameters
-        ----------
-        partner1_id : UUID
-            UUID первого пользователя пары.
-        partner2_id : UUID
-            UUID второго пользователя пары.
-        """
-        self.session.add(
-            CoupleModel(
-                partner1_id=partner1_id,
-                partner2_id=partner2_id,
-            )
         )
 
     async def update_refresh_token_hash(

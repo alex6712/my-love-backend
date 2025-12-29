@@ -2,6 +2,8 @@
 
 Романтичное приложение-подарок на 14 февраля от Лёши для Светы.
 
+_Серверная часть. Android-клиент: [My Love Android](https://github.com/alex6712/my-love-android)._
+
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
@@ -149,7 +151,7 @@ my-love-backend/            # FastAPI приложение
 
 | Метод | Путь | Описание | Авторизация |
 |-------|------|----------|-------------|
-| GET | `/v1/` | Healthcheck | ❌ |
+| GET | `/v1/health` | Healthcheck | ❌ |
 | GET | `/v1/app_info` | Информация о приложении | ❌ |
 | POST | `/v1/auth/register` | Регистрация | ❌ |
 | POST | `/v1/auth/login` | Вход в систему | ❌ |

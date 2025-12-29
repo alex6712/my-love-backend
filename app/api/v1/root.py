@@ -10,13 +10,13 @@ router = APIRouter(
 
 
 @router.get(
-    "/",
+    "/health",
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
     summary="Проверка работоспособности API.",
 )
 async def root() -> StandardResponse:
-    """Корневой путь для проверки работоспособности API.
+    """Путь для проверки работоспособности API.
 
     Ничего не делает, кроме как возвращает положительный ответ на запрос.
 

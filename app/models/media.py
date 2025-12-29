@@ -52,12 +52,6 @@ class MediaModel(BaseModel):
         nullable=False,
         comment="UUID пользователя, загрузившего медиа",
     )
-    album_id: Mapped[UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("albums.id"),
-        nullable=True,
-        comment="UUID альбома, в который добавлено медиа",
-    )
 
     creator: Mapped["UserModel"] = relationship(
         "UserModel",
@@ -67,7 +61,8 @@ class MediaModel(BaseModel):
     )
     album: Mapped["AlbumModel"] = relationship(
         "AlbumModel",
-        back_populates="items",
+        secondary="album_items",
+        cascade="all, delete-orphan",
         viewonly=True,
         lazy="select",
     )
@@ -80,7 +75,6 @@ class MediaModel(BaseModel):
             "description": self.description,
             "geo_data": self.geo_data,
             "created_by": self.created_by,
-            "album_id": self.album_id,
         }
 
         return super().__repr__(**attrs)

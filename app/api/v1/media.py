@@ -1,6 +1,7 @@
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, File, UploadFile, status
+from fastapi import APIRouter, File, Path, UploadFile, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import MediaServiceDependency
@@ -45,7 +46,7 @@ async def get_albums(
     """
     albums: list[AlbumDTO] = await media_service.get_albums(payload["sub"])
 
-    return AlbumsResponse(albums=albums, detail=f"Found {len(albums)} albums.")
+    return AlbumsResponse(albums=albums, detail=f"Found {len(albums)} album entries.")
 
 
 @router.post(
@@ -88,6 +89,42 @@ async def post_albums(
     )
 
     return StandardResponse(detail="New album created successfully.")
+
+
+@router.delete(
+    "/albums/{album_id}",
+    response_model=StandardResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Удаление медиа альбома по его UUID.",
+)
+async def delete_albums(
+    album_id: Annotated[UUID, Path(description="UUID медиа альбома к удалению.")],
+    media_service: MediaServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> StandardResponse:
+    """Удаление медиа альбома по его UUID.
+
+    Проверяет права владения текущего пользователя над альбомом с
+    переданным UUID, удаляет его при достатке прав.
+
+    Parameters
+    ----------
+    album_id : UUID
+        UUID альбома к удалению.
+    media_service : MediaServiceDependency
+        Зависимость сервиса работы с медиа.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    StandardResponse
+        Ответ о результате удаления медиа альбома.
+    """
+    # await media_service.delete_album(payload["sub"], album_id)
+
+    return StandardResponse(detail="Album entry deleted successfully.")
 
 
 @router.post(

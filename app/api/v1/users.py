@@ -2,9 +2,8 @@ from fastapi import APIRouter, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import UsersServiceDependency
-from app.schemas.dto.user import PartnerDTO
-from app.schemas.v1.requests.create_couple import CreateCoupleRequest
-from app.schemas.v1.responses.partner import PartnerResponse, StandardResponse
+from app.schemas.dto.users import UserDTO
+from app.schemas.v1.responses.user import UserResponse
 
 router = APIRouter(
     prefix="/users",
@@ -13,19 +12,19 @@ router = APIRouter(
 
 
 @router.get(
-    "/partner",
-    response_model=PartnerResponse,
+    "/me",
+    response_model=UserResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение информации о партнёре пользователя.",
+    summary="Получение информации о пользователе.",
 )
-async def get_partner(
+async def get_me(
     users_service: UsersServiceDependency,
     payload: StrictAuthenticationDependency,
-) -> PartnerResponse:
-    """Запрос на получение информации о партнёре пользователя.
+) -> UserResponse:
+    """Запрос на получение информации о пользователе.
 
-    Проверяет наличие пары у пользователя и при нахождении возвращает
-    информацию о партнёре.
+    Получает payload токена из зависимости на авторизацию, после
+    чего возвращает данные о пользователе по UUID в `sub`.
 
     Parameters
     ----------
@@ -37,48 +36,12 @@ async def get_partner(
 
     Returns
     -------
-    PartnerResponse
-        Ответ с вложенным DTO партнёра.
+    UserResponse
+        Ответ с вложенным DTO пользователя.
     """
-    partner: PartnerDTO | None = await users_service.get_partner(payload["sub"])
+    user: UserDTO = await users_service.get_me(payload["sub"])
 
-    return PartnerResponse(
-        partner=partner,
-        detail="Partner found." if partner else "Partner not found.",
+    return UserResponse(
+        user=user,
+        detail="Current access token user's data.",
     )
-
-
-@router.post(
-    "/couple",
-    response_model=StandardResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Регистрация информации о новой паре между пользователями.",
-)
-async def post_couple(
-    form_data: CreateCoupleRequest,
-    users_service: UsersServiceDependency,
-    payload: StrictAuthenticationDependency,
-) -> StandardResponse:
-    """Запрос на регистрацию новой пары между пользователями.
-
-    Регистрирует новую пару по UUID партнёра из `form_data` и UUID
-    пользователя из токена доступа.
-
-    Parameters
-    ----------
-    form_data : CreateCoupleRequest
-        Зависимость для получения данных из формы.
-    users_service : UsersServiceDependency
-        Зависимость сервиса пользователей.
-    payload : StrictAuthenticationDependency
-        Полезная нагрузка (payload) токена доступа.
-        Получена автоматически из зависимости на строгую аутентификацию.
-
-    Returns
-    -------
-    StandardResponse
-        Ответ, подтверждающий успешную регистрацию пары.
-    """
-    await users_service.register_couple(payload["sub"], form_data.partner_id)
-
-    return StandardResponse(detail="Couple register successfully.")

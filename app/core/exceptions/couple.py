@@ -39,6 +39,18 @@ class CoupleNotFoundException(CoupleDomainException, NotFoundException):
     pass
 
 
+class CoupleRequestNotFoundException(CoupleDomainException, NotFoundException):
+    """Исключение при отсутствии запроса на создание пары.
+
+    Notes
+    -----
+    Если при попытке получения запроса на создание пары пользователей не было
+    найдено ни одной записи, то будет вызвано это исключение.
+    """
+
+    pass
+
+
 class CoupleAlreadyExistsException(CoupleDomainException, AlreadyExistsException):
     """Исключение при попытке создать уже существующую пару пользователей.
 
@@ -46,6 +58,21 @@ class CoupleAlreadyExistsException(CoupleDomainException, AlreadyExistsException
     -----
     Если при попытке регистрации новой пары пользователей по их UUID
     в базе данных уже существует зарегистрированная пара пользователей
+    с такими же UUID, то будет выброшено это исключение.
+    """
+
+    pass
+
+
+class CoupleRequestAlreadyExistsException(
+    CoupleDomainException, AlreadyExistsException
+):
+    """Исключение при попытке отправить уже существующий запрос на создание пары.
+
+    Notes
+    -----
+    Если при попытке регистрации новой пары пользователей по их UUID
+    в базе данных уже существует запрос на создание пары пользователей
     с такими же UUID, то будет выброшено это исключение.
     """
 

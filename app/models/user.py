@@ -7,7 +7,7 @@ from app.models.base import BaseModel
 
 if TYPE_CHECKING:
     from app.models.album import AlbumModel
-    from app.models.couple import CoupleModel
+    from app.models.couple import CoupleRequestModel
     from app.models.media import MediaModel
 
 
@@ -46,39 +46,45 @@ class UserModel(BaseModel):
         comment="Статус пользователя (активный или заблокирован)",
     )
 
-    couples_as_partner1: Mapped[list["CoupleModel"]] = relationship(
-        "CoupleModel",
-        foreign_keys="CoupleModel.partner1_id",
+    couples_as_initiator: Mapped[list["CoupleRequestModel"]] = relationship(
+        "CoupleRequestModel",
+        foreign_keys="CoupleRequestModel.initiator_id",
         viewonly=True,
         lazy="select",
     )
-    couples_as_partner2: Mapped[list["CoupleModel"]] = relationship(
-        "CoupleModel",
-        foreign_keys="CoupleModel.partner2_id",
+    couples_as_recipient: Mapped[list["CoupleRequestModel"]] = relationship(
+        "CoupleRequestModel",
+        foreign_keys="CoupleRequestModel.recipient_id",
         viewonly=True,
         lazy="select",
     )
     media_albums: Mapped[list["AlbumModel"]] = relationship(
         "AlbumModel",
         back_populates="creator",
+        viewonly=True,
         lazy="select",
     )
     media_items: Mapped[list["MediaModel"]] = relationship(
         "MediaModel",
         back_populates="creator",
+        viewonly=True,
         lazy="select",
     )
 
     async def get_partner(self) -> "UserModel | None":
-        if await self.awaitable_attrs.couples_as_partner1:
-            couple: CoupleModel = (await self.awaitable_attrs.couples_as_partner1)[0]
+        if await self.awaitable_attrs.couples_as_initiator:
+            couple: CoupleRequestModel = (
+                await self.awaitable_attrs.couples_as_initiator
+            )[0]
 
-            return await couple.awaitable_attrs.partner2
+            return await couple.awaitable_attrs.initiator
 
-        if await self.awaitable_attrs.couples_as_partner2:
-            couple: CoupleModel = (await self.awaitable_attrs.couples_as_partner2)[0]
+        if await self.awaitable_attrs.couples_as_recipient:
+            couple: CoupleRequestModel = (
+                await self.awaitable_attrs.couples_as_recipient
+            )[0]
 
-            return await couple.awaitable_attrs.partner1
+            return await couple.awaitable_attrs.recipient
 
         return None
 

@@ -1,51 +1,69 @@
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import CheckConstraint, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.types import Uuid
+from sqlalchemy.types import DateTime, String, Uuid
 
+from app.core.enums import CoupleRequestStatus
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
     from app.models.user import UserModel
 
 
-class CoupleModel(BaseModel):
-    __tablename__ = "couples"
+class CoupleRequestModel(BaseModel):
+    __tablename__ = "couple_requests"
     __table_args__ = (
-        CheckConstraint("partner1_id <> partner2_id", name="ck_couple_not_self"),
-        {"comment": "Сведения о парах, зарегистрированных в приложении"},
+        CheckConstraint("initiator_id <> recipient_id", name="ck_couple_not_self"),
+        {"comment": "Сведения о парах между пользователями в приложении"},
     )
 
-    partner1_id: Mapped[UUID] = mapped_column(
+    initiator_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
-        comment="UUID первого пользователя пары",
+        comment="UUID пользователя-инициатора",
     )
-    partner2_id: Mapped[UUID] = mapped_column(
+    recipient_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
-        comment="UUID второго пользователя пары",
+        comment="UUID пользователя-реципиента",
+    )
+    status: Mapped[CoupleRequestStatus] = mapped_column(
+        String(8),
+        default=CoupleRequestStatus.PENDING.value,
+        nullable=False,
+        index=True,
+        comment="Статус пары между пользователями",
+    )
+    accepted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Дата и время принятия приглашения",
     )
 
-    partner1: Mapped["UserModel"] = relationship(
+    initiator: Mapped["UserModel"] = relationship(
         "UserModel",
-        foreign_keys=[partner1_id],
+        viewonly=True,
         lazy="select",
+        foreign_keys=[initiator_id],
     )
-    partner2: Mapped["UserModel"] = relationship(
+    recipient: Mapped["UserModel"] = relationship(
         "UserModel",
-        foreign_keys=[partner2_id],
+        viewonly=True,
         lazy="select",
+        foreign_keys=[recipient_id],
     )
 
     def __repr__(self, **_) -> str:
         attrs: dict[str, Any] = {
-            "partner1_id": self.partner1_id,
-            "partner2_id": self.partner2_id,
+            "initiator_id": self.initiator_id,
+            "recipient_id": self.recipient_id,
+            "status": self.status,
+            "accepted_at": self.accepted_at,
         }
 
         return super().__repr__(**attrs)

@@ -112,7 +112,6 @@ class MediaRepository(RepositoryInterface):
         url: str,
         type_: MediaType,
         created_by: UUID,
-        album_id: UUID,
         title: str | None = None,
         description: str | None = None,
         geo_data: dict[str, Any] | None = None,
@@ -126,6 +125,5 @@ class MediaRepository(RepositoryInterface):
                 description=description,
                 geo_data=geo_data,
                 created_by=created_by,
-                album_id=album_id,
             )
         )

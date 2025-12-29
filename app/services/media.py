@@ -117,7 +117,7 @@ class MediaService:
         if file.filename is not None and file.filename.find(".") != -1:
             file_extension = file.filename.rsplit(".")[0]
 
-        if file_extension not in ("jpeg", "jpg", "png", "mp4"):
+        if file_extension not in ("jfif", "jpeg", "jpg", "png", "mp4"):
             file_extension = file.content_type.split("/")[1]
 
         file_path: str = f"uploads/{filename}.{file_extension}"
@@ -137,5 +137,4 @@ class MediaService:
             url=f"https://{self._settings.MINIO_ENDPOINT}/{file_path}",
             type_=cast(MediaType, file.content_type.split("/")[0]),
             created_by=owner_id,
-            album_id=UUID("5d322ae1-4313-4e25-8880-b09c485c285a"),
         )

@@ -54,7 +54,8 @@ class AlbumModel(BaseModel):
     )
     items: Mapped[list["MediaModel"]] = relationship(
         "MediaModel",
-        back_populates="album",
+        secondary="album_items",
+        cascade="all, delete-orphan",
         viewonly=True,
         lazy="select",
     )
