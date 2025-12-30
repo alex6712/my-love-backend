@@ -691,7 +691,7 @@ wheels = [
 
 [[package]]
 name = "my-love-backend"
-version = "0.1.0"
+version = "0.2.5"
 source = { virtual = "." }
 dependencies = [
     { name = "alembic" },

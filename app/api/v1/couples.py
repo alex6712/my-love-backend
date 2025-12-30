@@ -73,7 +73,7 @@ async def create_couple_request(
     """Запрос на регистрацию новой пары между пользователями.
 
     Создаёт приглашение на регистрацию пары между текущим пользователем
-    и пользователем, чей UUID указан в `form_data`.
+    и пользователем, чей username указан в `form_data`.
 
     Parameters
     ----------
@@ -90,7 +90,9 @@ async def create_couple_request(
     StandardResponse
         Ответ, подтверждающий успешную регистрацию приглашения в пару.
     """
-    await couples_service.create_couple_request(payload["sub"], form_data.partner_id)
+    await couples_service.create_couple_request(
+        payload["sub"], form_data.partner_username
+    )
 
     return StandardResponse(detail="Couple request created successfully.")
 

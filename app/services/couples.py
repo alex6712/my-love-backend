@@ -32,7 +32,7 @@ class CouplesService:
     -------
     get_partner(user_id)
         Получение информации о партнёре пользователя.
-    create_couple_request(user_id, partner_id)
+    create_couple_request(user_id, partner_username)
         Регистрация пары между пользователями.
     """
 
@@ -63,7 +63,7 @@ class CouplesService:
         return await self._couples_repo.get_partner_by_user_id(user_id)
 
     async def create_couple_request(
-        self, initiator_id: UUID, recipient_id: UUID
+        self, initiator_id: UUID, recipient_username: str
     ) -> None:
         """Создание приглашения к регистрации новой пары.
 
@@ -79,11 +79,13 @@ class CouplesService:
         ----------
         initiator_id : UUID
             UUID пользователя-инициатора.
-        recipient_id : UUID
-            UUID пользователя-реципиента.
+        recipient_username : str
+            Username пользователя-реципиента.
 
         Raises
         ------
+        UserNotFoundException
+            Если пользователь с переданным username не найден.
         CoupleNotSelfException
             Если переданы два совпадающих UUID.
         CoupleAlreadyExistsException
@@ -91,15 +93,21 @@ class CouplesService:
         CoupleRequestAlreadyExistsException
             Если уже отправлено подобное приглашение.
         """
+        # проверка на существование пользователя-реципиента по username
+        recipient_user = await self._users_repo.get_user_by_username(recipient_username)
+        if recipient_user is None:
+            raise UserNotFoundException(
+                detail=f"User with username={recipient_username} not found."
+            )
+        recipient_id: UUID = recipient_user.id
+
         # проверка на уникальность UUID
         if initiator_id == recipient_id:
             raise CoupleNotSelfException(detail="Cannot register couple with yourself!")
 
-        # проверка на существование пользователей
-        # TODO: заменить на ОДИН запрос
-        for id_ in (initiator_id, recipient_id):
-            if not await self._users_repo.user_exists_by_id(id_):
-                raise UserNotFoundException(detail=f"User with id={id_} not found.")
+        # проверка на существование пользователя-инициатора
+        if not await self._users_repo.user_exists_by_id(initiator_id):
+            raise UserNotFoundException(detail=f"User with id={initiator_id} not found.")
 
         # проверка, состоят ли пользователи в паре (не только между собой)
         # TODO: заменить на ОДИН запрос
@@ -107,7 +115,7 @@ class CouplesService:
             raise CoupleAlreadyExistsException(detail="You're already in couple!")
         if await self._couples_repo.get_active_couple_by_partner_id(recipient_id):
             raise CoupleAlreadyExistsException(
-                detail=f"User with id={recipient_id} is already in couple!",
+                detail=f"User with username={recipient_username} is already in couple!",
             )
 
         # проверка, существует ли уже приглашение
