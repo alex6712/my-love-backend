@@ -1,12 +1,13 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, File, Path, UploadFile, status
+from fastapi import APIRouter, Body, Depends, Path, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import MediaServiceDependency
 from app.schemas.dto.album import AlbumDTO
 from app.schemas.v1.requests.create_album import CreateAlbumRequest
+from app.schemas.v1.requests.upload_file import UploadFileRequest
 from app.schemas.v1.responses.albums import AlbumsResponse
 from app.schemas.v1.responses.standard import StandardResponse
 
@@ -56,7 +57,9 @@ async def get_albums(
     summary="Создать новый медиа альбом.",
 )
 async def post_albums(
-    form_data: CreateAlbumRequest,
+    form_data: Annotated[
+        CreateAlbumRequest, Body(description="Схема получения данных о медиа альбоме.")
+    ],
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
@@ -134,11 +137,16 @@ async def delete_albums(
     summary="Загрузка медиа-файлов в приватное хранилище.",
 )
 async def upload(
-    file: Annotated[UploadFile, File(...)],
+    form_data: Annotated[UploadFileRequest, Depends()],
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """TODO: Документация."""
-    await media_service.upload_file(file, payload["sub"])
+    await media_service.upload_file(
+        form_data.file,
+        form_data.title,
+        form_data.description,
+        payload["sub"],
+    )
 
     return StandardResponse(detail="File uploaded successfully.")

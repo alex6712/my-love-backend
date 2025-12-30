@@ -97,14 +97,9 @@ class CouplesService:
 
         # проверка на существование пользователей
         # TODO: заменить на ОДИН запрос
-        if not await self._users_repo.user_exists_by_id(initiator_id):
-            raise UserNotFoundException(
-                detail=f"User with id={initiator_id} not found."
-            )
-        if not await self._users_repo.user_exists_by_id(recipient_id):
-            raise UserNotFoundException(
-                detail=f"User with id={recipient_id} not found."
-            )
+        for id_ in (initiator_id, recipient_id):
+            if not await self._users_repo.user_exists_by_id(id_):
+                raise UserNotFoundException(detail=f"User with id={id_} not found.")
 
         # проверка, состоят ли пользователи в паре (не только между собой)
         # TODO: заменить на ОДИН запрос
@@ -172,5 +167,51 @@ class CouplesService:
             couple_id, CoupleRequestStatus.ACCEPTED
         )
 
+    async def decline_couple_request(self, couple_id: UUID, user_id: UUID) -> None:
+        """Отклонение запроса на создание пары между пользователями.
+
+        Проверяет, существует ли для текущего пользователя с UUID=`user_id`
+        запрос на создание пары с UUID=`couple_id`. Отклоняет запрос на создание пары.
+
+        Parameters
+        ----------
+        couple_id : UUID
+            UUID запроса на создание пары.
+        user_id : UUID
+            UUID пользователя.
+
+        Raises
+        ------
+        CoupleRequestNotFoundException
+            Если запрос с переданным UUID не найден в запросах к текущему пользователю.
+        """
+        requests: list[
+            CoupleRequestDTO
+        ] = await self._couples_repo.get_pending_requests_for_recipient(user_id)
+
+        if couple_id not in [request.id for request in requests]:
+            raise CoupleRequestNotFoundException(
+                detail=f"Couple request with id={couple_id} not found in pending requests for user with id={user_id}.",
+            )
+
+        await self._couples_repo.update_request_status(
+            couple_id, CoupleRequestStatus.DECLINED
+        )
+
     async def get_couple_requests(self, user_id: UUID) -> list[CoupleRequestDTO]:
+        """Получение списка всех запросов на создание пары.
+
+        Получает на вход UUID пользователя, для которого проводится поиск запросов
+        со статусом `CoupleRequestStatus.PENDING`.
+
+        Parameters
+        ----------
+        user_id : UUID
+            UUID пользователя для поиска.
+
+        Returns
+        -------
+        list[CoupleRequestDTO]
+            Список всех текущих запросов на создание пары.
+        """
         return await self._couples_repo.get_pending_requests_for_recipient(user_id)

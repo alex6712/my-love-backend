@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Path, status
+from fastapi import APIRouter, Body, Path, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import CouplesServiceDependency
@@ -63,7 +63,10 @@ async def get_partner(
     summary="Запрос на регистрацию новой пары между пользователями.",
 )
 async def create_couple_request(
-    form_data: CreateCoupleRequest,
+    form_data: Annotated[
+        CreateCoupleRequest,
+        Body(description="Схема запроса на создание приглашения в пару."),
+    ],
     couples_service: CouplesServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
@@ -133,7 +136,7 @@ async def accept_couple_request(
 @router.post(
     "/{couple_id}/decline",
     response_model=StandardResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_200_OK,
     summary="Отказ регистрации новой пары между пользователями.",
 )
 async def decline_couple_request(
@@ -143,7 +146,28 @@ async def decline_couple_request(
     couples_service: CouplesServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
-    """TODO: Документация."""
+    """Отклонение регистрации новой пары между пользователями.
+
+    Проверяет, валидно ли приглашение для текущего пользователя
+    и отклоняет запрос на создание пары пользователей.
+
+    Parameters
+    ----------
+    couple_id : UUID
+        UUID запроса на создание пары.
+    couples_service : CouplesServiceDependency
+        Зависимость сервиса пар пользователей.
+    payload : StrictAuthenticationDependency
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    StandardResponse
+        Отчёт об успешном отклонении запроса.
+    """
+    await couples_service.decline_couple_request(couple_id, payload["sub"])
+
     return StandardResponse(detail="Couple register declined.")
 
 
@@ -180,7 +204,8 @@ async def get_couple_requests(
         payload["sub"]
     )
 
-    return CoupleRequestsResponse(
-        requests=requests,
-        detail=f"Found {len(requests)} couple requests.",
-    )
+    detail: str = "Couple requests not found."
+    if len(requests) > 0:
+        detail = f"Found {len(requests)} couple requests."
+
+    return CoupleRequestsResponse(requests=requests, detail=detail)

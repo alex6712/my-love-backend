@@ -1,4 +1,6 @@
-from fastapi import APIRouter, status
+from typing import Annotated
+
+from fastapi import APIRouter, Body, status
 
 from app.core.dependencies.auth import (
     AuthServiceDependency,
@@ -24,7 +26,9 @@ router: APIRouter = APIRouter(
     summary="Регистрация пользователя.",
 )
 async def register(
-    form_data: RegisterRequest,
+    form_data: Annotated[
+        RegisterRequest, Body(description="Схема запроса на регистрацию пользователя.")
+    ],
     auth_service: AuthServiceDependency,
 ) -> StandardResponse:
     """Регистрация нового пользователя.

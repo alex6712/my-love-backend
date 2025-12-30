@@ -93,7 +93,13 @@ class MediaService:
         """
         return await self._media_repo.get_albums_by_creator_id(creator_id)
 
-    async def upload_file(self, file: UploadFile, owner_id: UUID) -> None:
+    async def upload_file(
+        self,
+        file: UploadFile,
+        title: str | None,
+        description: str | None,
+        created_by: UUID,
+    ) -> None:
         """TODO: Документация, сохранение информации о загруженном файле в базу данных."""
         file.file.seek(0, 2)
         file_size: int = file.file.tell()
@@ -134,7 +140,9 @@ class MediaService:
             raise
 
         await self._media_repo.add_file(
-            url=f"https://{self._settings.MINIO_ENDPOINT}/{file_path}",
+            url=f"http://{self._settings.MINIO_ENDPOINT}/{file_path}",
             type_=cast(MediaType, file.content_type.split("/")[0]),
-            created_by=owner_id,
+            title=title,
+            description=description,
+            created_by=created_by,
         )

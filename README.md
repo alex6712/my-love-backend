@@ -61,7 +61,7 @@ chmod +x ./scripts/gen_keys.sh
 docker compose --env-file .env up -d --wait
 
 # Примените миграции
-docker compose exec my-love-backend alembic upgrade head
+docker exec my-love-backend alembic upgrade head
 ```
 
 Сервисы будут доступны по следующим адресам:
