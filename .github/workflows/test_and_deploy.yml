@@ -10,6 +10,7 @@ on:
 
 jobs:
   test-my-love-backend:
+    name: Test My Love Backend
     runs-on: ubuntu-latest
 
     steps:
@@ -48,6 +49,7 @@ jobs:
     needs: test-my-love-backend
     if: github.ref == 'refs/heads/master'
 
+    name: Deploy My Love Backend
     runs-on: ubuntu-latest
 
     steps:
