@@ -41,7 +41,7 @@ class AlbumModel(BaseModel):
     )
     created_by: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("users.id"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         comment="UUID пользователя, создавшего альбом",
     )

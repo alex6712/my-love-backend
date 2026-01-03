@@ -88,6 +88,12 @@ class AuthService:
     async def login(self, username: str, password: str) -> Tokens:
         """Аутентифицирует пользователя и возвращает JWT.
 
+        Проверяет существование пользователя по переданному `username`,
+        сверяет хеш переданного пароля и сохранённый в базе данных
+        хеш.
+
+        Если все проверки пройдены успешно, возвращает пару JWT.
+
         Parameters
         ----------
         username : str
@@ -125,6 +131,7 @@ class AuthService:
     async def refresh(self, refresh_token: Token | None) -> Tokens:
         """Обновляет пару токенов по валидному refresh-токену.
 
+        Выполняет следующую последовательность действий:
         - Проверяет валидность и соответствие токена в БД;
         - Генерирует новую пару токенов;
         - Обновляет хеш refresh-токена в БД (инвалидируя предыдущий).
@@ -141,6 +148,8 @@ class AuthService:
 
         Raises
         ------
+        TokenNotPassedException
+            Токен обновления не передан в заголовках запроса.
         CredentialsException
             Не найден пользователь или несовпадение токена обновления и его хеша в БД.
         """
@@ -191,8 +200,8 @@ class AuthService:
 
         Raises
         ------
-        UserNotFoundException
-            Возникает если пользователь, указанный в payload токена, не существует в системе.
+        CredentialsException
+            Возникает если подпись токена верна, но в payload нет ключа `exp`.
         """
         payload: Payload = await self.validate_access_token(access_token)
 
@@ -224,6 +233,13 @@ class AuthService:
         -------
         Payload
             Расшифрованные данные токена.
+
+        Raises
+        ------
+        TokenNotPassedException
+            Токен доступа не передан в заголовках запроса.
+        TokenRevokedException
+            Переданный токен доступа был отозван.
         """
         if access_token is None:
             raise TokenNotPassedException(

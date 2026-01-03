@@ -36,7 +36,7 @@ jobs:
           touch .env
           echo '${{ secrets.ENV_FILE }}' > .env
 
-      - name: Creating AES-256 signing keys
+      - name: Creating EC signing keys
         run: |
           chmod +x ./scripts/gen_keys.sh
           ./scripts/gen_keys.sh
