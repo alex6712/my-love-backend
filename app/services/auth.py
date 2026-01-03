@@ -301,7 +301,6 @@ class AuthService:
             {
                 # перевод UUID в строку, т.к. этот объект не сериализуется
                 "sub": str(user.id),
-                "name": user.username,
             }
         )
 
