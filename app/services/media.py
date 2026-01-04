@@ -42,6 +42,8 @@ class MediaService:
         Получение подробной информации об альбоме по его UUID.
     delete_album(album_id, user_id)
         Удаление альбома по его UUID.
+    attach(album_id, media_uuids, user_id)
+        Прикрепляет медиа-файлы к альбому.
     """
 
     def __init__(

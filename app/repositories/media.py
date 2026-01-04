@@ -31,6 +31,12 @@ class MediaRepository(RepositoryInterface):
         Возвращает список DTO медиа альбомов по id их создателя.
     delete_album_by_id(album_id)
         Удаляет запись о медиа альбоме из базы данных по его id.
+    get_media_by_ids(media_ids, created_by)
+        Получает медиа-файлы по списку UUID.
+    get_existing_album_items(album_id, media_ids)
+        Получает UUID медиа-файлов, уже прикреплённых к альбому.
+    attach_media_to_album(album_id, media_uuids)
+        Прикрепляет медиа-файлы к альбому.
     """
 
     def __init__(self, session: AsyncSession):
