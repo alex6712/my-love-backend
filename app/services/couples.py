@@ -12,7 +12,7 @@ from app.infrastructure.postgresql import UnitOfWork
 from app.repositories.couples import CouplesRepository
 from app.repositories.users import UsersRepository
 from app.schemas.dto.couples import CoupleRequestDTO
-from app.schemas.dto.users import PartnerDTO
+from app.schemas.dto.users import PartnerDTO, UserWithCredentialsDTO
 
 
 class CouplesService:
@@ -93,23 +93,23 @@ class CouplesService:
         CoupleRequestAlreadyExistsException
             Если уже отправлено подобное приглашение.
         """
-        # проверка на существование пользователя-реципиента по username
-        recipient_user = await self._users_repo.get_user_by_username(recipient_username)
+        recipient_user: (
+            UserWithCredentialsDTO | None
+        ) = await self._users_repo.get_user_by_username(recipient_username)
         if recipient_user is None:
             raise UserNotFoundException(
                 detail=f"User with username={recipient_username} not found."
             )
         recipient_id: UUID = recipient_user.id
 
-        # проверка на уникальность UUID
         if initiator_id == recipient_id:
             raise CoupleNotSelfException(detail="Cannot register couple with yourself!")
 
-        # проверка на существование пользователя-инициатора
         if not await self._users_repo.user_exists_by_id(initiator_id):
-            raise UserNotFoundException(detail=f"User with id={initiator_id} not found.")
+            raise UserNotFoundException(
+                detail=f"User with id={initiator_id} not found."
+            )
 
-        # проверка, состоят ли пользователи в паре (не только между собой)
         # TODO: заменить на ОДИН запрос
         if await self._couples_repo.get_active_couple_by_partner_id(initiator_id):
             raise CoupleAlreadyExistsException(detail="You're already in couple!")
@@ -118,13 +118,11 @@ class CouplesService:
                 detail=f"User with username={recipient_username} is already in couple!",
             )
 
-        # проверка, существует ли уже приглашение
         if await self._couples_repo.find_existing_request(initiator_id, recipient_id):
             raise CoupleRequestAlreadyExistsException(
                 detail=f"Couple request with UUIDs {initiator_id} <-> {recipient_id} already exists!"
             )
 
-        # если всё хорошо, и исключения не были выброшены, регистрируем пару
         await self._couples_repo.add_couple_request(initiator_id, recipient_id)
 
     async def accept_couple_request(self, couple_id: UUID, user_id: UUID) -> None:

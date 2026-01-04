@@ -1,9 +1,9 @@
 from typing import Annotated
 
-from fastapi import File, Form, UploadFile
+from fastapi import Depends, File, Form, UploadFile
 
 
-class UploadFileRequest:
+class UploadFileRequestForm:
     """Запрос на загрузку медиа файла.
 
     Не является pydantic-схемой в изначальном понимании.
@@ -87,3 +87,7 @@ class UploadFileRequest:
         self.file: UploadFile = file
         self.title: str | None = title
         self.description: str | None = description
+
+
+UploadFileDependency = Annotated[UploadFileRequestForm, Depends()]
+"""Зависимость для формы загрузки медиа файла."""

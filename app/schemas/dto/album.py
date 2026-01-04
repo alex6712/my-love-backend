@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 from app.schemas.dto.base import BaseDTO
+from app.schemas.dto.media import MediaDTO
 from app.schemas.dto.users import CreatorDTO
 
 
@@ -35,3 +36,19 @@ class AlbumDTO(BaseDTO):
     creator: CreatorDTO
 
     created_at: datetime
+
+
+class AlbumWithItemsDTO(AlbumDTO):
+    """DTO для представления подробной информации о медиа-альбоме.
+
+    Наследуется от `AlbumDTO` и добавляет атрибут `items`,
+    в котором сохранены все медиа-файлы, добавленные в
+    медиа-альбом.
+
+    Attributes
+    ----------
+    items : list[MediaDTO]
+        Все добавленные в альбом медиа-файлы.
+    """
+
+    items: list[MediaDTO]

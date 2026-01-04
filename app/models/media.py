@@ -40,7 +40,7 @@ class MediaModel(BaseModel):
         nullable=True,
         comment="Описание медиа файла",
     )
-    geo_data: Mapped[dict[str, Any]] = mapped_column(
+    geo_data: Mapped[dict[str, Any] | None] = mapped_column(
         JSON(),
         default=None,
         nullable=True,

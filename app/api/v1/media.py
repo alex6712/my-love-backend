@@ -1,20 +1,63 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Path, status
+from fastapi import APIRouter, Body, Path, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import MediaServiceDependency
-from app.schemas.dto.album import AlbumDTO
+from app.core.dependencies.transport import UploadFileDependency
+from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
+from app.schemas.v1.requests.attach_media import AttachMediaRequest
 from app.schemas.v1.requests.create_album import CreateAlbumRequest
-from app.schemas.v1.requests.upload_file import UploadFileRequest
-from app.schemas.v1.responses.albums import AlbumsResponse
+from app.schemas.v1.responses.albums import AlbumResponse, AlbumsResponse
 from app.schemas.v1.responses.standard import StandardResponse
 
 router = APIRouter(
     prefix="/media",
     tags=["media"],
 )
+
+
+@router.post(
+    "/upload",
+    response_model=StandardResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Загрузка медиа-файлов в приватное хранилище.",
+)
+async def upload(
+    form_data: UploadFileDependency,
+    media_service: MediaServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> StandardResponse:
+    """Загрузка медиа-файла в приватное хранилище.
+
+    Позволяет пользователю загрузить медиа-файл в приватное хранилище.
+    Необходимы права на выполнение операции загрузки и соответствующие данные о файле.
+
+    Parameters
+    ----------
+    form_data : UploadFileRequest
+        Зависимость для получения данных из формы, содержащих информацию о загружаемом файле.
+    media_service : MediaServiceDependency
+        Зависимость сервиса работы с медиа.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    StandardResponse
+        Успешный ответ о загрузке файла.
+        Возвращает сообщение об успешной загрузке файла и детальную информацию.
+    """
+    await media_service.upload_file(
+        form_data.file,
+        form_data.title,
+        form_data.description,
+        payload["sub"],
+    )
+
+    return StandardResponse(detail="File uploaded successfully.")
 
 
 @router.get(
@@ -94,6 +137,46 @@ async def post_albums(
     return StandardResponse(detail="New album created successfully.")
 
 
+@router.get(
+    "/albums/{album_id}",
+    response_model=AlbumResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Получение подробной информации о медиа-альбоме.",
+)
+async def get_album(
+    album_id: Annotated[UUID, Path(description="UUID запрашиваемого альбома.")],
+    media_service: MediaServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> AlbumResponse:
+    """Получение подробной информации о медиа-альбоме.
+
+    Возвращает подробный DTO с полной информацией о конкретном
+    медиа альбоме, чей UUID был передан.
+
+    Если текущий пользователь не имеет доступа к этому альбому
+    или альбом с переданным UUID не существует, будет
+    возвращена ошибка.
+
+    Parameters
+    ----------
+    media_service : MediaServiceDependency
+        Зависимость сервиса работы с медиа.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    AlbumResponse
+        Подробная информация о конкретном медиа-альбоме.
+    """
+    album: AlbumWithItemsDTO = await media_service.get_album(album_id, payload["sub"])
+
+    return AlbumResponse(
+        album=album, detail=f"Found album with {len(album.items)} files."
+    )
+
+
 @router.delete(
     "/albums/{album_id}",
     response_model=StandardResponse,
@@ -125,28 +208,47 @@ async def delete_albums(
     StandardResponse
         Ответ о результате удаления медиа альбома.
     """
-    # await media_service.delete_album(payload["sub"], album_id)
+    await media_service.delete_album(album_id, payload["sub"])
 
     return StandardResponse(detail="Album entry deleted successfully.")
 
 
-@router.post(
-    "/upload",
+@router.patch(
+    "/albums/{album_id}/attach",
     response_model=StandardResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Загрузка медиа-файлов в приватное хранилище.",
+    status_code=status.HTTP_200_OK,
+    summary="Привязка медиа-файлов к альбому.",
 )
-async def upload(
-    form_data: Annotated[UploadFileRequest, Depends()],
+async def attach(
+    album_id: Annotated[
+        UUID, Path(description="UUID альбома, в который добавляются файлы.")
+    ],
+    form_data: Annotated[
+        AttachMediaRequest, Body(description="Список UUID медиа файлов к добавлению.")
+    ],
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
-    """TODO: Документация."""
-    await media_service.upload_file(
-        form_data.file,
-        form_data.title,
-        form_data.description,
-        payload["sub"],
-    )
+    """Привязка медиа-файлов к медиа-альбому.
 
-    return StandardResponse(detail="File uploaded successfully.")
+    Получает в теле запроса список UUID медиа-файлов, которые
+    будут добавлены в медиа альбом.
+
+    album_id : UUID
+        UUID альбома, к которому добавляются медиа-файлы.
+    form_data : AttachMediaRequest
+        Список UUID медиа-файлов к добавлению.
+    media_service : MediaServiceDependency
+        Зависимость сервиса работы с медиа.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    StandardResponse
+        Ответ о результате добавления файлов к альбому.
+    """
+    await media_service.attach(album_id, form_data.media_uuids, payload["sub"])
+
+    return StandardResponse(detail="Files successfully attached to album.")
