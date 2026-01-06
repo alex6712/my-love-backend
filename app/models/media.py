@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
-from pydantic import FileUrl
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON, String, Text, Uuid
@@ -19,10 +18,10 @@ class MediaModel(BaseModel):
     __tablename__ = "media"
     __table_args__ = {"comment": "Загруженные пользователями медиа файлы"}
 
-    url: Mapped[FileUrl] = mapped_column(
+    path: Mapped[str] = mapped_column(
         String(512),
         nullable=False,
-        comment="Ссылка на файл в S3 хранилище",
+        comment="Путь до файла внутри бакета приложения",
     )
     type_: Mapped[MediaType] = mapped_column(
         String(16),
@@ -69,7 +68,7 @@ class MediaModel(BaseModel):
 
     def __repr__(self, **_) -> str:
         attrs: dict[str, Any] = {
-            "url": self.url,
+            "path": self.path,
             "type_": self.type_,
             "title": self.title,
             "description": self.description,

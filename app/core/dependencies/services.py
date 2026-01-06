@@ -3,8 +3,8 @@ from typing import Annotated
 from fastapi import Depends
 
 from app.core.dependencies.infrastructure import (
-    MinioClientDependency,
     RedisClientDependency,
+    S3ClientDependency,
     UnitOfWorkDependency,
 )
 from app.core.dependencies.settings import SettingsDependency
@@ -43,7 +43,7 @@ def get_auth_service(
 
 def get_media_service(
     unit_of_work: UnitOfWorkDependency,
-    minio_client: MinioClientDependency,
+    s3_client: S3ClientDependency,
     settings: SettingsDependency,
 ) -> MediaService:
     """Фабрика зависимостей для создания экземпляра сервиса работы с медиа.
@@ -57,8 +57,8 @@ def get_media_service(
     unit_of_work : UnitOfWorkDependency
         Зависимость Unit of Work, которая будет передана
         в конструктор сервиса работы с медиа.
-    minio_client: MinioClientDependency
-        Зависимость MinioClient для работы с файловым хранилищем.
+    s3_client: S3ClientDependency
+        Зависимость S3Client для работы с файловым хранилищем.
     settings : SettingsDependency
         Зависимость для установки точного пути до сохранённых медиа.
 
@@ -67,7 +67,7 @@ def get_media_service(
     MediaService
         Экземпляр сервиса работы с медиа с внедренными зависимостями.
     """
-    return MediaService(unit_of_work, minio_client, settings)
+    return MediaService(unit_of_work, s3_client, settings)
 
 
 def get_users_service(

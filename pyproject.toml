@@ -5,15 +5,17 @@ description = "Романтичное приложение-подарок на 1
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "aioboto3>=15.5.0",
     "alembic>=1.17.2",
     "asyncpg>=0.31.0",
     "fastapi[standard]>=0.124.4",
-    "minio>=7.2.20",
     "passlib[argon2]>=1.7.4",
     "pydantic-settings>=2.12.0",
     "python-jose[cryptography]>=3.5.0",
     "redis>=7.1.0",
     "sqlalchemy>=2.0.45",
+    "types-aiobotocore>=3.1.0",
+    "types-aiobotocore-s3>=3.1.0",
 ]
 
 [dependency-groups]

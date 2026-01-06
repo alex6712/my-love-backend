@@ -15,15 +15,17 @@ T = TypeVar("T", bound=RepositoryInterface)
 
 settings: Settings = get_settings()
 
-engine: AsyncEngine = create_async_engine(
+async_postgresql_engine: AsyncEngine = create_async_engine(
     url=settings.POSTGRES_DSN.unicode_string(),
     echo=False,
     pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=10,
 )
 """SQLAlchemy async engine, который используется в этом проекте."""
 
 AsyncSessionMaker: async_sessionmaker[AsyncSession] = async_sessionmaker(
-    bind=engine, class_=AsyncSession, expire_on_commit=False
+    bind=async_postgresql_engine, class_=AsyncSession, expire_on_commit=False
 )
 """Фабрика асинхронных сессий SQLAlchemy."""
 

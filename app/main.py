@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
+from botocore.exceptions import ClientError
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -18,7 +19,9 @@ from app.core.exceptions.auth import (
 from app.core.exceptions.base import AlreadyExistsException, NotFoundException
 from app.core.exceptions.couple import CoupleNotSelfException
 from app.core.exceptions.media import UnsupportedFileTypeException
-from app.infrastructure.minio import minio_client
+from app.infrastructure.postgresql import async_postgresql_engine
+from app.infrastructure.redis import redis_client
+from app.infrastructure.s3 import get_s3_client
 from app.schemas.v1.responses.standard import StandardResponse
 
 settings: Settings = get_settings()
@@ -55,7 +58,8 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, Any]:
     его работы.
 
     В данном случае выполняет следующие действия:
-    - Инициализирует бакет через клиент MinIO.
+    - Инициализирует бакет MinIO через клиент `aioboto3`;
+    - Создаёт пул подключений к Redis.
 
     Parameters
     ----------
@@ -67,10 +71,24 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, Any]:
     None
         При успешном выполнении ничего не возвращает.
     """
-    if not minio_client.bucket_exists(settings.MINIO_BUCKET_NAME):
-        minio_client.make_bucket(settings.MINIO_BUCKET_NAME)
+    async with get_s3_client() as s3_client:
+        try:
+            await s3_client.head_bucket(Bucket=settings.MINIO_BUCKET_NAME)
+        except ClientError as e:
+            error_code: str = e.response.get("Error", {}).get("Code", "")
+
+            if error_code in ("404", "NoSuchBucket"):
+                await s3_client.create_bucket(Bucket=settings.MINIO_BUCKET_NAME)
+            else:
+                raise
+
+    await redis_client.connect()
 
     yield
+
+    await async_postgresql_engine.dispose()
+
+    await redis_client.disconnect()
 
 
 my_love_backend = FastAPI(

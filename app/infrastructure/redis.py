@@ -1,5 +1,3 @@
-from typing import Any, Self
-
 import redis.asyncio as redis
 
 from app.config import Settings, get_settings
@@ -34,7 +32,9 @@ class RedisClient:
         Удаление токена из черного списка.
     """
 
-    def __init__(self):
+    def __init__(self, redis_url: str):
+        self._redis_url: str = redis_url
+
         self._pool: redis.ConnectionPool | None = None
 
     async def connect(self) -> None:
@@ -48,7 +48,7 @@ class RedisClient:
             Если подключение уже было установлено
         """
         self._pool = redis.ConnectionPool.from_url(  # type: ignore
-            settings.REDIS_URL.unicode_string(),
+            self._redis_url,
             decode_responses=True,
             max_connections=10,
         )
@@ -61,31 +61,6 @@ class RedisClient:
         """
         if self._pool:
             await self._pool.disconnect()
-
-    async def __aenter__(self) -> Self:
-        """Вход в асинхронный контекст.
-
-        Возвращает текущий экземпляр `RedisClient`,
-        если подключение уже было установлено.
-        Если нет, то создает новое подключение и возвращает его.
-
-        Returns
-        -------
-        RedisClient
-            Текущий экземпляр `RedisClient`.
-        """
-        if not self._pool:
-            await self.connect()
-            return self
-        else:
-            raise RuntimeError("Redis connection pool is already initialized.")
-
-    async def __aexit__(self, *_: Any) -> None:
-        """Выход из асинхронного контекста.
-
-        Закрывает подключение к Redis. Если подключение не было установлено, ничего не делает.
-        """
-        await self.disconnect()
 
     @property
     def client(self) -> redis.Redis:
@@ -158,3 +133,9 @@ class RedisClient:
             Токен, который нужно удалить из черного списка.
         """
         await self.client.delete(f"blacklist:access_token:{token}")
+
+
+redis_client: RedisClient = RedisClient(
+    redis_url=settings.REDIS_URL.unicode_string(),
+)
+"""Project-wide клиент Redis, предоставляющий методы работы с хранилищем."""

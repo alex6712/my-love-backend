@@ -149,6 +149,9 @@ class CouplesService:
         if await self._couples_repo.get_active_couple_by_partner_id(user_id):
             raise CoupleAlreadyExistsException(detail="You're already in couple!")
 
+        # TODO: убрать это безобразие. Создать метод в репозитории
+        # на получение запроса по его UUID и UUID партнёра
+
         requests: list[
             CoupleRequestDTO
         ] = await self._couples_repo.get_pending_requests_for_recipient(user_id)

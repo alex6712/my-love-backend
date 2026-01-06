@@ -14,8 +14,8 @@ class MediaDTO(BaseDTO):
     ----------
     id : UUID
         Уникальный идентификатор медиа-файла.
-    url : str
-        Строка-ссылка на получение медиа-файла.
+    path : str
+        Путь до файла внутри бакета приложения.
     type_ : MediaType
         Тип сохранённого медиа-файла:
         - 'image' - изображение;
@@ -33,7 +33,7 @@ class MediaDTO(BaseDTO):
     """
 
     id: UUID
-    url: str
+    path: str
     type_: MediaType
     title: str
     description: str | None

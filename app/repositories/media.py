@@ -44,7 +44,7 @@ class MediaRepository(RepositoryInterface):
 
     async def add_file(
         self,
-        url: str,
+        path: str,
         type_: MediaType,
         created_by: UUID,
         title: str | None = None,
@@ -55,8 +55,8 @@ class MediaRepository(RepositoryInterface):
 
         Parameters
         ----------
-        url : str
-            URL файла.
+        path : str
+            Путь до файла внутри бакета приложения.
         type_ : MediaType
             Тип файла (например, изображение, видео).
         created_by : UUID
@@ -70,7 +70,7 @@ class MediaRepository(RepositoryInterface):
         """
         self.session.add(
             MediaModel(
-                url=url,
+                path=path,
                 type_=type_,
                 title=title,
                 description=description,

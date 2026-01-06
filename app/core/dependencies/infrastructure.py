@@ -1,26 +1,25 @@
 from typing import Annotated, Any, AsyncGenerator
 
 from fastapi import Depends
-from minio import Minio
+from types_aiobotocore_s3 import S3Client
 
-from app.infrastructure.minio import minio_client
 from app.infrastructure.postgresql import UnitOfWork
-from app.infrastructure.redis import RedisClient
+from app.infrastructure.redis import RedisClient, redis_client
+from app.infrastructure.s3 import get_s3_client as _get_s3_client
 
 
-def get_minio_client() -> Minio:
-    """Возвращает project-wide экземпляр клиента MinIO.
+async def get_s3_client() -> AsyncGenerator[S3Client, None]:
+    """Зависимость для получения асинхронного S3 клиента.
 
-    Это соответствует best practices при работе с MinIO,
-    а интеграция этого клиента в механизм FastAPI DI упрощает
-    разработку и соответствует философии фреймворка.
+    Клиент автоматически закрывается после завершения запроса.
 
-    Returns
-    -------
-    Minio
-        Project-wide инстанс клиента MinIO.
+    Yields
+    ------
+    S3Client
+        Асинхронный S3 клиент.
     """
-    return minio_client
+    async with _get_s3_client() as client:
+        yield client
 
 
 async def get_unit_of_work() -> AsyncGenerator[UnitOfWork, Any]:
@@ -41,33 +40,26 @@ async def get_unit_of_work() -> AsyncGenerator[UnitOfWork, Any]:
         yield uow
 
 
-async def get_redis_client() -> AsyncGenerator[RedisClient, Any]:
-    """Фабрика для создания зависимости Redis.
+def get_redis_client() -> RedisClient:
+    """Возвращает project-wide экземпляр клиента Redis.
 
-    Используется для автоматического менеджмента соединения с Redis.
-    При входе в контекст (async with) создается новое соединение,
-    при выходе — закрывается. Если в контексте возникнет исключение,
-    оно будет проброшено дальше.
+    Это соответствует best practices при работе с Redis,
+    а интеграция этого клиента в механизм FastAPI DI упрощает
+    разработку и соответствует философии фреймворка.
 
-    Yields
-    ------
+    Returns
+    -------
     RedisClient
-        Экземпляр клиента Redis.
-
-    Notes
-    -----
-    При закрытии контекста (даже не в случае исключения или выхода из области видимости),
-    соединение с Redis будет закрыто. Все дальнейшие запросы будут отклонены.
+        Project-wide инстанс клиента Redis.
     """
-    async with RedisClient() as redis:
-        yield redis
+    return redis_client
 
 
-MinioClientDependency = Annotated[Minio, Depends(get_minio_client)]
-"""Зависимость на получение клиента MinIO."""
+S3ClientDependency = Annotated[S3Client, Depends(get_s3_client)]
+"""Зависимость на получение асинхронного S3 клиента."""
 
 UnitOfWorkDependency = Annotated[UnitOfWork, Depends(get_unit_of_work)]
 """Зависимость на получение экземпляра Unit of Work в асинхронном контексте."""
 
 RedisClientDependency = Annotated[RedisClient, Depends(get_redis_client)]
-"""Зависимость на получение клиента Redis в асинхронном контексте."""
+"""Зависимость на получение клиента Redis."""
