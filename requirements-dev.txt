@@ -215,9 +215,9 @@ typer==0.20.0
     #   fastapi-cli
     #   fastapi-cloud-cli
 types-aiobotocore==3.1.0
-    # via my-love-backend (pyproject.toml)
+    # via my-love-backend (pyproject.toml:dev)
 types-aiobotocore-s3==3.1.0
-    # via my-love-backend (pyproject.toml)
+    # via my-love-backend (pyproject.toml:dev)
 types-awscrt==0.30.0
     # via botocore-stubs
 typing-extensions==4.15.0

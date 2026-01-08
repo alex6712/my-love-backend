@@ -1,5 +1,6 @@
 # Игнорируем всё ненужное
 .git/
+.github/
 .gitignore
 __pycache__/
 *.pyc
@@ -13,6 +14,9 @@ env/
 ENV/
 env.bak/
 venv.bak/
+requirements-dev.txt
+README.md
+LICENSE
 
 # Utility скрипты
 scripts/
@@ -49,3 +53,8 @@ Thumbs.db
 # Временные файлы
 tmp/
 *.tmp
+
+# uv
+.python-version
+pyproject.toml
+uv.lock

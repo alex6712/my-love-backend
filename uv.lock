@@ -307,14 +307,14 @@ wheels = [
 
 [[package]]
 name = "botocore-stubs"
-version = "1.42.22"
+version = "1.42.24"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "types-awscrt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6e/3d/88a667232f6fa5f904aaf26d75d15371cd765ce9807dcde8de7056684a06/botocore_stubs-1.42.22.tar.gz", hash = "sha256:e0dc59c014ccb5896fac25cdcb4cfb7370d02e0877cb15949c4fd69a6774a358", size = 42423, upload-time = "2026-01-05T20:32:43.608Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/61/5715ec25b3dcb2a08133811f6a18a9ca9be54567452ab3e92cadcaec746e/botocore_stubs-1.42.24.tar.gz", hash = "sha256:f5fbe240267b27036b1217a304de34bf2bf993087e049a300d17d6f52d77988b", size = 42415, upload-time = "2026-01-07T21:27:03.862Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3e/a3/2b5c5c0373bcc0e53fd64802b969de0939ce0b7d5843c4db2230a016d660/botocore_stubs-1.42.22-py3-none-any.whl", hash = "sha256:74996853410dcd1915ab62c189c43086495263b3a8b69c17f6cdb3781cc4aa57", size = 66760, upload-time = "2026-01-05T20:32:41.938Z" },
+    { url = "https://files.pythonhosted.org/packages/55/6b/cffb62a7872ba32e08c22c9c918a4d5d1d39ed6d74195bf50a3ae75a22f3/botocore_stubs-1.42.24-py3-none-any.whl", hash = "sha256:025999e68f419472cc8dfb7bcc2964fa0a06b447f43e7fc309012ff4c665b3db", size = 66762, upload-time = "2026-01-07T21:27:02.249Z" },
 ]
 
 [[package]]
@@ -1042,8 +1042,6 @@ dependencies = [
     { name = "python-jose", extra = ["cryptography"] },
     { name = "redis" },
     { name = "sqlalchemy" },
-    { name = "types-aiobotocore" },
-    { name = "types-aiobotocore-s3" },
 ]
 
 [package.dev-dependencies]
@@ -1052,6 +1050,8 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "types-aiobotocore" },
+    { name = "types-aiobotocore-s3" },
 ]
 
 [package.metadata]
@@ -1065,8 +1065,6 @@ requires-dist = [
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5.0" },
     { name = "redis", specifier = ">=7.1.0" },
     { name = "sqlalchemy", specifier = ">=2.0.45" },
-    { name = "types-aiobotocore", specifier = ">=3.1.0" },
-    { name = "types-aiobotocore-s3", specifier = ">=3.1.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1075,6 +1073,8 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "ruff", specifier = ">=0.14.10" },
+    { name = "types-aiobotocore", specifier = ">=3.1.0" },
+    { name = "types-aiobotocore-s3", specifier = ">=3.1.0" },
 ]
 
 [[package]]

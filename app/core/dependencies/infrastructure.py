@@ -1,14 +1,16 @@
-from typing import Annotated, Any, AsyncGenerator
+from typing import TYPE_CHECKING, Annotated, Any, AsyncGenerator
 
 from fastapi import Depends
-from types_aiobotocore_s3 import S3Client
 
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient, redis_client
 from app.infrastructure.s3 import get_s3_client as _get_s3_client
 
+if TYPE_CHECKING:
+    from types_aiobotocore_s3 import S3Client
 
-async def get_s3_client() -> AsyncGenerator[S3Client, None]:
+
+async def get_s3_client() -> AsyncGenerator["S3Client", None]:
     """Зависимость для получения асинхронного S3 клиента.
 
     Клиент автоматически закрывается после завершения запроса.
@@ -55,7 +57,7 @@ def get_redis_client() -> RedisClient:
     return redis_client
 
 
-S3ClientDependency = Annotated[S3Client, Depends(get_s3_client)]
+S3ClientDependency = Annotated["S3Client", Depends(get_s3_client)]
 """Зависимость на получение асинхронного S3 клиента."""
 
 UnitOfWorkDependency = Annotated[UnitOfWork, Depends(get_unit_of_work)]

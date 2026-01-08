@@ -103,7 +103,7 @@ async def upload_direct(
 
     return PresignedURLResponse(
         presigned_url=presigned_url,
-        detail="File uploaded successfully.",
+        detail="Presigned URL generated successfully.",
     )
 
 

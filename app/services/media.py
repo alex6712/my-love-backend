@@ -1,8 +1,7 @@
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from uuid import UUID, uuid4
 
 from fastapi import UploadFile
-from types_aiobotocore_s3 import S3Client
 
 from app.config import Settings
 from app.core.exceptions.media import (
@@ -13,6 +12,9 @@ from app.infrastructure.postgresql import UnitOfWork
 from app.repositories.media import FileType, MediaRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 from app.schemas.dto.file import FileDTO
+
+if TYPE_CHECKING:
+    from types_aiobotocore_s3 import S3Client
 
 
 class MediaService:
@@ -59,12 +61,12 @@ class MediaService:
     """Поддерживаемые MIME-типы."""
 
     def __init__(
-        self, unit_of_work: UnitOfWork, s3_client: S3Client, settings: Settings
+        self, unit_of_work: UnitOfWork, s3_client: "S3Client", settings: Settings
     ):
         super().__init__()
 
         self._media_repo: MediaRepository = unit_of_work.get_repository(MediaRepository)
-        self._s3_client: S3Client = s3_client
+        self._s3_client: "S3Client" = s3_client
         self._settings: Settings = settings
 
     async def upload_file(

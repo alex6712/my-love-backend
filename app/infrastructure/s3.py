@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import TYPE_CHECKING, AsyncGenerator
 
 import aioboto3  # type: ignore
-from types_aiobotocore_s3 import S3Client
 
 from app.config import Settings, get_settings
+
+if TYPE_CHECKING:
+    from types_aiobotocore_s3 import S3Client
 
 settings: Settings = get_settings()
 
@@ -16,7 +18,7 @@ _session: aioboto3.Session = aioboto3.Session(
 
 
 @asynccontextmanager
-async def get_s3_client() -> AsyncGenerator[S3Client, None]:
+async def get_s3_client() -> AsyncGenerator["S3Client", None]:
     """Асинхронный контекстный менеджер для получения S3 клиента.
 
     Используется для получения клиента объектного хранилища
