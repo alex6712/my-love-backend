@@ -127,23 +127,22 @@ class MediaService:
 
     async def get_upload_presigned_url(
         self,
-        file: UploadFile,
+        content_type: str,
         title: str | None,
         description: str | None,
         created_by: UUID,
     ) -> str:
         """Получение presigned-url для загрузка файла в приватное хранилище.
 
-        Принимает файл в виде объекта-обёртки `fastapi.UploadFile`, также
-        ожидает дополнительные данные о файле для сохранения записи о файле.
+        Принимает дополнительные данные о файле для сохранения записи о файле.
 
         Генерирует уникальное имя файла, используя `uuid4`, генерирует presigned-url
         для прямой загрузки в S3 хранилище, создаёт в базе данных новую запись о загруженном файле.
 
         Parameters
         ----------
-        file : UploadFile
-            Файл к загрузке.
+        content_type : str
+            MIME-тип отправляемого файла.
         title : str | None
             Наименование загружаемого файла.
         description : str | None
@@ -156,9 +155,7 @@ class MediaService:
         UnsupportedFileTypeException
             Возникает в том случае, если тип переданного файла не поддерживается.
         """
-        content_type: str | None = file.content_type
-
-        if content_type is None or content_type not in self._SUPPORTED_CONTENT_TYPES:
+        if content_type not in self._SUPPORTED_CONTENT_TYPES:
             raise UnsupportedFileTypeException(
                 detail=(
                     f"File type '{content_type}' is not supported. "

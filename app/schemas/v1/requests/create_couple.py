@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 
 
 class CreateCoupleRequest(BaseModel):
-    """Схема запроса на создание пары между пользователями..
+    """Схема запроса на создание пары между пользователями.
 
     Attributes
     ----------

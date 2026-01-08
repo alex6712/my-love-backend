@@ -9,6 +9,7 @@ from app.core.dependencies.transport import UploadFileDependency
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 from app.schemas.v1.requests.attach_files import AttachFilesRequest
 from app.schemas.v1.requests.create_album import CreateAlbumRequest
+from app.schemas.v1.requests.upload_file import UploadFileRequest
 from app.schemas.v1.responses.albums import AlbumResponse, AlbumsResponse
 from app.schemas.v1.responses.standard import StandardResponse
 from app.schemas.v1.responses.urls import PresignedURLResponse
@@ -37,7 +38,7 @@ async def upload_proxy(
 
     Parameters
     ----------
-    form_data : UploadFileRequest
+    form_data : UploadFileDependency
         Зависимость для получения данных из формы, содержащих информацию о загружаемом файле.
     media_service : MediaServiceDependency
         Зависимость сервиса работы с медиа.
@@ -68,7 +69,7 @@ async def upload_proxy(
     summary="Получение presigned-url для загрузки медиа-файлов в приватное хранилище.",
 )
 async def upload_direct(
-    form_data: UploadFileDependency,
+    form_data: UploadFileRequest,
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> PresignedURLResponse:
@@ -94,7 +95,7 @@ async def upload_direct(
         Успешный ответ о генерации presigned-url.
     """
     presigned_url: str = await media_service.get_upload_presigned_url(
-        form_data.file,
+        form_data.content_type,
         form_data.title,
         form_data.description,
         payload["sub"],
