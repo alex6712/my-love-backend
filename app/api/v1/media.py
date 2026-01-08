@@ -7,10 +7,11 @@ from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import MediaServiceDependency
 from app.core.dependencies.transport import UploadFileDependency
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
-from app.schemas.v1.requests.attach_media import AttachMediaRequest
+from app.schemas.v1.requests.attach_files import AttachFilesRequest
 from app.schemas.v1.requests.create_album import CreateAlbumRequest
 from app.schemas.v1.responses.albums import AlbumResponse, AlbumsResponse
 from app.schemas.v1.responses.standard import StandardResponse
+from app.schemas.v1.responses.urls import PresignedURLResponse
 
 router = APIRouter(
     prefix="/media",
@@ -19,12 +20,12 @@ router = APIRouter(
 
 
 @router.post(
-    "/upload",
+    "/upload/proxy",
     response_model=StandardResponse,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Загрузка медиа-файлов в приватное хранилище.",
 )
-async def upload(
+async def upload_proxy(
     form_data: UploadFileDependency,
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
@@ -58,6 +59,51 @@ async def upload(
     )
 
     return StandardResponse(detail="File uploaded successfully.")
+
+
+@router.post(
+    "/upload/direct",
+    response_model=PresignedURLResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Получение presigned-url для загрузки медиа-файлов в приватное хранилище.",
+)
+async def upload_direct(
+    form_data: UploadFileDependency,
+    media_service: MediaServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> PresignedURLResponse:
+    """Получение presigned-url для загрузки медиа-файлов в приватное хранилище.
+
+    Предоставляет подписанную ссылку для прямой загрузки файла в объектное
+    хранилище.
+    Необходимы права на выполнение операции загрузки и соответствующие данные о файле.
+
+    Parameters
+    ----------
+    form_data : UploadFileRequest
+        Зависимость для получения данных из формы, содержащих информацию о загружаемом файле.
+    media_service : MediaServiceDependency
+        Зависимость сервиса работы с медиа.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    PresignedURLResponse
+        Успешный ответ о генерации presigned-url.
+    """
+    presigned_url: str = await media_service.get_upload_presigned_url(
+        form_data.file,
+        form_data.title,
+        form_data.description,
+        payload["sub"],
+    )
+
+    return PresignedURLResponse(
+        presigned_url=presigned_url,
+        detail="File uploaded successfully.",
+    )
 
 
 @router.get(
@@ -224,7 +270,7 @@ async def attach(
         UUID, Path(description="UUID альбома, в который добавляются файлы.")
     ],
     form_data: Annotated[
-        AttachMediaRequest, Body(description="Список UUID медиа файлов к добавлению.")
+        AttachFilesRequest, Body(description="Список UUID медиа файлов к добавлению.")
     ],
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
@@ -249,6 +295,6 @@ async def attach(
     StandardResponse
         Ответ о результате добавления файлов к альбому.
     """
-    await media_service.attach(album_id, form_data.media_uuids, payload["sub"])
+    await media_service.attach(album_id, form_data.files_uuids, payload["sub"])
 
     return StandardResponse(detail="Files successfully attached to album.")

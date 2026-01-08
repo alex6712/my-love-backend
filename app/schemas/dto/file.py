@@ -2,21 +2,21 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from app.models.media import MediaType
+from app.models.file import FileType
 from app.schemas.dto.base import BaseDTO
 from app.schemas.dto.users import CreatorDTO
 
 
-class MediaDTO(BaseDTO):
+class FileDTO(BaseDTO):
     """DTO для представления медиа-файла.
 
     Attributes
     ----------
     id : UUID
         Уникальный идентификатор медиа-файла.
-    path : str
+    object_key : str
         Путь до файла внутри бакета приложения.
-    type_ : MediaType
+    type_ : FileType
         Тип сохранённого медиа-файла:
         - 'image' - изображение;
         - 'video' - видеофайл.
@@ -33,8 +33,8 @@ class MediaDTO(BaseDTO):
     """
 
     id: UUID
-    path: str
-    type_: MediaType
+    object_key: str
+    type_: FileType
     title: str
     description: str | None
     geo_data: dict[str, Any] | None

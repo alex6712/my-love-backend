@@ -3,7 +3,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-class AttachMediaRequest(BaseModel):
+class AttachFilesRequest(BaseModel):
     """Схема запроса на добавления медиа-файлов к альбому.
 
     Используется в качестве представления информации о списке
@@ -11,11 +11,11 @@ class AttachMediaRequest(BaseModel):
 
     Attributes
     ----------
-    media_uuids : list[UUID]
+    files_uuids : list[UUID]
         Список UUID медиа-файлов к добавлению.
     """
 
-    media_uuids: list[UUID] = Field(
+    files_uuids: list[UUID] = Field(
         description="Список UUID медиа-файлов, которые необходимо добавить в альбом.",
         examples=[
             [

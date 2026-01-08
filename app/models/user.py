@@ -8,7 +8,7 @@ from app.models.base import BaseModel
 if TYPE_CHECKING:
     from app.models.album import AlbumModel
     from app.models.couple import CoupleRequestModel
-    from app.models.media import MediaModel
+    from app.models.file import FileModel
 
 
 class UserModel(BaseModel):
@@ -64,8 +64,8 @@ class UserModel(BaseModel):
         viewonly=True,
         lazy="select",
     )
-    media_items: Mapped[list["MediaModel"]] = relationship(
-        "MediaModel",
+    media_files: Mapped[list["FileModel"]] = relationship(
+        "FileModel",
         back_populates="creator",
         viewonly=True,
         lazy="select",

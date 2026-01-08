@@ -10,9 +10,9 @@ from app.core.exceptions.media import (
     UnsupportedFileTypeException,
 )
 from app.infrastructure.postgresql import UnitOfWork
-from app.repositories.media import MediaRepository, MediaType
+from app.repositories.media import FileType, MediaRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
-from app.schemas.dto.media import MediaDTO
+from app.schemas.dto.file import FileDTO
 
 
 class MediaService:
@@ -36,6 +36,8 @@ class MediaService:
     -------
     upload_file(file, title, description, created_by)
         Загрузка файла в приватное хранилище.
+    get_upload_presigned_url(file, title, description, created_by)
+        Получение presigned-url для загрузка файла в приватное хранилище.
     create_album(title, description, cover_url, is_private, created_by)
         Создание нового альбома.
     get_albums(creator_id)
@@ -44,7 +46,7 @@ class MediaService:
         Получение подробной информации об альбоме по его UUID.
     delete_album(album_id, user_id)
         Удаление альбома по его UUID.
-    attach(album_id, media_uuids, user_id)
+    attach(album_id, files_uuids, user_id)
         Прикрепляет медиа-файлы к альбому.
     """
 
@@ -55,14 +57,6 @@ class MediaService:
         "video/quicktime",
     )
     """Поддерживаемые MIME-типы."""
-
-    _MIME_TO_EXTENSION: dict[str, str] = {
-        "image/jpeg": "jpg",
-        "image/png": "png",
-        "video/mp4": "mp4",
-        "video/quicktime": "mov",
-    }
-    """Маппинг MIME-типов на расширения файлов."""
 
     def __init__(
         self, unit_of_work: UnitOfWork, s3_client: S3Client, settings: Settings
@@ -114,67 +108,84 @@ class MediaService:
                 )
             )
 
-        file_extension: str = MediaService._get_file_extension(
-            file.filename, content_type
-        )
-
-        filename: str = f"{uuid4().hex}.{file_extension}"
-        file_path: str = f"uploads/{filename}"
+        object_key: str = f"uploads/{uuid4().hex}"
 
         await self._s3_client.upload_fileobj(
             Fileobj=file.file,
             Bucket=self._settings.MINIO_BUCKET_NAME,
-            Key=file_path,
+            Key=object_key,
             ExtraArgs={"ContentType": content_type},
         )
 
         await self._media_repo.add_file(
-            path=file_path,
-            type_=cast(MediaType, content_type.split("/")[0]),
+            object_key=object_key,
+            type_=cast(FileType, content_type.split("/")[0]),
             title=title,
             description=description,
             created_by=created_by,
         )
 
-    @staticmethod
-    def _get_file_extension(
-        filename: str | None,
-        content_type: str,
+    async def get_upload_presigned_url(
+        self,
+        file: UploadFile,
+        title: str | None,
+        description: str | None,
+        created_by: UUID,
     ) -> str:
-        """Определяет расширение файла.
+        """Получение presigned-url для загрузка файла в приватное хранилище.
 
-        Получает на вход переданные клиентом имя файла и его `Content-Type`,
-        на основе которых пытается установить расширение переданного файла.
+        Принимает файл в виде объекта-обёртки `fastapi.UploadFile`, также
+        ожидает дополнительные данные о файле для сохранения записи о файле.
+
+        Генерирует уникальное имя файла, используя `uuid4`, генерирует presigned-url
+        для прямой загрузки в S3 хранилище, создаёт в базе данных новую запись о загруженном файле.
 
         Parameters
         ----------
-        filename : str | None
-            Оригинальное имя файла.
-        content_type : str
-            MIME-тип файла.
+        file : UploadFile
+            Файл к загрузке.
+        title : str | None
+            Наименование загружаемого файла.
+        description : str | None
+            Описание загружаемого файла.
+        created_by : UUID
+            UUID пользователя, загрузившего файл.
 
-        Returns
-        -------
-        str
-            Расширение файла без точки.
+        Raises
+        ------
+        UnsupportedFileTypeException
+            Возникает в том случае, если тип переданного файла не поддерживается.
         """
-        if filename and "." in filename:
-            extension: str = filename.rsplit(".", maxsplit=1)[-1].lower()
-            valid_extensions: tuple[str, ...] = (
-                "jpg",
-                "jpeg",
-                "jfif",
-                "png",
-                "mp4",
-                "mov",
+        content_type: str | None = file.content_type
+
+        if content_type is None or content_type not in self._SUPPORTED_CONTENT_TYPES:
+            raise UnsupportedFileTypeException(
+                detail=(
+                    f"File type '{content_type}' is not supported. "
+                    f"Supported types: {self._SUPPORTED_CONTENT_TYPES}."
+                )
             )
 
-            if extension in valid_extensions:
-                if extension in ("jpeg", "jfif"):
-                    return "jpg"
-                return extension
+        object_key: str = f"uploads/{uuid4().hex}"
 
-        return MediaService._MIME_TO_EXTENSION.get(content_type, "bin")
+        url: str = await self._s3_client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": self._settings.MINIO_BUCKET_NAME,
+                "Key": object_key,
+            },
+            ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
+        )
+
+        await self._media_repo.add_file(
+            object_key=object_key,
+            type_=cast(FileType, content_type.split("/")[0]),
+            title=title,
+            description=description,
+            created_by=created_by,
+        )
+
+        return url
 
     async def create_album(
         self,
@@ -292,7 +303,7 @@ class MediaService:
         await self._media_repo.delete_album_by_id(album_id)
 
     async def attach(
-        self, album_id: UUID, media_uuids: list[UUID], user_id: UUID
+        self, album_id: UUID, files_uuids: list[UUID], user_id: UUID
     ) -> None:
         """Прикрепляет медиа-файлы к альбому.
 
@@ -306,7 +317,7 @@ class MediaService:
         ----------
         album_id : UUID
             UUID альбома.
-        media_uuids : list[UUID]
+        files_uuids : list[UUID]
             Список UUID медиа-файлов для прикрепления.
         user_id : UUID
             UUID пользователя, выполняющего операцию.
@@ -323,16 +334,16 @@ class MediaService:
                 detail=f"Album with id={album_id} not found, or you're not this album's creator."
             )
 
-        if not media_uuids:
+        if not files_uuids:
             return
 
-        media_files: list[MediaDTO] = await self._media_repo.get_media_by_ids(
-            media_uuids, created_by=user_id
+        files: list[FileDTO] = await self._media_repo.get_files_by_ids(
+            files_uuids, created_by=user_id
         )
-        found_media_ids: set[UUID] = {media.id for media in media_files}
+        found_files_ids: set[UUID] = {file.id for file in files}
 
-        if len(found_media_ids) != len(media_uuids):
-            missing_ids: set[UUID] = set(media_uuids) - found_media_ids
+        if len(found_files_ids) != len(files_uuids):
+            missing_ids: set[UUID] = set(files_uuids) - found_files_ids
 
             missing_list: str = ", ".join(str(mid) for mid in missing_ids)
             raise MediaNotFoundException(
@@ -342,10 +353,10 @@ class MediaService:
                 )
             )
 
-        attached_media: set[UUID] = await self._media_repo.get_existing_album_items(
-            album_id, media_uuids
+        attached_files: set[UUID] = await self._media_repo.get_existing_album_items(
+            album_id, files_uuids
         )
 
-        await self._media_repo.attach_media_to_album(
-            album_id, list(set(media_uuids) - attached_media)
+        await self._media_repo.attach_files_to_album(
+            album_id, list(set(files_uuids) - attached_files)
         )

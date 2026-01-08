@@ -11,22 +11,22 @@ if TYPE_CHECKING:
     from app.models.album import AlbumModel
     from app.models.user import UserModel
 
-type MediaType = Literal["image", "video"]
+type FileType = Literal["image", "video"]
 
 
-class MediaModel(BaseModel):
-    __tablename__ = "media"
+class FileModel(BaseModel):
+    __tablename__ = "files"
     __table_args__ = {"comment": "Загруженные пользователями медиа файлы"}
 
-    path: Mapped[str] = mapped_column(
+    object_key: Mapped[str] = mapped_column(
         String(512),
         nullable=False,
         comment="Путь до файла внутри бакета приложения",
     )
-    type_: Mapped[MediaType] = mapped_column(
+    type_: Mapped[FileType] = mapped_column(
         String(16),
         nullable=False,
-        comment="Тип медиа контента",
+        comment="Тип медиа файла",
     )
     title: Mapped[str] = mapped_column(
         String(64),
@@ -54,7 +54,7 @@ class MediaModel(BaseModel):
 
     creator: Mapped["UserModel"] = relationship(
         "UserModel",
-        back_populates="media_items",
+        back_populates="media_files",
         viewonly=True,
         lazy="select",
     )
@@ -68,7 +68,7 @@ class MediaModel(BaseModel):
 
     def __repr__(self, **_) -> str:
         attrs: dict[str, Any] = {
-            "path": self.path,
+            "object_key": self.object_key,
             "type_": self.type_,
             "title": self.title,
             "description": self.description,

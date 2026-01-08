@@ -7,10 +7,10 @@ from sqlalchemy.orm import selectinload
 
 from app.models.album import AlbumModel
 from app.models.album_items import AlbumItemsModel
-from app.models.media import MediaModel, MediaType
+from app.models.file import FileModel, FileType
 from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
-from app.schemas.dto.media import MediaDTO
+from app.schemas.dto.file import FileDTO
 
 
 class MediaRepository(RepositoryInterface):
@@ -31,11 +31,11 @@ class MediaRepository(RepositoryInterface):
         Возвращает список DTO медиа альбомов по id их создателя.
     delete_album_by_id(album_id)
         Удаляет запись о медиа альбоме из базы данных по его id.
-    get_media_by_ids(media_ids, created_by)
+    get_files_by_ids(files_ids, created_by)
         Получает медиа-файлы по списку UUID.
-    get_existing_album_items(album_id, media_ids)
+    get_existing_album_items(album_id, files_ids)
         Получает UUID медиа-файлов, уже прикреплённых к альбому.
-    attach_media_to_album(album_id, media_uuids)
+    attach_files_to_album(album_id, files_uuids)
         Прикрепляет медиа-файлы к альбому.
     """
 
@@ -44,8 +44,8 @@ class MediaRepository(RepositoryInterface):
 
     async def add_file(
         self,
-        path: str,
-        type_: MediaType,
+        object_key: str,
+        type_: FileType,
         created_by: UUID,
         title: str | None = None,
         description: str | None = None,
@@ -55,9 +55,9 @@ class MediaRepository(RepositoryInterface):
 
         Parameters
         ----------
-        path : str
+        object_key : str
             Путь до файла внутри бакета приложения.
-        type_ : MediaType
+        type_ : FileType
             Тип файла (например, изображение, видео).
         created_by : UUID
             UUID пользователя, создавшего файл.
@@ -69,8 +69,8 @@ class MediaRepository(RepositoryInterface):
             Географические данные файла в виде словаря. По умолчанию `None`.
         """
         self.session.add(
-            MediaModel(
-                path=path,
+            FileModel(
+                object_key=object_key,
                 type_=type_,
                 title=title,
                 description=description,
@@ -192,38 +192,38 @@ class MediaRepository(RepositoryInterface):
         """
         await self.session.execute(delete(AlbumModel).where(AlbumModel.id == album_id))
 
-    async def get_media_by_ids(
-        self, media_ids: list[UUID], created_by: UUID | None = None
-    ) -> list[MediaDTO]:
+    async def get_files_by_ids(
+        self, files_ids: list[UUID], created_by: UUID | None = None
+    ) -> list[FileDTO]:
         """Получает медиа-файлы по списку UUID.
 
         Parameters
         ----------
-        media_ids : list[UUID]
+        files_ids : list[UUID]
             Список UUID медиа-файлов.
         created_by : UUID | None
             Если указан, фильтрует по создателю.
 
         Returns
         -------
-        list[MediaDTO]
+        list[FileDTO]
             Список найденных медиа-файлов.
         """
         query = (
-            select(MediaModel)
-            .options(selectinload(MediaModel.creator))
-            .where(MediaModel.id.in_(media_ids))
+            select(FileModel)
+            .options(selectinload(FileModel.creator))
+            .where(FileModel.id.in_(files_ids))
         )
 
         if created_by:
-            query = query.where(MediaModel.created_by == created_by)
+            query = query.where(FileModel.created_by == created_by)
 
-        medias = await self.session.scalars(query)
+        files = await self.session.scalars(query)
 
-        return [MediaDTO.model_validate(media) for media in medias.all()]
+        return [FileDTO.model_validate(file) for file in files.all()]
 
     async def get_existing_album_items(
-        self, album_id: UUID, media_ids: list[UUID]
+        self, album_id: UUID, files_ids: list[UUID]
     ) -> set[UUID]:
         """Получает UUID медиа-файлов, уже прикреплённых к альбому.
 
@@ -231,7 +231,7 @@ class MediaRepository(RepositoryInterface):
         ----------
         album_id : UUID
             UUID альбома.
-        media_ids : list[UUID]
+        files_ids : list[UUID]
             Список UUID медиа-файлов для проверки.
 
         Returns
@@ -240,18 +240,18 @@ class MediaRepository(RepositoryInterface):
             Множество UUID уже прикреплённых файлов.
         """
         result = await self.session.scalars(
-            select(AlbumItemsModel.media_id).where(
+            select(AlbumItemsModel.file_id).where(
                 and_(
                     AlbumItemsModel.album_id == album_id,
-                    AlbumItemsModel.media_id.in_(media_ids),
+                    AlbumItemsModel.file_id.in_(files_ids),
                 )
             )
         )
 
         return set(result.all())
 
-    async def attach_media_to_album(
-        self, album_id: UUID, media_uuids: list[UUID]
+    async def attach_files_to_album(
+        self, album_id: UUID, files_uuids: list[UUID]
     ) -> None:
         """Прикрепляет медиа-файлы к альбому.
 
@@ -259,7 +259,7 @@ class MediaRepository(RepositoryInterface):
         ----------
         album_id : UUID
             UUID альбома.
-        media_uuids : list[UUID]
+        files_uuids : list[UUID]
             Список UUID медиа-файлов для прикрепления.
 
         Raises
@@ -268,8 +268,8 @@ class MediaRepository(RepositoryInterface):
             Если альбом не существует.
         """
         new_items: list[AlbumItemsModel] = [
-            AlbumItemsModel(album_id=album_id, media_id=media_id)
-            for media_id in media_uuids
+            AlbumItemsModel(album_id=album_id, file_id=file_id)
+            for file_id in files_uuids
         ]
 
         if new_items:

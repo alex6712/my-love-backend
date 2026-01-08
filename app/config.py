@@ -77,6 +77,8 @@ class Settings(BaseSettings):
         Наименование бакета на сервере MinIO.
     MINIO_ENDPOINT : str
         Полная ссылка на сервер MinIO.
+    PRESIGNED_URL_EXPIRATION : int
+        Базовое время жизни Presigned URL на загрузку файлов.
     PRIVATE_SIGNATURE_KEY_PASSWORD: str
         Пароль для дешифровки приватного ключа кодирования JWT.
     PRIVATE_SIGNATURE_KEY : EllipticCurvePrivateKey | None
@@ -133,6 +135,8 @@ class Settings(BaseSettings):
     MINIO_BUCKET_NAME: str
 
     MINIO_ENDPOINT: str
+
+    PRESIGNED_URL_EXPIRATION: int
 
     PRIVATE_SIGNATURE_KEY_PASSWORD: str
 

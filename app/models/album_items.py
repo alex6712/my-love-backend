@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -13,23 +13,24 @@ from app.models.base import BaseModel
 
 if TYPE_CHECKING:
     from app.models.album import AlbumModel
-    from app.models.media import MediaModel
+    from app.models.file import FileModel
 
 
 class AlbumItemsModel(BaseModel):
     __tablename__ = "album_items"
-    __table_args__ = {"comment": "Таблица с записями о сохранённых в альбомах медиа."}
+    __table_args__ = (
+        UniqueConstraint("album_id", "file_id", name="uq_album_file"),
+        {"comment": "Таблица с записями о сохранённых в альбомах медиа."},
+    )
 
     album_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("albums.id", ondelete="CASCADE"),
-        primary_key=True,
         comment="UUID медиа альбома",
     )
-    media_id: Mapped[UUID] = mapped_column(
+    file_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("media.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("files.id", ondelete="CASCADE"),
         comment="UUID медиа файла",
     )
 
@@ -39,17 +40,17 @@ class AlbumItemsModel(BaseModel):
         lazy="select",
         foreign_keys=[album_id],
     )
-    media: Mapped["MediaModel"] = relationship(
-        "MediaModel",
+    file: Mapped["FileModel"] = relationship(
+        "FileModel",
         viewonly=True,
         lazy="select",
-        foreign_keys=[media_id],
+        foreign_keys=[file_id],
     )
 
     def __repr__(self, **_) -> str:
         attrs: dict[str, Any] = {
             "album_id": self.album_id,
-            "media_id": self.media_id,
+            "file_id": self.file_id,
         }
 
         return super().__repr__(**attrs)

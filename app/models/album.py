@@ -8,7 +8,7 @@ from sqlalchemy.types import Boolean, String, Text, Uuid
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.models.media import MediaModel
+    from app.models.file import FileModel
     from app.models.user import UserModel
 
 
@@ -52,8 +52,8 @@ class AlbumModel(BaseModel):
         viewonly=True,
         lazy="select",
     )
-    items: Mapped[list["MediaModel"]] = relationship(
-        "MediaModel",
+    items: Mapped[list["FileModel"]] = relationship(
+        "FileModel",
         secondary="album_items",
         cascade="all, delete-orphan",
         viewonly=True,
