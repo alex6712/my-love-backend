@@ -5,9 +5,13 @@ from fastapi import APIRouter, Body, Path, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import MediaServiceDependency
-from app.core.dependencies.transport import UploadFileDependency
+from app.core.dependencies.transport import (
+    IdempotencyKeyDependency,
+    UploadFileDependency,
+)
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 from app.schemas.v1.requests.attach_files import AttachFilesRequest
+from app.schemas.v1.requests.confirm_upload import ConfirmUploadRequest
 from app.schemas.v1.requests.create_album import CreateAlbumRequest
 from app.schemas.v1.requests.upload_file import UploadFileRequest
 from app.schemas.v1.responses.albums import AlbumResponse, AlbumsResponse
@@ -30,21 +34,25 @@ async def upload_proxy(
     form_data: UploadFileDependency,
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
+    idempotency_key: IdempotencyKeyDependency,
 ) -> StandardResponse:
     """Загрузка медиа-файла в приватное хранилище.
 
     Позволяет пользователю загрузить медиа-файл в приватное хранилище.
-    Необходимы права на выполнение операции загрузки и соответствующие данные о файле.
+    Необходимы права на выполнение операции загрузки, соответствующие данные о файле
+    и ключ идемпотентности.
 
     Parameters
     ----------
-    form_data : UploadFileDependency
+    form_data : UploadFileRequestForm
         Зависимость для получения данных из формы, содержащих информацию о загружаемом файле.
-    media_service : MediaServiceDependency
+    media_service : MediaService
         Зависимость сервиса работы с медиа.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    idempotency_key : UUID
+        Ключ идемпотентности. Получен из заголовков запроса.
 
     Returns
     -------
@@ -66,24 +74,26 @@ async def upload_proxy(
     "/upload/direct",
     response_model=PresignedURLResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение presigned-url для загрузки медиа-файлов в приватное хранилище.",
+    summary="Получение Presigned URL для загрузки медиа-файлов в приватное хранилище.",
 )
 async def upload_direct(
     form_data: UploadFileRequest,
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
+    # idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLResponse:
     """Получение presigned-url для загрузки медиа-файлов в приватное хранилище.
 
     Предоставляет подписанную ссылку для прямой загрузки файла в объектное
     хранилище.
-    Необходимы права на выполнение операции загрузки и соответствующие данные о файле.
+    Необходимы права на выполнение операции загрузки, соответствующие данные о файле
+    и ключ идемпотентности.
 
     Parameters
     ----------
     form_data : UploadFileRequest
         Зависимость для получения данных из формы, содержащих информацию о загружаемом файле.
-    media_service : MediaServiceDependency
+    media_service : MediaService
         Зависимость сервиса работы с медиа.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -94,7 +104,7 @@ async def upload_direct(
     PresignedURLResponse
         Успешный ответ о генерации presigned-url.
     """
-    presigned_url: str = await media_service.get_upload_presigned_url(
+    file_id, presigned_url = await media_service.get_upload_presigned_url(
         form_data.content_type,
         form_data.title,
         form_data.description,
@@ -102,9 +112,48 @@ async def upload_direct(
     )
 
     return PresignedURLResponse(
+        file_id=file_id,
         presigned_url=presigned_url,
         detail="Presigned URL generated successfully.",
     )
+
+
+@router.post(
+    "/upload/confirm",
+    response_model=StandardResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Подтверждение окончания загрузки файла по Presigned URL.",
+)
+async def upload_confirm(
+    form_data: ConfirmUploadRequest,
+    media_service: MediaServiceDependency,
+    payload: StrictAuthenticationDependency,
+    idempotency_key: IdempotencyKeyDependency,
+) -> StandardResponse:
+    """Подтверждение окончания загрузки файла по Presigned URL.
+
+    Подтверждает загрузку файла по прямой ссылке в объектное хранилище.
+    Проверяет, что пользователь завершил загрузку, права пользователя на
+    владение загруженным файлом и корректность ключа идемпотентности.
+
+    Parameters
+    ----------
+    form_data : ConfirmUploadRequest
+        Зависимость для получения данных из формы.
+    media_service : MediaService
+        Зависимость сервиса работы с медиа.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    StandardResponse
+        Успешный ответ о регистрации загруженного файла.
+    """
+    await media_service.confirm_upload(form_data.file_id, payload["sub"])
+
+    return StandardResponse(detail="Upload confirmation is successful.")
 
 
 @router.get(
@@ -124,7 +173,7 @@ async def get_albums(
 
     Parameters
     ----------
-    media_service : MediaServiceDependency
+    media_service : MediaService
         Зависимость сервиса работы с медиа.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.

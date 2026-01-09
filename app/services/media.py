@@ -1,15 +1,17 @@
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
+from botocore.exceptions import ClientError
 from fastapi import UploadFile
 
 from app.config import Settings
 from app.core.exceptions.media import (
     MediaNotFoundException,
     UnsupportedFileTypeException,
+    UploadNotCompletedException,
 )
 from app.infrastructure.postgresql import UnitOfWork
-from app.repositories.media import FileType, MediaRepository
+from app.repositories.media import MediaRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 from app.schemas.dto.file import FileDTO
 
@@ -23,7 +25,8 @@ class MediaService:
     Реализует бизнес-логику для:
     - Регистрации и получения медиа альбомов;
     - Загрузку и выгрузку различных медиа;
-    - Управление медиа внутри и между альбомами.
+    - Управление медиа внутри и между альбомами;
+    - Подтверждение успешной загрузки файлов в хранилище.
 
     Attributes
     ----------
@@ -40,6 +43,8 @@ class MediaService:
         Загрузка файла в приватное хранилище.
     get_upload_presigned_url(file, title, description, created_by)
         Получение presigned-url для загрузка файла в приватное хранилище.
+    confirm_upload(file_id, user_id)
+        Подтверждение успешной загрузки файла в объектное хранилище.
     create_album(title, description, cover_url, is_private, created_by)
         Создание нового альбома.
     get_albums(creator_id)
@@ -112,20 +117,28 @@ class MediaService:
 
         object_key: str = f"uploads/{uuid4().hex}"
 
-        await self._s3_client.upload_fileobj(
-            Fileobj=file.file,
-            Bucket=self._settings.MINIO_BUCKET_NAME,
-            Key=object_key,
-            ExtraArgs={"ContentType": content_type},
-        )
+        try:
+            self._media_repo.add_file(
+                object_key=object_key,
+                content_type=content_type,
+                title=title,
+                description=description,
+                created_by=created_by,
+            )
 
-        await self._media_repo.add_file(
-            object_key=object_key,
-            type_=cast(FileType, content_type.split("/")[0]),
-            title=title,
-            description=description,
-            created_by=created_by,
-        )
+            await self._s3_client.upload_fileobj(
+                Fileobj=file.file,
+                Bucket=self._settings.MINIO_BUCKET_NAME,
+                Key=object_key,
+                ExtraArgs={"ContentType": content_type},
+            )
+        except:
+            await self._s3_client.delete_object(
+                Bucket=self._settings.MINIO_BUCKET_NAME,
+                Key=object_key,
+            )
+
+            raise
 
     async def get_upload_presigned_url(
         self,
@@ -133,7 +146,7 @@ class MediaService:
         title: str | None,
         description: str | None,
         created_by: UUID,
-    ) -> str:
+    ) -> tuple[UUID, str]:
         """Получение presigned-url для загрузка файла в приватное хранилище.
 
         Принимает дополнительные данные о файле для сохранения записи о файле.
@@ -167,7 +180,15 @@ class MediaService:
 
         object_key: str = f"uploads/{uuid4().hex}"
 
-        url: str = await self._s3_client.generate_presigned_url(
+        file_id: UUID = self._media_repo.add_pending_file(
+            object_key=object_key,
+            content_type=content_type,
+            title=title,
+            description=description,
+            created_by=created_by,
+        )
+
+        return file_id, await self._s3_client.generate_presigned_url(
             "put_object",
             Params={
                 "Bucket": self._settings.MINIO_BUCKET_NAME,
@@ -176,15 +197,61 @@ class MediaService:
             ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
         )
 
-        await self._media_repo.add_file(
-            object_key=object_key,
-            type_=cast(FileType, content_type.split("/")[0]),
-            title=title,
-            description=description,
-            created_by=created_by,
+    async def confirm_upload(self, file_id: UUID, user_id: UUID) -> None:
+        """Подтверждает успешную загрузку файла в объектное хранилище.
+
+        Проверяет наличие файла в базе данных и его физическое присутствие
+        в объектном хранилище (S3/MinIO), после чего обновляет статус файла
+        на UPLOADED. Используется при асинхронной загрузке файлов через
+        presigned URL.
+
+        Parameters
+        ----------
+        file_id : UUID
+            UUID медиа-файла для подтверждения загрузки.
+        user_id : UUID
+            UUID пользователя-создателя файла.
+            Используется для проверки прав доступа.
+
+        Raises
+        ------
+        MediaNotFoundException
+            Если файл с указанным ID не найден в базе данных или
+            текущий пользователь не является создателем файла.
+        UploadNotCompletedException
+            Если файл не найден в объектном хранилище, то есть
+            загрузка не была завершена или файл был удалён.
+        """
+        files: list[FileDTO] = await self._media_repo.get_files_by_ids(
+            [file_id], created_by=user_id
         )
 
-        return url
+        if len(files) != 1:
+            raise MediaNotFoundException(
+                media_type="file",
+                detail=f"File with id={file_id} not found, or you're not this file's creator.",
+            )
+
+        file: FileDTO = files[0]
+
+        exists: bool = False
+        try:
+            await self._s3_client.head_object(
+                Bucket=self._settings.MINIO_BUCKET_NAME,
+                Key=file.object_key,
+            )
+        except ClientError as ce:
+            if ce.response.get("Error", {}).get("Code", "Unknown") == "404":
+                exists = False
+        else:
+            exists = True
+
+        if not exists:
+            raise UploadNotCompletedException(
+                detail=f"File with id={file_id} not found in object storage.",
+            )
+
+        await self._media_repo.mark_file_uploaded(file.id)
 
     async def create_album(
         self,
@@ -213,7 +280,7 @@ class MediaService:
         created_by : UUID
             UUID пользователя, создавшего альбом.
         """
-        await self._media_repo.add_album(
+        self._media_repo.add_album(
             title, description, cover_url, is_private, created_by
         )
 
@@ -267,7 +334,8 @@ class MediaService:
 
         if album is None or album.creator.id != user_id:
             raise MediaNotFoundException(
-                detail=f"Album with id={album_id} not found, or you're not this album's creator."
+                media_type="album",
+                detail=f"Album with id={album_id} not found, or you're not this album's creator.",
             )
 
         return album
@@ -296,7 +364,8 @@ class MediaService:
 
         if album is None or album.creator.id != user_id:
             raise MediaNotFoundException(
-                detail=f"Album with id={album_id} not found, or you're not this album's creator."
+                media_type="album",
+                detail=f"Album with id={album_id} not found, or you're not this album's creator.",
             )
 
         await self._media_repo.delete_album_by_id(album_id)
@@ -330,7 +399,8 @@ class MediaService:
 
         if album is None or album.creator.id != user_id:
             raise MediaNotFoundException(
-                detail=f"Album with id={album_id} not found, or you're not this album's creator."
+                media_type="album",
+                detail=f"Album with id={album_id} not found, or you're not this album's creator.",
             )
 
         if not files_uuids:
@@ -346,16 +416,17 @@ class MediaService:
 
             missing_list: str = ", ".join(str(mid) for mid in missing_ids)
             raise MediaNotFoundException(
+                media_type="file",
                 detail=(
                     "One or more media files not found or you don't have "
                     f"permission to attach them. Missing IDs: {missing_list}"
-                )
+                ),
             )
 
         attached_files: set[UUID] = await self._media_repo.get_existing_album_items(
             album_id, files_uuids
         )
 
-        await self._media_repo.attach_files_to_album(
+        self._media_repo.attach_files_to_album(
             album_id, list(set(files_uuids) - attached_files)
         )

@@ -4,7 +4,8 @@ from uuid import UUID
 
 from sqlalchemy import CheckConstraint, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.types import DateTime, String, Uuid
+from sqlalchemy.types import DateTime, Uuid
+from sqlalchemy.types import Enum as SAEnum
 
 from app.core.enums import CoupleRequestStatus
 from app.models.base import BaseModel
@@ -33,8 +34,12 @@ class CoupleRequestModel(BaseModel):
         comment="UUID пользователя-реципиента",
     )
     status: Mapped[CoupleRequestStatus] = mapped_column(
-        String(8),
-        default=CoupleRequestStatus.PENDING.value,
+        SAEnum(
+            CoupleRequestStatus,
+            name="couple_request_status",
+            native_enum=True,
+        ),
+        default=CoupleRequestStatus.PENDING,
         nullable=False,
         index=True,
         comment="Статус пары между пользователями",

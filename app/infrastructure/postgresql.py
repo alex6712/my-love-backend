@@ -68,7 +68,7 @@ class UnitOfWork:
     @property
     def session(self) -> AsyncSession:
         if self._session is None:
-            raise UnitOfWorkContextClosedException(domain="application")
+            raise UnitOfWorkContextClosedException()
 
         return self._session
 
@@ -98,14 +98,58 @@ class UnitOfWork:
         """
         try:
             if exc_type is not None:
-                await self.session.rollback()
+                await self.rollback()
             else:
-                await self.session.commit()
+                await self.commit()
         finally:
             await self.session.close()
 
             self._session = None
             self._repos.clear()
+
+    async def commit(self) -> None:
+        """Зафиксировать изменения в базе данных.
+
+        Применяет все изменения, сделанные в рамках текущей транзакции,
+        к базе данных. После успешного вызова все операции insert, update
+        и delete становятся постоянными.
+
+        Raises
+        ------
+        UnitOfWorkContextClosedException
+            Если вызван вне контекста менеджера (когда сессия не инициализирована).
+        SQLAlchemyError
+            При возникновении ошибок на уровне базы данных во время фиксации.
+
+        Notes
+        -----
+        Обычно этот метод вызывается автоматически при выходе из контекстного
+        менеджера, если не возникло исключений. Явный вызов может потребоваться
+        для промежуточных фиксаций в рамках одной транзакции.
+        """
+        await self.session.commit()
+
+    async def rollback(self) -> None:
+        """Отменить все изменения в текущей транзакции.
+
+        Откатывает все незафиксированные изменения, сделанные в рамках
+        текущей транзакции. После вызова база данных возвращается в состояние,
+        которое было до начала транзакции или последнего commit.
+
+        Raises
+        ------
+        UnitOfWorkContextClosedException
+            Если вызван вне контекста менеджера (когда сессия не инициализирована).
+        SQLAlchemyError
+            При возникновении ошибок на уровне базы данных во время отката.
+
+        Notes
+        -----
+        Этот метод вызывается автоматически при выходе из контекстного менеджера,
+        если в блоке `async with` возникло исключение. Явный вызов может быть
+        полезен для отката промежуточных изменений без выхода из контекста.
+        """
+        await self.session.rollback()
 
     def get_repository(self, repo_type: type[T]) -> T:
         """Получить экземпляр репозитория для работы с базой данных.

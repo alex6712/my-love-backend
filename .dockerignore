@@ -14,6 +14,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
+ruff.toml
 requirements-dev.txt
 README.md
 LICENSE
@@ -41,6 +42,8 @@ docker-compose.yml
 .dockerignore
 
 # Тесты и покрытие
+app/tests/
+pytest.ini
 .coverage
 htmlcov/
 .pytest_cache/

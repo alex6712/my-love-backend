@@ -1,17 +1,17 @@
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON, String, Text, Uuid
+from sqlalchemy.types import Enum as SAEnum
 
+from app.core.enums import FileStatus
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
     from app.models.album import AlbumModel
     from app.models.user import UserModel
-
-type FileType = Literal["image", "video"]
 
 
 class FileModel(BaseModel):
@@ -23,10 +23,21 @@ class FileModel(BaseModel):
         nullable=False,
         comment="Путь до файла внутри бакета приложения",
     )
-    type_: Mapped[FileType] = mapped_column(
-        String(16),
+    content_type: Mapped[str] = mapped_column(
+        String(64),
         nullable=False,
         comment="Тип медиа файла",
+    )
+    status: Mapped[FileStatus] = mapped_column(
+        SAEnum(
+            FileStatus,
+            name="file_status",
+            native_enum=True,
+        ),
+        default=FileStatus.PENDING,
+        nullable=False,
+        index=True,
+        comment="Текущий статус медиа-файла",
     )
     title: Mapped[str] = mapped_column(
         String(64),
@@ -69,7 +80,8 @@ class FileModel(BaseModel):
     def __repr__(self, **_) -> str:
         attrs: dict[str, Any] = {
             "object_key": self.object_key,
-            "type_": self.type_,
+            "content_type": self.content_type,
+            "status": self.status,
             "title": self.title,
             "description": self.description,
             "geo_data": self.geo_data,

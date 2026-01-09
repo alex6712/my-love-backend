@@ -16,19 +16,29 @@ class APICode(Enum):
     INCORRECT_USERNAME_PASSWORD
         Неверное имя пользователя или пароль.
     TOKEN_NOT_PASSED
-        Токене не передан.
-    INCORRECT_TOKEN
+        Токен не передан.
+    INVALID_TOKEN
         Неверный токен.
     TOKEN_SIGNATURE_EXPIRED
         Подпись токена просрочена.
     TOKEN_REVOKED
         Токен отозван.
+    IDEMPOTENCY_KEY_NOT_PASSED
+       Ключ идемпотентности не передан.
+    INVALID_IDEMPOTENCY_KEY
+        Неверный формат ключа идемпотентности.
     UNIQUE_CONFLICT
         Конфликт уникальности.
     COUPLE_NOT_SELF
         Запрещена пользовательская пара с самим собой.
+    ALBUM_NOT_FOUND
+        Медиа-альбом не найден.
+    FILE_NOT_FOUND
+        Медиа-файл не найден.
     UNSUPPORTED_FILE_TYPE
         Не поддерживаемый тип файла.
+    UPLOAD_NOT_COMPLETED
+        ФАйл не найден в объектном хранилище.
     """
 
     SUCCESS = "SUCCESS"
@@ -43,7 +53,7 @@ class APICode(Enum):
     TOKEN_NOT_PASSED = "TOKEN_NOT_PASSED"
     """Вызывается при условии, что JWT не передан в заголовках запроса."""
 
-    INCORRECT_TOKEN = "INCORRECT_TOKEN"
+    INVALID_TOKEN = "INVALID_TOKEN"
     """Неверный токен.
 
     Используется в случаях:
@@ -59,14 +69,29 @@ class APICode(Enum):
     TOKEN_REVOKED = "TOKEN_REVOKED"
     """Если переданный клиентом токен был отозван и находится в чёрном списке."""
 
+    IDEMPOTENCY_KEY_NOT_PASSED = "IDEMPOTENCY_KEY_NOT_PASSED"
+    """Ключ идемпотентности не был найден в заголовке `Idempotency-Key`."""
+
+    INVALID_IDEMPOTENCY_KEY = "INVALID_IDEMPOTENCY_KEY"
+    """Ключ идемпотентности не совпадает с ожидаемый форматом (UUIDv4)."""
+
     UNIQUE_CONFLICT = "UNIQUE_CONFLICT"
     """При попытке создать новую запись по уже существующему уникальному ключу."""
 
     COUPLE_NOT_SELF = "COUPLE_NOT_SELF"
     """При попытке создать пользовательскую пару с самим собой."""
 
+    ALBUM_NOT_FOUND = "ALBUM_NOT_FOUND"
+    """При попытке получить медиа-альбом по несуществующему набору параметров."""
+
+    FILE_NOT_FOUND = "FILE_NOT_FOUND"
+    """При попытке получить медиа-файл по несуществующему набору параметров."""
+
     UNSUPPORTED_FILE_TYPE = "UNSUPPORTED_FILE_TYPE"
     """При попытке загрузить файл с необрабатываемым типом."""
+
+    UPLOAD_NOT_COMPLETED = "UPLOAD_NOT_COMPLETED"
+    """При подтверждении клиентом загрузки файл, файл не найден в объектном хранилище."""
 
 
 class CoupleRequestStatus(Enum):
@@ -98,3 +123,34 @@ class CoupleRequestStatus(Enum):
 
     EXPIRED = "EXPIRED"
     """Пользователь-реципиент проигнорировал приглашение, приглашение истекло."""
+
+
+class FileStatus(Enum):
+    """Класс-перечисление для представления вариантов статуса медиа-файлов.
+
+    Представляет собой единое перечисление всех возможных
+    статусов медиа-файлов.
+
+    Attributes
+    ----------
+    PENDING
+        Клиенту отправлен Presigned URL.
+    UPLOADED
+        Файл гарантированно загружен.
+    FAILED
+        Произошла ошибка загрузки файла.
+    DELETED
+        Клиент удалил файл.
+    """
+
+    PENDING = "PENDING"
+    """Сервер сгенерировал короткоживущий Presigned URl и отдал клиенту."""
+
+    UPLOADED = "UPLOADED"
+    """Прокси-загрузка завершена успешно или клиент подтвердил успешное завершение прямой загрузки."""
+
+    FAILED = "FAILED"
+    """При прокси-загрузке или прямой загрузке произошла ошибка."""
+
+    DELETED = "DELETED"
+    """Файл был удалён из объектного хранилища."""

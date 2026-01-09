@@ -41,7 +41,7 @@ class CouplesRepository(RepositoryInterface):
     def __init__(self, session: AsyncSession):
         super().__init__(session)
 
-    async def add_couple_request(self, initiator_id: UUID, recipient_id: UUID) -> None:
+    def add_couple_request(self, initiator_id: UUID, recipient_id: UUID) -> None:
         """Создание приглашения на регистрацию пары между пользователями.
 
         Добавляет в базу данных запись о новой паре между пользователями,
@@ -59,7 +59,7 @@ class CouplesRepository(RepositoryInterface):
             CoupleRequestModel(
                 initiator_id=initiator_id,
                 recipient_id=recipient_id,
-                status=CoupleRequestStatus.PENDING.value,
+                status=CoupleRequestStatus.PENDING,
             )
         )
 
@@ -116,7 +116,7 @@ class CouplesRepository(RepositoryInterface):
             )
             .where(
                 and_(
-                    CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED.value,
+                    CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
                     or_(
                         CoupleRequestModel.initiator_id == partner_id,
                         CoupleRequestModel.recipient_id == partner_id,
@@ -195,7 +195,7 @@ class CouplesRepository(RepositoryInterface):
             )
             .where(
                 and_(
-                    CoupleRequestModel.status == CoupleRequestStatus.PENDING.value,
+                    CoupleRequestModel.status == CoupleRequestStatus.PENDING,
                     CoupleRequestModel.recipient_id == recipient_id,
                 )
             )
@@ -221,5 +221,5 @@ class CouplesRepository(RepositoryInterface):
         await self.session.execute(
             update(CoupleRequestModel)
             .where(CoupleRequestModel.id == request_id)
-            .values(status=status.value)
+            .values(status=status)
         )

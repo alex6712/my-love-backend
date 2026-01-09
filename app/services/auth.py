@@ -83,7 +83,7 @@ class AuthService:
                 detail=f"User with username={username} already exists."
             )
 
-        await self._users_repo.add_user(username, hash_(password))
+        self._users_repo.add_user(username, hash_(password))
 
     async def login(self, username: str, password: str) -> Tokens:
         """Аутентифицирует пользователя и возвращает JWT.

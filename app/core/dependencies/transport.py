@@ -1,6 +1,12 @@
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import Depends, File, Form, UploadFile
+from fastapi import Depends, File, Form, Request, UploadFile
+
+from app.core.exceptions.base import IdempotencyKeyNotPassedException as _IKNotPassed
+from app.core.exceptions.base import (
+    InvalidIdempotencyKeyFormatException as _IKInvalidFormat,
+)
 
 
 class UploadFileRequestForm:
@@ -89,5 +95,54 @@ class UploadFileRequestForm:
         self.description: str | None = description
 
 
+async def get_idempotency_key(request: Request) -> UUID:
+    """Зависимость, которая извлекает и проверяет заголовок Idempotency-Key.
+
+    Проверяет заголовок `Idempotency-Key` на существование, извлекает
+    из него строковое значение ключа идемпотентности, валидирует его
+    в качестве UUID v4.
+
+    Parameters
+    ----------
+    request : Request
+        Объект запроса, полученный через механизм FastAPI DI.
+
+    Returns
+    -------
+    UUID
+        Ключ идемпотентности из заголовка запроса.
+
+    Raises
+    ------
+    IdempotencyKeyNotPassedException
+        Если ключ не предоставлен в заголовке `Idempotency-Key`.
+    InvalidIdempotencyKeyFormatException
+        Если предоставленный ключ не в формате UUIDv4.
+    """
+    idempotency_key: str | None = request.headers.get("Idempotency-Key")
+
+    if not idempotency_key:
+        raise _IKNotPassed(
+            detail="Idempotency key not found in the 'Idempotency-Key' header.",
+        )
+
+    invalid_format: _IKInvalidFormat = _IKInvalidFormat(
+        detail="Passed idempotency key is not UUIDv4.",
+    )
+
+    try:
+        parsed_uuid: UUID = UUID(idempotency_key)
+    except ValueError:
+        raise invalid_format
+
+    if parsed_uuid.version != 4:
+        raise invalid_format
+
+    return parsed_uuid
+
+
 UploadFileDependency = Annotated[UploadFileRequestForm, Depends()]
 """Зависимость для формы загрузки медиа файла."""
+
+IdempotencyKeyDependency = Annotated[UUID, Depends(get_idempotency_key)]
+"""Зависимость на получение ключа идемпотентности из заголовков запроса."""

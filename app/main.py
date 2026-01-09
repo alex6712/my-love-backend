@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, cast
 
 from botocore.exceptions import ClientError
 from fastapi import FastAPI, Request, status
@@ -16,9 +16,18 @@ from app.core.exceptions.auth import (
     TokenNotPassedException,
     TokenRevokedException,
 )
-from app.core.exceptions.base import AlreadyExistsException, NotFoundException
+from app.core.exceptions.base import (
+    AlreadyExistsException,
+    IdempotencyKeyNotPassedException,
+    InvalidIdempotencyKeyFormatException,
+    NotFoundException,
+)
 from app.core.exceptions.couple import CoupleNotSelfException
-from app.core.exceptions.media import UnsupportedFileTypeException
+from app.core.exceptions.media import (
+    MediaNotFoundException,
+    UnsupportedFileTypeException,
+    UploadNotCompletedException,
+)
 from app.infrastructure.postgresql import async_postgresql_engine
 from app.infrastructure.redis import redis_client
 from app.infrastructure.s3 import get_s3_client
@@ -169,7 +178,7 @@ async def credentials_exception_handler(
     """
     type_to_code: dict[CredentialsType, APICode] = {
         "password": APICode.INCORRECT_USERNAME_PASSWORD,
-        "token": APICode.INCORRECT_TOKEN,
+        "token": APICode.INVALID_TOKEN,
     }
 
     code: APICode = type_to_code[exc.credentials_type]
@@ -213,6 +222,7 @@ async def token_not_passed_exception_handler(
             detail=exc.detail,
         ).model_dump(mode="json"),
         status_code=status.HTTP_401_UNAUTHORIZED,
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
 
@@ -268,9 +278,23 @@ async def domain_not_found_exception_handler(
     JSONResponse
         Ответ с ошибкой 404.
     """
+    code: APICode = APICode.RESOURCE_NOT_FOUND
+
+    match exc.domain:
+        case "media":
+            media_exc: MediaNotFoundException = cast(MediaNotFoundException, exc)
+
+            match media_exc.media_type:
+                case "album":
+                    code = APICode.ALBUM_NOT_FOUND
+                case "file":
+                    code = APICode.FILE_NOT_FOUND
+        case _:
+            pass
+
     return JSONResponse(
         content=StandardResponse(
-            code=APICode.RESOURCE_NOT_FOUND,
+            code=code,
             detail=exc.detail,
         ).model_dump(mode="json"),
         status_code=status.HTTP_404_NOT_FOUND,
@@ -368,4 +392,98 @@ async def unsupported_file_type_exception_handler(
             detail=exc.detail,
         ).model_dump(mode="json"),
         status_code=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+@my_love_backend.exception_handler(UploadNotCompletedException)
+async def upload_not_completed_exception_handler(
+    request: Request,
+    exc: UploadNotCompletedException,
+) -> JSONResponse:
+    """Обрабатывает исключения UploadNotCompletedException.
+
+    Возвращает клиенту ответ с HTTP 404 в случае, если при
+    подтверждении окончания клиентом загрузки файла,
+    в объектом хранилище файл не найден.
+
+    Parameters
+    ----------
+    request : Request
+        Объект запроса FastAPI, содержащий информацию о входящем HTTP-запросе (не используется).
+    exc : UploadNotCompletedException
+        Экземпляр исключения, из которого получаются данные для более точного ответа.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 404.
+    """
+    return JSONResponse(
+        content=StandardResponse(
+            code=APICode.UPLOAD_NOT_COMPLETED,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_404_NOT_FOUND,
+    )
+
+
+@my_love_backend.exception_handler(IdempotencyKeyNotPassedException)
+async def idempotency_key_not_passed_exception_handler(
+    request: Request,
+    exc: IdempotencyKeyNotPassedException,
+) -> JSONResponse:
+    """Обрабатывает исключения IdempotencyKeyNotPassedException.
+
+    Специализированный обработчик для случаев отсутствия ключа идемпотентности
+    в заголовках запроса.
+
+    Parameters
+    ----------
+    request : Request
+        Объект входящего HTTP-запроса (не используется).
+    exc : IdempotencyKeyNotPassedException
+        Экземпляр исключения для предоставления более детального сообщения об ошибке.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с указанием отсутствия заголовка `Idempotency-Key`.
+    """
+    return JSONResponse(
+        content=StandardResponse(
+            code=APICode.IDEMPOTENCY_KEY_NOT_PASSED,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+@my_love_backend.exception_handler(InvalidIdempotencyKeyFormatException)
+async def invalid_idempotency_key_format_exception_handler(
+    request: Request,
+    exc: InvalidIdempotencyKeyFormatException,
+) -> JSONResponse:
+    """Обрабатывает исключения InvalidIdempotencyKeyFormatException.
+
+    Специализированный обработчик для случаев, когда переданный ключ
+    идемпотентности имеет неверный формат.
+
+    Parameters
+    ----------
+    request : Request
+        Объект входящего HTTP-запроса (не используется).
+    exc : InvalidIdempotencyKeyFormatException
+        Экземпляр исключения для предоставления более детального сообщения об ошибке.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с указанием на неверный формат ключа идемпотентности.
+    """
+    return JSONResponse(
+        content=StandardResponse(
+            code=APICode.INVALID_IDEMPOTENCY_KEY,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
     )

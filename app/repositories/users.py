@@ -38,7 +38,7 @@ class UsersRepository(RepositoryInterface):
     def __init__(self, session: AsyncSession):
         super().__init__(session)
 
-    async def add_user(self, username: str, password_hash: str) -> None:
+    def add_user(self, username: str, password_hash: str) -> None:
         """Добавляет в базу данных новую запись о пользователе.
 
         Parameters

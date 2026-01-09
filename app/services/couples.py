@@ -123,7 +123,7 @@ class CouplesService:
                 detail=f"Couple request with UUIDs {initiator_id} <-> {recipient_id} already exists!"
             )
 
-        await self._couples_repo.add_couple_request(initiator_id, recipient_id)
+        self._couples_repo.add_couple_request(initiator_id, recipient_id)
 
     async def accept_couple_request(self, couple_id: UUID, user_id: UUID) -> None:
         """Подтверждение запроса на создание пары между пользователями.

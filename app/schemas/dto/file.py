@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from app.models.file import FileType
 from app.schemas.dto.base import BaseDTO
 from app.schemas.dto.users import CreatorDTO
 
@@ -16,10 +15,8 @@ class FileDTO(BaseDTO):
         Уникальный идентификатор медиа-файла.
     object_key : str
         Путь до файла внутри бакета приложения.
-    type_ : FileType
-        Тип сохранённого медиа-файла:
-        - 'image' - изображение;
-        - 'video' - видеофайл.
+    content_type : str
+        Тип сохранённого медиа-файла.
     title : str
         Наименование медиа-файла.
     description : str | None
@@ -34,7 +31,7 @@ class FileDTO(BaseDTO):
 
     id: UUID
     object_key: str
-    type_: FileType
+    content_type: str
     title: str
     description: str | None
     geo_data: dict[str, Any] | None

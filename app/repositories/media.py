@@ -1,13 +1,14 @@
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.enums import FileStatus
 from app.models.album import AlbumModel
 from app.models.album_items import AlbumItemsModel
-from app.models.file import FileModel, FileType
+from app.models.file import FileModel
 from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 from app.schemas.dto.file import FileDTO
@@ -17,7 +18,8 @@ class MediaRepository(RepositoryInterface):
     """Репозиторий медиа альбомов и файлов.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
-    Реализует основные CRUD операции с различными типами медиа.
+    Реализует основные CRUD операции с различными типами медиа, включая
+    управление статусами файлов и их привязкой к альбомам.
 
     Methods
     -------
@@ -33,6 +35,8 @@ class MediaRepository(RepositoryInterface):
         Удаляет запись о медиа альбоме из базы данных по его id.
     get_files_by_ids(files_ids, created_by)
         Получает медиа-файлы по списку UUID.
+    mark_file_uploaded(file_id)
+        Обновляет статус файла на UPLOADED после успешной загрузки.
     get_existing_album_items(album_id, files_ids)
         Получает UUID медиа-файлов, уже прикреплённых к альбому.
     attach_files_to_album(album_id, files_uuids)
@@ -42,23 +46,30 @@ class MediaRepository(RepositoryInterface):
     def __init__(self, session: AsyncSession):
         super().__init__(session)
 
-    async def add_file(
+    def add_file(
         self,
         object_key: str,
-        type_: FileType,
+        content_type: str,
         created_by: UUID,
         title: str | None = None,
         description: str | None = None,
         geo_data: dict[str, Any] | None = None,
     ) -> None:
-        """Добавляет в базу данных новую запись о медиа файле.
+        """Добавляет в базу данных новую запись о загруженном медиа файле.
+
+        ## Предупреждение:
+        Добавляет запись со статусом файла `FileStatus.UPLOADED`,
+        что означает, что файл загружен в объектное хранилище.
+
+        Используется только в случае, если загрузка файла уже
+        была завершена клиентом. Например, при прокси-загрузке.
 
         Parameters
         ----------
         object_key : str
             Путь до файла внутри бакета приложения.
-        type_ : FileType
-            Тип файла (например, изображение, видео).
+        content_type : str
+            Content Type переданного файла.
         created_by : UUID
             UUID пользователя, создавшего файл.
         title : str | None
@@ -71,7 +82,8 @@ class MediaRepository(RepositoryInterface):
         self.session.add(
             FileModel(
                 object_key=object_key,
-                type_=type_,
+                content_type=content_type,
+                status=FileStatus.UPLOADED,
                 title=title,
                 description=description,
                 geo_data=geo_data,
@@ -79,7 +91,60 @@ class MediaRepository(RepositoryInterface):
             )
         )
 
-    async def add_album(
+    def add_pending_file(
+        self,
+        object_key: str,
+        content_type: str,
+        created_by: UUID,
+        title: str | None = None,
+        description: str | None = None,
+        geo_data: dict[str, Any] | None = None,
+    ) -> UUID:
+        """Добавляет в базу данных новую запись о загружаемом медиа файле.
+
+        ## Предупреждение:
+        Добавляет запись со статусом файла `FileStatus.PENDING`,
+        что означает, что файл пока не загружен в объектное хранилище.
+
+        Используется только в случае, если загрузка файла ещё не
+        была завершена клиентом. Например, при direct-загрузке.
+
+        Parameters
+        ----------
+        object_key : str
+            Путь до файла внутри бакета приложения.
+        content_type : str
+            Content Type переданного файла.
+        created_by : UUID
+            UUID пользователя, создавшего файл.
+        title : str | None
+            Наименование файла. По умолчанию `None`.
+        description : str | None
+            Описание файла. По умолчанию `None`.
+        geo_data : dict[str, Any] | None
+            Географические данные файла в виде словаря. По умолчанию `None`.
+
+        Returns
+        -------
+        UUID
+            UUID записи медиа-файла.
+        """
+        self.session.add(
+            FileModel(
+                object_key=object_key,
+                content_type=content_type,
+                status=FileStatus.PENDING,
+                title=title,
+                description=description,
+                geo_data=geo_data,
+                created_by=created_by,
+                id=(file_id := uuid4()),
+            )
+        )
+
+        return file_id
+
+    def add_album(
         self,
         title: str,
         description: str | None,
@@ -222,6 +287,30 @@ class MediaRepository(RepositoryInterface):
 
         return [FileDTO.model_validate(file) for file in files.all()]
 
+    async def mark_file_uploaded(self, file_id: UUID) -> None:
+        """Обновляет статус файла на UPLOADED после успешной загрузки.
+
+        Изменяет статус файла в базе данных на FileStatus.UPLOADED,
+        что указывает на успешное завершение загрузки файла в объектное
+        хранилище. Метод является частью процесса подтверждения загрузки
+        при использовании presigned URL.
+
+        Parameters
+        ----------
+        file_id : UUID
+            Уникальный идентификатор файла, статус которого необходимо обновить.
+
+        Returns
+        -------
+        None
+            Метод не возвращает значение, только обновляет состояние в БД.
+        """
+        await self.session.execute(
+            update(FileModel)
+            .where(FileModel.id == file_id)
+            .values(status=FileStatus.UPLOADED)
+        )
+
     async def get_existing_album_items(
         self, album_id: UUID, files_ids: list[UUID]
     ) -> set[UUID]:
@@ -250,9 +339,7 @@ class MediaRepository(RepositoryInterface):
 
         return set(result.all())
 
-    async def attach_files_to_album(
-        self, album_id: UUID, files_uuids: list[UUID]
-    ) -> None:
+    def attach_files_to_album(self, album_id: UUID, files_uuids: list[UUID]) -> None:
         """Прикрепляет медиа-файлы к альбому.
 
         Parameters
