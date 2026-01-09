@@ -80,7 +80,7 @@ async def upload_direct(
     form_data: UploadFileRequest,
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
-    # idempotency_key: IdempotencyKeyDependency,
+    idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLResponse:
     """Получение presigned-url для загрузки медиа-файлов в приватное хранилище.
 
