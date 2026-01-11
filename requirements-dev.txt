@@ -60,6 +60,8 @@ coverage==7.13.0
     # via pytest-cov
 cryptography==46.0.3
     # via python-jose
+deprecated==1.3.1
+    # via limits
 dnspython==2.8.0
     # via email-validator
 ecdsa==0.19.1
@@ -109,6 +111,8 @@ jmespath==1.0.1
     #   aiobotocore
     #   boto3
     #   botocore
+limits==5.6.0
+    # via slowapi
 mako==1.3.10
     # via alembic
 markdown-it-py==4.0.0
@@ -125,7 +129,9 @@ multidict==6.7.0
     #   aiohttp
     #   yarl
 packaging==25.0
-    # via pytest
+    # via
+    #   limits
+    #   pytest
 passlib==1.7.4
     # via my-love-backend (pyproject.toml)
 pluggy==1.6.0
@@ -204,6 +210,8 @@ six==1.17.0
     # via
     #   ecdsa
     #   python-dateutil
+slowapi==0.1.9
+    # via my-love-backend (pyproject.toml)
 sqlalchemy==2.0.45
     # via
     #   my-love-backend (pyproject.toml)
@@ -224,6 +232,7 @@ typing-extensions==4.15.0
     # via
     #   alembic
     #   fastapi
+    #   limits
     #   pydantic
     #   pydantic-core
     #   rich-toolkit
@@ -250,6 +259,8 @@ watchfiles==1.1.1
 websockets==15.0.1
     # via uvicorn
 wrapt==1.17.3
-    # via aiobotocore
+    # via
+    #   aiobotocore
+    #   deprecated
 yarl==1.22.0
     # via aiohttp
