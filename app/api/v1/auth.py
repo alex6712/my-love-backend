@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, status
+from fastapi import APIRouter, Body, Request, status
 
 from app.core.dependencies.auth import (
     AuthServiceDependency,
@@ -8,6 +8,7 @@ from app.core.dependencies.auth import (
     ExtractRefreshTokenDependency,
     SignInCredentialsDependency,
 )
+from app.core.rate_limiter import LOGIN_LIMIT, REFRESH_LIMIT, REGISTER_LIMIT, limiter
 from app.core.security import Tokens
 from app.schemas.v1.requests.register import RegisterRequest
 from app.schemas.v1.responses.standard import StandardResponse
@@ -25,7 +26,9 @@ router: APIRouter = APIRouter(
     status_code=status.HTTP_201_CREATED,
     summary="Регистрация пользователя.",
 )
+@limiter.limit(REGISTER_LIMIT)  # type: ignore
 async def register(
+    request: Request,
     form_data: Annotated[
         RegisterRequest, Body(description="Схема запроса на регистрацию пользователя.")
     ],
@@ -37,7 +40,10 @@ async def register(
     создает нового пользователя в системе.
 
     Parameters
-    -----------
+    ----------
+    request : Request
+        Объект HTTP-запроса. Требуется для работы slowapi.Limiter
+        при определении rate limit по IP-адресу клиента.
     form_data : RegisterRequest
         Зависимость для получения данных регистрации из формы.
     auth_service : AuthServiceDependency
@@ -59,7 +65,9 @@ async def register(
     status_code=status.HTTP_200_OK,
     summary="Аутентификация пользователя.",
 )
+@limiter.limit(LOGIN_LIMIT)  # type: ignore
 async def login(
+    request: Request,
     form_data: SignInCredentialsDependency,
     auth_service: AuthServiceDependency,
 ) -> TokensResponse:
@@ -68,7 +76,10 @@ async def login(
     Принимает учетные данные пользователя, проверяет их и возвращает JWT-токены.
 
     Parameters
-    -----------
+    ----------
+    request : Request
+        Объект HTTP-запроса. Требуется для работы slowapi.Limiter
+        при определении rate limit по IP-адресу клиента.
     form_data : SignInCredentialsDependency
         Зависимость для получения учетных данных из формы.
     auth_service : AuthServiceDependency
@@ -77,7 +88,7 @@ async def login(
     Returns
     -------
     TokensResponse
-        Ответ с вложенными JWT.
+        Ответ с вложенными JWT access и refresh токенами.
     """
     tokens: Tokens = await auth_service.login(
         form_data.username,
@@ -97,16 +108,22 @@ async def login(
     status_code=status.HTTP_200_OK,
     summary="Обновление токенов доступа.",
 )
+@limiter.limit(REFRESH_LIMIT)  # type: ignore
 async def refresh(
+    request: Request,
     refresh_token: ExtractRefreshTokenDependency,
     auth_service: AuthServiceDependency,
 ) -> TokensResponse:
     """Обновление пары JWT-токенов.
 
     Использует refresh token для генерации новой пары токенов.
+    При успешном обновлении старый refresh token инвалидируется.
 
     Parameters
     ----------
+    request : Request
+        Объект HTTP-запроса. Требуется для работы slowapi.Limiter
+        при определении rate limit по IP-адресу клиента.
     refresh_token : ExtractRefreshTokenDependency
         Зависимость на получение токена обновления из заголовков запроса.
     auth_service : AuthServiceDependency
@@ -115,7 +132,7 @@ async def refresh(
     Returns
     -------
     TokensResponse
-        Ответ с вложенными JWT.
+        Ответ с вложенными JWT access и refresh токенами.
     """
     tokens: Tokens = await auth_service.refresh(refresh_token)
 

@@ -281,7 +281,7 @@ class AuthService:
         try:
             payload: Payload = jwt_decode(token)
 
-            if not all(payload.get(name) for name in ("sub", "iat", "exp")):
+            if not all(payload.get(name) for name in ("sub", "iat", "exp", "jti")):
                 raise damaged
         except ExpiredSignatureError:
             raise CredentialsException(

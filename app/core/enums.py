@@ -39,6 +39,8 @@ class APICode(Enum):
         Не поддерживаемый тип файла.
     UPLOAD_NOT_COMPLETED
         ФАйл не найден в объектном хранилище.
+    RATE_LIMIT_EXCEEDED
+        Превышено максимальное количество запросов за единицу времени.
     """
 
     SUCCESS = "SUCCESS"
@@ -92,6 +94,9 @@ class APICode(Enum):
 
     UPLOAD_NOT_COMPLETED = "UPLOAD_NOT_COMPLETED"
     """При подтверждении клиентом загрузки файл, файл не найден в объектном хранилище."""
+
+    RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED"
+    """Превышено максимальное количество запросов за единицу времени."""
 
 
 class CoupleRequestStatus(Enum):

@@ -1,4 +1,5 @@
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
@@ -78,7 +79,14 @@ def create_jwt(payload: Payload, expires_delta: timedelta) -> str:
     to_encode = payload.copy()
 
     now: datetime = datetime.now(timezone.utc)
-    to_encode.update({"iat": now, "exp": now + expires_delta})
+    to_encode.update(
+        {
+            "iat": now,
+            "exp": now + expires_delta,
+            "jti": str(uuid.uuid4()),
+            "iss": "my-love-backend",
+        }
+    )
 
     return _jwt_encode(to_encode)
 

@@ -28,6 +28,7 @@ from app.core.exceptions.media import (
     UnsupportedFileTypeException,
     UploadNotCompletedException,
 )
+from app.core.rate_limiter import limiter
 from app.infrastructure.postgresql import async_postgresql_engine
 from app.infrastructure.redis import redis_client
 from app.infrastructure.s3 import get_s3_client
@@ -60,7 +61,7 @@ tags_metadata = [
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncGenerator[None, Any]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
     """Менеджер срока службы FastAPI-приложения.
 
     Используется для менеджмента самого приложения в процессе
@@ -72,14 +73,16 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, Any]:
 
     Parameters
     ----------
-    _ : FastAPI
-        Объект приложения для менеджмента (не используется).
+    app : FastAPI
+        Объект приложения для менеджмента.
 
     Yields
     ------
     None
         При успешном выполнении ничего не возвращает.
     """
+    app.state.limiter = limiter
+
     async with get_s3_client() as s3_client:
         try:
             await s3_client.head_bucket(Bucket=settings.MINIO_BUCKET_NAME)
@@ -151,6 +154,40 @@ async def not_found_exception_handler(
             detail="Resource you're looking not exists or you're lack of rights.",
         ).model_dump(mode="json"),
         status_code=status.HTTP_404_NOT_FOUND,
+    )
+
+
+@my_love_backend.exception_handler(status.HTTP_429_TOO_MANY_REQUESTS)
+async def rate_limit_handler(
+    request: Request,
+    exc: Any,
+) -> JSONResponse:
+    """Обрабатывает ошибки rate limiting (429 Too Many Requests).
+
+    Возвращает клиенту стандартизированный ответ с ошибкой 429
+    и рекомендуемым заголовком Retry-After.
+
+    Parameters
+    ----------
+    request : Request
+        Объект запроса с информацией о входящем HTTP-запросе (не используется).
+    exc : Any
+        Исключение, вызвавшее ошибку 429 (не используется напрямую,
+        но требуется сигнатурой обработчика).
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 429, кодом RATE_LIMIT_EXCEEDED
+        и заголовком Retry-After для клиента.
+    """
+    return JSONResponse(
+        content=StandardResponse(
+            code=APICode.RATE_LIMIT_EXCEEDED,
+            detail="Too many requests. Please slow down.",
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        headers={"Retry-After": "60"},
     )
 
 
