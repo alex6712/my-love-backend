@@ -57,11 +57,11 @@ def get_redis_client() -> RedisClient:
     return redis_client
 
 
-type S3ClientDependency = Annotated["S3Client", Depends(get_s3_client)]
+S3ClientDependency = Annotated["S3Client", Depends(get_s3_client)]
 """Зависимость на получение асинхронного S3 клиента."""
 
-type UnitOfWorkDependency = Annotated[UnitOfWork, Depends(get_unit_of_work)]
+UnitOfWorkDependency = Annotated[UnitOfWork, Depends(get_unit_of_work)]
 """Зависимость на получение экземпляра Unit of Work в асинхронном контексте."""
 
-type RedisClientDependency = Annotated[RedisClient, Depends(get_redis_client)]
+RedisClientDependency = Annotated[RedisClient, Depends(get_redis_client)]
 """Зависимость на получение клиента Redis."""

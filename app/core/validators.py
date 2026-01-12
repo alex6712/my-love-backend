@@ -132,14 +132,14 @@ def validate_username(value: str) -> str:
     return value.lower()
 
 
-type ValidatedPassword = Annotated[str, AfterValidator(validate_password_strength)]
+ValidatedPassword = Annotated[str, AfterValidator(validate_password_strength)]
 """Типизированная аннотация для поля пароля с автоматической валидацией.
 
 Используется в Pydantic-схемах для автоматической проверки пароля
 при десериализации данных.
 """
 
-type ValidatedUsername = Annotated[str, AfterValidator(validate_username)]
+ValidatedUsername = Annotated[str, AfterValidator(validate_username)]
 """Типизированная аннотация для поля имени пользователя с автоматической валидацией.
 
 Используется в Pydantic-схемах для автоматической проверки имени

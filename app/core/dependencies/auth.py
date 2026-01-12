@@ -13,7 +13,7 @@ from app.core.dependencies.services import AuthServiceDependency
 from app.core.exceptions.auth import AuthDomainException
 from app.core.security import Payload
 
-type SignInCredentialsDependency = Annotated[OAuth2PasswordRequestForm, Depends()]
+SignInCredentialsDependency = Annotated[OAuth2PasswordRequestForm, Depends()]
 """Зависимость на получение реквизитов для входа в систему"""
 
 settings: Settings = get_settings()
@@ -55,13 +55,13 @@ def dependency(
     return credentials.credentials if credentials else None
 
 
-type ExtractAccessTokenDependency = Annotated[str | None, Depends(oauth2_scheme)]
+ExtractAccessTokenDependency = Annotated[str | None, Depends(oauth2_scheme)]
 """Зависимость на получение токена доступа из заголовков запроса."""
 
-type ExtractRefreshTokenDependency = Annotated[str | None, Depends(dependency)]
+ExtractRefreshTokenDependency = Annotated[str | None, Depends(dependency)]
 """Зависимость на получение токена обновления из заголовков запроса."""
 
-type AuthDependencyCallable = Callable[
+AuthDependencyCallable = Callable[
     [ExtractAccessTokenDependency, AuthServiceDependency],
     Coroutine[Any, Any, Payload | None],
 ]
@@ -136,7 +136,7 @@ def check_auth(strict: bool = True) -> AuthDependencyCallable:
     return dependency
 
 
-type SoftAuthenticationDependency = Annotated[
+SoftAuthenticationDependency = Annotated[
     Payload | None, Depends(check_auth(strict=False))
 ]
 """Зависимость для **мягкой** проверки аутентификации.
@@ -145,7 +145,7 @@ type SoftAuthenticationDependency = Annotated[
 так и неаутентифицированным пользователям (например, /login).
 """
 
-type StrictAuthenticationDependency = Annotated[Payload, Depends(check_auth(strict=True))]
+StrictAuthenticationDependency = Annotated[Payload, Depends(check_auth(strict=True))]
 """Зависимость для **строгой** проверки аутентификации.
 
 Предназначена для защищенных эндпоинтов, требующих обязательной аутентификации.
