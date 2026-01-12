@@ -3,7 +3,7 @@ name = "my-love-backend"
 version = "0.2.5"
 description = "Романтичное приложение-подарок на 14 февраля от Лёши для Светы."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     "aioboto3>=15.5.0",
     "alembic>=1.17.2",

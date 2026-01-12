@@ -116,14 +116,14 @@ def get_couples_service(
     return CouplesService(unit_of_work)
 
 
-AuthServiceDependency = Annotated[AuthService, Depends(get_auth_service)]
+type AuthServiceDependency = Annotated[AuthService, Depends(get_auth_service)]
 """Зависимость на получение сервиса аутентификации и авторизации."""
 
-MediaServiceDependency = Annotated[MediaService, Depends(get_media_service)]
+type MediaServiceDependency = Annotated[MediaService, Depends(get_media_service)]
 """Зависимость на получение сервиса работы с медиа."""
 
-UsersServiceDependency = Annotated[UsersService, Depends(get_users_service)]
+type UsersServiceDependency = Annotated[UsersService, Depends(get_users_service)]
 """Зависимость на получение сервиса пользователей."""
 
-CouplesServiceDependency = Annotated[CouplesService, Depends(get_couples_service)]
+type CouplesServiceDependency = Annotated[CouplesService, Depends(get_couples_service)]
 """Зависимость на получение сервиса пар пользователей."""

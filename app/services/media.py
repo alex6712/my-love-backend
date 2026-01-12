@@ -240,13 +240,12 @@ class MediaService:
                 Bucket=self._settings.MINIO_BUCKET_NAME,
                 Key=file.object_key,
             )
+            exists = True
         except ClientError as e:
             error_code: str = e.response.get("Error", {}).get("Code", "")
 
             if error_code in ("404", "NotFound"):
                 exists = False
-        else:
-            exists = True
 
         if not exists:
             raise UploadNotCompletedException(

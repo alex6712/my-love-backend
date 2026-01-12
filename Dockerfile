@@ -45,4 +45,4 @@ ENV TZ=Europe/Moscow
 
 EXPOSE 8000
 
-CMD ["fastapi", "run", "app/main.py"]
+CMD ["fastapi", "run", "app/main.py", "--proxy-headers"]
