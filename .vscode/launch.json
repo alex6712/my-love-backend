@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "My Love Backend (Debug)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "fastapi",
+            "args": [
+                "dev",
+                "./app/main.py"
+            ],
+            "jinja": true
+        }
+    ]
+}
