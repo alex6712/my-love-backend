@@ -29,9 +29,14 @@ async def get_s3_client() -> AsyncGenerator["S3Client", None]:
     S3Client
         Асинхронный S3 клиент.
     """
+    # Определяем протокол и endpoint
+    protocol: str = "http"
+    if settings.MINIO_PORT == 443:
+        protocol = "https"
+
     async with _session.client(  # type: ignore
         "s3",
-        endpoint_url=f"http://{settings.MINIO_ENDPOINT}",
+        endpoint_url=f"{protocol}://{settings.MINIO_HOST}:{settings.MINIO_PORT}",
         config=aioboto3.session.AioConfig(  # type: ignore
             signature_version="s3v4",
             s3={"addressing_style": "path"},

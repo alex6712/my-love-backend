@@ -47,8 +47,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "${MINIO_PORT:-9000}:${MINIO_PORT:-9000}"
-      - "${MINIO_CONSOLE_PORT:-9001}:${MINIO_CONSOLE_PORT:-9001}"
+      - "127.0.0.1:${MINIO_PORT:-9000}:${MINIO_PORT:-9000}"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:${MINIO_CONSOLE_PORT:-9001}"
     volumes:
       - minio_data:/data
     networks:
