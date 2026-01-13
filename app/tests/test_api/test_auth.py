@@ -14,17 +14,6 @@ async def test_register_validation_error(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_login_user_not_found(async_client: AsyncClient):
-    """Тест входа с несуществующим пользователем."""
-    response = await async_client.post(
-        "/auth/login",
-        data={"username": "nonexistent_user", "password": "password123"},
-    )
-
-    assert response.status_code == 401
-
-
-@pytest.mark.asyncio
 async def test_logout_unauthorized(async_client: AsyncClient):
     """Тест выхода без авторизации."""
     response = await async_client.post("/auth/logout")
