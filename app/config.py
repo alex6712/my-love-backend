@@ -6,7 +6,14 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePrivateKey,
     EllipticCurvePublicKey,
 )
-from pydantic import EmailStr, PostgresDsn, RedisDsn, field_validator, model_validator
+from pydantic import (
+    AnyHttpUrl,
+    EmailStr,
+    PostgresDsn,
+    RedisDsn,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -63,20 +70,14 @@ class Settings(BaseSettings):
         Номер базы данных Redis.
     REDIS_URL : RedisDsn
         URL Redis.
-    MINIO_HOST : str
+    MINIO_HOST : AnyHttpUrl
         Наименование хоста, на котором размещён сервер MinIO.
     MINIO_ROOT_USER : str
         MinIO Access key (root пользователь).
     MINIO_ROOT_PASSWORD : str
         MinIO Secret key (пароль root пользователя).
-    MINIO_PORT : int
-        Порт, на котором на указанном хосте доступен MinIO.
-    MINIO_CONSOLE_PORT : int
-        Порт, на котором на указанном хосте доступна консоль управления MinIO.
     MINIO_BUCKET_NAME : str
         Наименование бакета на сервере MinIO.
-    MINIO_ENDPOINT : str
-        Полная ссылка на сервер MinIO.
     PRESIGNED_URL_EXPIRATION : int
         Базовое время жизни Presigned URL на загрузку файлов.
     PRIVATE_SIGNATURE_KEY_PASSWORD: str
@@ -127,14 +128,10 @@ class Settings(BaseSettings):
 
     REDIS_URL: RedisDsn
 
-    MINIO_HOST: str
+    MINIO_HOST: AnyHttpUrl
     MINIO_ROOT_USER: str
     MINIO_ROOT_PASSWORD: str
-    MINIO_PORT: int
-    MINIO_CONSOLE_PORT: int
     MINIO_BUCKET_NAME: str
-
-    MINIO_ENDPOINT: str
 
     PRESIGNED_URL_EXPIRATION: int
 
