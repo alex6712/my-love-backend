@@ -54,10 +54,6 @@ click==8.3.1
     #   rich-toolkit
     #   typer
     #   uvicorn
-colorama==0.4.6
-    # via
-    #   click
-    #   uvicorn
 cryptography==46.0.3
     # via python-jose
 deprecated==1.3.1
@@ -225,6 +221,8 @@ uvicorn==0.38.0
     #   fastapi
     #   fastapi-cli
     #   fastapi-cloud-cli
+uvloop==0.22.1
+    # via uvicorn
 watchfiles==1.1.1
     # via uvicorn
 websockets==15.0.1
