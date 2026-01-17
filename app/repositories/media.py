@@ -51,6 +51,7 @@ class MediaRepository(RepositoryInterface):
         object_key: str,
         content_type: str,
         created_by: UUID,
+        file_id: UUID | None = None,
         title: str | None = None,
         description: str | None = None,
         geo_data: dict[str, Any] | None = None,
@@ -72,6 +73,8 @@ class MediaRepository(RepositoryInterface):
             Content Type переданного файла.
         created_by : UUID
             UUID пользователя, создавшего файл.
+        file_id : UUID | None
+            UUID медиа-файла.
         title : str | None
             Наименование файла. По умолчанию `None`.
         description : str | None
@@ -79,8 +82,12 @@ class MediaRepository(RepositoryInterface):
         geo_data : dict[str, Any] | None
             Географические данные файла в виде словаря. По умолчанию `None`.
         """
+        if file_id is None:
+            file_id = uuid4()
+
         self.session.add(
             FileModel(
+                id=file_id,
                 object_key=object_key,
                 content_type=content_type,
                 status=FileStatus.UPLOADED,
@@ -96,6 +103,7 @@ class MediaRepository(RepositoryInterface):
         object_key: str,
         content_type: str,
         created_by: UUID,
+        file_id: UUID | None = None,
         title: str | None = None,
         description: str | None = None,
         geo_data: dict[str, Any] | None = None,
@@ -117,6 +125,8 @@ class MediaRepository(RepositoryInterface):
             Content Type переданного файла.
         created_by : UUID
             UUID пользователя, создавшего файл.
+        file_id : UUID | None
+            UUID медиа-файла.
         title : str | None
             Наименование файла. По умолчанию `None`.
         description : str | None
@@ -129,8 +139,12 @@ class MediaRepository(RepositoryInterface):
         UUID
             UUID записи медиа-файла.
         """
+        if file_id is None:
+            file_id = uuid4()
+
         self.session.add(
             FileModel(
+                id=file_id,
                 object_key=object_key,
                 content_type=content_type,
                 status=FileStatus.PENDING,
@@ -138,7 +152,6 @@ class MediaRepository(RepositoryInterface):
                 description=description,
                 geo_data=geo_data,
                 created_by=created_by,
-                id=(file_id := uuid4()),
             )
         )
 

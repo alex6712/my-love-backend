@@ -18,6 +18,7 @@ from app.core.exceptions.auth import (
 )
 from app.core.exceptions.base import (
     AlreadyExistsException,
+    IdempotencyException,
     IdempotencyKeyNotPassedException,
     InvalidIdempotencyKeyFormatException,
     NotFoundException,
@@ -523,4 +524,35 @@ async def invalid_idempotency_key_format_exception_handler(
             detail=exc.detail,
         ).model_dump(mode="json"),
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+    )
+
+
+@my_love_backend.exception_handler(IdempotencyException)
+async def idempotency_exception_handler(
+    request: Request,
+    exc: IdempotencyException,
+) -> JSONResponse:
+    """Обрабатывает исключения IdempotencyException.
+
+    Специализированный обработчик для случаев, когда по переданному ключу
+    идемпотентности обработка запроса уже начата.
+
+    Parameters
+    ----------
+    request : Request
+        Объект входящего HTTP-запроса (не используется).
+    exc : IdempotencyException
+        Экземпляр исключения для предоставления более детального сообщения об ошибке.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с указанием на то, что запрос уже в обработке.
+    """
+    return JSONResponse(
+        content=StandardResponse(
+            code=APICode.IDEMPOTENCY_CONFLICT,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_409_CONFLICT,
     )

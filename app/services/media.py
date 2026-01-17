@@ -5,15 +5,19 @@ from botocore.exceptions import ClientError
 from fastapi import UploadFile
 
 from app.config import Settings
+from app.core.enums import FileStatus, IdempotencyStatus
+from app.core.exceptions.base import IdempotencyException
 from app.core.exceptions.media import (
     MediaNotFoundException,
     UnsupportedFileTypeException,
     UploadNotCompletedException,
 )
 from app.infrastructure.postgresql import UnitOfWork
+from app.infrastructure.redis import RedisClient
 from app.repositories.media import MediaRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 from app.schemas.dto.file import FileDTO
+from app.schemas.dto.idempotency_key import IdempotencyKeyDTO
 
 if TYPE_CHECKING:
     from types_aiobotocore_s3 import S3Client
@@ -30,12 +34,14 @@ class MediaService:
 
     Attributes
     ----------
-    _media_repo : MediaRepository
-        Репозиторий для операций с медиа в БД.
+    _redis_client : RedisClient
+        Клиент Redis.
     _s3_client : S3Client
         Асинхронный клиент для операций с файлами в S3 хранилище.
     _settings : Settings
         Настройки приложения.
+    _media_repo : MediaRepository
+        Репозиторий для операций с медиа в БД.
 
     Methods
     -------
@@ -57,6 +63,9 @@ class MediaService:
         Прикрепляет медиа-файлы к альбому.
     """
 
+    _IDEMPOTENCY_KEY_TTL: int = 300
+    """Время в секундах, которе живёт ключ идемпотентности."""
+
     _SUPPORTED_CONTENT_TYPES: tuple[str, ...] = (
         "image/jpeg",
         "image/png",
@@ -66,20 +75,79 @@ class MediaService:
     """Поддерживаемые MIME-типы."""
 
     def __init__(
-        self, unit_of_work: UnitOfWork, s3_client: "S3Client", settings: Settings
+        self,
+        unit_of_work: UnitOfWork,
+        redis_client: RedisClient,
+        s3_client: "S3Client",
+        settings: Settings,
     ):
         super().__init__()
 
-        self._media_repo: MediaRepository = unit_of_work.get_repository(MediaRepository)
+        self._redis_client: RedisClient = redis_client
         self._s3_client: "S3Client" = s3_client
         self._settings: Settings = settings
 
+        self._media_repo: MediaRepository = unit_of_work.get_repository(MediaRepository)
+
+    async def _idempotency_gate(
+        self, idem_scope: str, user_id: UUID, idempotency_key: UUID
+    ) -> tuple[bool, str | None]:
+        """Управляет проверкой и захватом ключа идемпотентности.
+
+        Выполняет атомарную попытку захватить ключ идемпотентности в Redis.
+        Если ключ уже существует и находится в статусе PROCESSING — вызывает
+        исключение. Если запрос уже выполнен (DONE) — возвращает кэшированный
+        ответ для повторного вызова.
+
+        Parameters
+        ----------
+        idem_scope : str
+            Область применения ключа идемпотентности (например, 'media_upload').
+        user_id : UUID
+            UUID пользователя, выполняющего запрос.
+        idempotency_key : UUID
+            Уникальный ключ идемпотентности от клиента.
+
+        Returns
+        -------
+        tuple[bool, str | None]
+            Кортеж из двух элементов:
+            - bool: True если ключ захвачен впервые (новый запрос),
+                False если запрос уже обрабатывался или завершён.
+            - str | None: Кэшированный ответ предыдущего выполнения
+                или None для новых запросов.
+
+        Raises
+        ------
+        IdempotencyException
+            Если запрос с переданным ключом идемпотентности уже находится
+            в процессе обработки (статус PROCESSING).
+        """
+        response: str | None = None
+
+        created: bool = await self._redis_client.acquire_idempotency_key(
+            idem_scope, user_id, idempotency_key, MediaService._IDEMPOTENCY_KEY_TTL
+        )
+
+        if not created:
+            key: IdempotencyKeyDTO = await self._redis_client.get_idempotency_state(
+                idem_scope, user_id, idempotency_key
+            )
+
+            if key.status == IdempotencyStatus.PROCESSING:
+                raise IdempotencyException("Request already in progress.")
+
+            response = key.response
+
+        return created, response
+
     async def upload_file(
         self,
+        idempotency_key: UUID,
         file: UploadFile,
         title: str | None,
         description: str | None,
-        created_by: UUID,
+        user_id: UUID,
     ) -> None:
         """Загрузка файла в приватное хранилище.
 
@@ -97,7 +165,7 @@ class MediaService:
             Наименование загружаемого файла.
         description : str | None
             Описание загружаемого файла.
-        created_by : UUID
+        user_id : UUID
             UUID пользователя, загрузившего файл.
 
         Raises
@@ -105,6 +173,12 @@ class MediaService:
         UnsupportedFileTypeException
             Возникает в том случае, если тип переданного файла не поддерживается.
         """
+        idem_scope: str = "media_upload_proxy"
+
+        new, _ = await self._idempotency_gate(idem_scope, user_id, idempotency_key)
+        if not new:
+            return
+
         content_type: str | None = file.content_type
 
         if content_type is None or content_type not in self._SUPPORTED_CONTENT_TYPES:
@@ -117,35 +191,32 @@ class MediaService:
 
         object_key: str = f"uploads/{uuid4().hex}"
 
-        try:
-            self._media_repo.add_file(
-                object_key=object_key,
-                content_type=content_type,
-                title=title,
-                description=description,
-                created_by=created_by,
-            )
+        await self._s3_client.upload_fileobj(
+            Fileobj=file.file,
+            Bucket=self._settings.MINIO_BUCKET_NAME,
+            Key=object_key,
+            ExtraArgs={"ContentType": content_type},
+        )
 
-            await self._s3_client.upload_fileobj(
-                Fileobj=file.file,
-                Bucket=self._settings.MINIO_BUCKET_NAME,
-                Key=object_key,
-                ExtraArgs={"ContentType": content_type},
-            )
-        except:
-            await self._s3_client.delete_object(
-                Bucket=self._settings.MINIO_BUCKET_NAME,
-                Key=object_key,
-            )
+        self._media_repo.add_file(
+            object_key=object_key,
+            content_type=content_type,
+            title=title,
+            description=description,
+            created_by=user_id,
+        )
 
-            raise
+        await self._redis_client.finalize_idempotency_key(
+            idem_scope, user_id, idempotency_key, self._IDEMPOTENCY_KEY_TTL
+        )
 
     async def get_upload_presigned_url(
         self,
+        idempotency_key: UUID,
         content_type: str,
         title: str | None,
         description: str | None,
-        created_by: UUID,
+        user_id: UUID,
     ) -> tuple[UUID, str]:
         """Получение presigned-url для загрузка файла в приватное хранилище.
 
@@ -162,7 +233,7 @@ class MediaService:
             Наименование загружаемого файла.
         description : str | None
             Описание загружаемого файла.
-        created_by : UUID
+        user_id : UUID
             UUID пользователя, загрузившего файл.
 
         Raises
@@ -170,6 +241,17 @@ class MediaService:
         UnsupportedFileTypeException
             Возникает в том случае, если тип переданного файла не поддерживается.
         """
+        idem_scope: str = "media_upload_direct"
+
+        new, response = await self._idempotency_gate(
+            idem_scope, user_id, idempotency_key
+        )
+        if not new:
+            id_, url = response.split(",", 1)  # type: ignore
+            return UUID(id_), url
+
+        file_id: UUID = uuid4()
+
         if content_type not in self._SUPPORTED_CONTENT_TYPES:
             raise UnsupportedFileTypeException(
                 detail=(
@@ -185,10 +267,10 @@ class MediaService:
             content_type=content_type,
             title=title,
             description=description,
-            created_by=created_by,
+            created_by=user_id,
         )
 
-        return file_id, await self._s3_client.generate_presigned_url(
+        url: str = await self._s3_client.generate_presigned_url(
             "put_object",
             Params={
                 "Bucket": self._settings.MINIO_BUCKET_NAME,
@@ -196,6 +278,16 @@ class MediaService:
             },
             ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
         )
+
+        await self._redis_client.finalize_idempotency_key(
+            scope=idem_scope,
+            user_id=user_id,
+            key=idempotency_key,
+            ttl=self._IDEMPOTENCY_KEY_TTL,
+            response=f"{file_id},{url}",
+        )
+
+        return file_id, url
 
     async def confirm_upload(self, file_id: UUID, user_id: UUID) -> None:
         """Подтверждает успешную загрузку файла в объектное хранилище.
@@ -234,6 +326,9 @@ class MediaService:
 
         file: FileDTO = files[0]
 
+        if file.status == FileStatus.UPLOADED:
+            return
+
         exists: bool = False
         try:
             await self._s3_client.head_object(
@@ -241,11 +336,8 @@ class MediaService:
                 Key=file.object_key,
             )
             exists = True
-        except ClientError as e:
-            error_code: str = e.response.get("Error", {}).get("Code", "")
-
-            if error_code in ("404", "NotFound"):
-                exists = False
+        except ClientError:
+            pass
 
         if not exists:
             raise UploadNotCompletedException(

@@ -43,6 +43,7 @@ def get_auth_service(
 
 def get_media_service(
     unit_of_work: UnitOfWorkDependency,
+    redis_client: RedisClientDependency,
     s3_client: S3ClientDependency,
     settings: SettingsDependency,
 ) -> MediaService:
@@ -57,6 +58,9 @@ def get_media_service(
     unit_of_work : UnitOfWorkDependency
         Зависимость Unit of Work, которая будет передана
         в конструктор сервиса работы с медиа.
+    redis_client : RedisClientDependency
+        Зависимость RedisClient, которая будет передана
+        в конструктор сервиса аутентификации и авторизации.
     s3_client: S3ClientDependency
         Зависимость S3Client для работы с файловым хранилищем.
     settings : SettingsDependency
@@ -67,7 +71,7 @@ def get_media_service(
     MediaService
         Экземпляр сервиса работы с медиа с внедренными зависимостями.
     """
-    return MediaService(unit_of_work, s3_client, settings)
+    return MediaService(unit_of_work, redis_client, s3_client, settings)
 
 
 def get_users_service(

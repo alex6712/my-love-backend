@@ -119,3 +119,28 @@ class InvalidIdempotencyKeyFormatException(BaseApplicationException):
 
     def __init__(self, detail: str | None = None, *args: Any):
         super().__init__(detail, *args, domain="application")
+
+
+class IdempotencyException(BaseApplicationException):
+    """Исключение, вызываемое при конфликте обработки ключа идемпотентности.
+
+    Возникает в случаях, когда запрос с переданным ключом идемпотентности
+    уже обрабатывается или обнаружена другая ошибка, связанная с логикой
+    идемпотентности.
+
+    Parameters
+    ----------
+    detail : str | None
+        Детальное сообщение об ошибке для пользователя или логирования.
+    *args : Any
+        Стандартные аргументы исключения.
+
+    Notes
+    -----
+    Типичные сценарии использования:
+    - Повторный запрос с ключом идемпотентности, который уже обрабатывается;
+    - Неконсистентное состояние ключа идемпотентности в хранилище.
+    """
+
+    def __init__(self, detail: str | None = None, *args: Any):
+        super().__init__(detail, *args, domain="application")

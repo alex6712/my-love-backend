@@ -1,31 +1,22 @@
-from datetime import datetime
-from uuid import UUID
-
-from .base import BaseDTO
+from app.schemas.dto.base import BaseSQLModelDTO
 
 
-class UserDTO(BaseDTO):
+class UserDTO(BaseSQLModelDTO):
     """DTO для представления пользователя системы.
 
     Attributes
     ----------
-    id : UUID
-        Уникальный идентификатор пользователя.
     username : str
         Логин пользователя для входа в систему.
     avatar_url : str | None
         URL аватара пользователя.
     is_active : bool
         Статус пользователя (True - активный или False - заблокирован)
-    created_at : datetime
-        Дата и время создания записи.
     """
 
-    id: UUID
     username: str
     avatar_url: str | None
     is_active: bool
-    created_at: datetime
 
 
 class UserWithCredentialsDTO(UserDTO):

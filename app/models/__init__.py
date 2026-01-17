@@ -23,5 +23,4 @@ from .album import AlbumModel
 from .user import UserModel
 from .couple import CoupleRequestModel
 from .file import FileModel
-from .idempotency_key import IdempotencyKeyModel
 from .album_items import AlbumItemsModel

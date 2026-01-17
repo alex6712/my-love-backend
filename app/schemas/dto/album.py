@@ -1,18 +1,13 @@
-from datetime import datetime
-from uuid import UUID
-
-from app.schemas.dto.base import BaseDTO
+from app.schemas.dto.base import BaseSQLModelDTO
 from app.schemas.dto.file import FileDTO
 from app.schemas.dto.users import CreatorDTO
 
 
-class AlbumDTO(BaseDTO):
+class AlbumDTO(BaseSQLModelDTO):
     """DTO для представления медиа альбома.
 
     Attributes
     ----------
-    id : UUID
-        Уникальный идентификатор медиа альбома.
     title : str
         Наименование альбома.
     description : str | None
@@ -23,19 +18,14 @@ class AlbumDTO(BaseDTO):
         Видимость альбома (True - личный или False - публичный).
     creator : CreatorDTO
         DTO пользователя, создавшего альбом.
-    created_at : datetime
-        Временная метка создания альбома.
     """
 
-    id: UUID
     title: str
     description: str | None
     cover_url: str | None
     is_private: bool
 
     creator: CreatorDTO
-
-    created_at: datetime
 
 
 class AlbumWithItemsDTO(AlbumDTO):

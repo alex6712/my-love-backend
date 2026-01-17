@@ -61,6 +61,7 @@ class AuthService:
         super().__init__()
 
         self._redis_client: RedisClient = redis_client
+
         self._users_repo: UsersRepository = unit_of_work.get_repository(UsersRepository)
 
     async def register(self, username: str, password: str) -> None:

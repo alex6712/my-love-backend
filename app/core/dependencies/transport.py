@@ -17,9 +17,9 @@ class UploadFileRequestForm:
     соответствующими полям формы загрузки файла.
 
     Используется такой подход, т.к. при загрузке
-    файла необходим MIME-тип `multipart/form-data`.
+    файла необходим MIME-тип "multipart/form-data".
 
-    Pydantic-схемы базово валидируют только `application/json`,
+    Pydantic-схемы базово валидируют только "application/json",
     из-за чего невозможно создать единую схему запроса на
     загрузку файла из всех полей Body, используя pydantic.
 

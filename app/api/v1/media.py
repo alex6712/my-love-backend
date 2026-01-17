@@ -31,10 +31,10 @@ router = APIRouter(
     summary="Загрузка медиа-файлов в приватное хранилище.",
 )
 async def upload_proxy(
+    idempotency_key: IdempotencyKeyDependency,
     form_data: UploadFileDependency,
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
-    idempotency_key: IdempotencyKeyDependency,
 ) -> StandardResponse:
     """Загрузка медиа-файла в приватное хранилище.
 
@@ -44,6 +44,8 @@ async def upload_proxy(
 
     Parameters
     ----------
+    idempotency_key : UUID
+        Ключ идемпотентности. Получен из заголовков запроса.
     form_data : UploadFileRequestForm
         Зависимость для получения данных из формы, содержащих информацию о загружаемом файле.
     media_service : MediaService
@@ -51,8 +53,6 @@ async def upload_proxy(
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
-    idempotency_key : UUID
-        Ключ идемпотентности. Получен из заголовков запроса.
 
     Returns
     -------
@@ -61,6 +61,7 @@ async def upload_proxy(
         Возвращает сообщение об успешной загрузке файла и детальную информацию.
     """
     await media_service.upload_file(
+        idempotency_key,
         form_data.file,
         form_data.title,
         form_data.description,
@@ -77,10 +78,13 @@ async def upload_proxy(
     summary="Получение Presigned URL для загрузки медиа-файлов в приватное хранилище.",
 )
 async def upload_direct(
-    form_data: UploadFileRequest,
+    idempotency_key: IdempotencyKeyDependency,
+    form_data: Annotated[
+        UploadFileRequest,
+        Body(description="Схема получения метаданных загружаемого медиа-файла."),
+    ],
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
-    idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLResponse:
     """Получение presigned-url для загрузки медиа-файлов в приватное хранилище.
 
@@ -91,6 +95,8 @@ async def upload_direct(
 
     Parameters
     ----------
+    idempotency_key : UUID
+        Ключ идемпотентности. Получен из заголовков запроса.
     form_data : UploadFileRequest
         Зависимость для получения данных из формы, содержащих информацию о загружаемом файле.
     media_service : MediaService
@@ -105,6 +111,7 @@ async def upload_direct(
         Успешный ответ о генерации presigned-url.
     """
     file_id, presigned_url = await media_service.get_upload_presigned_url(
+        idempotency_key,
         form_data.content_type,
         form_data.title,
         form_data.description,
@@ -125,10 +132,12 @@ async def upload_direct(
     summary="Подтверждение окончания загрузки файла по Presigned URL.",
 )
 async def upload_confirm(
-    form_data: ConfirmUploadRequest,
+    form_data: Annotated[
+        ConfirmUploadRequest,
+        Body(description="Схема получения UUID медиа-файла для подтверждения загрузки"),
+    ],
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
-    idempotency_key: IdempotencyKeyDependency,
 ) -> StandardResponse:
     """Подтверждение окончания загрузки файла по Presigned URL.
 
