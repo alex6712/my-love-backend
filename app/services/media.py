@@ -143,11 +143,11 @@ class MediaService:
 
     async def upload_file(
         self,
-        idempotency_key: UUID,
         file: UploadFile,
         title: str | None,
         description: str | None,
         user_id: UUID,
+        idempotency_key: UUID,
     ) -> None:
         """Загрузка файла в приватное хранилище.
 
@@ -167,6 +167,8 @@ class MediaService:
             Описание загружаемого файла.
         user_id : UUID
             UUID пользователя, загрузившего файл.
+        idempotency_key : UUID
+            Ключ идемпотентности запроса.
 
         Raises
         ------
@@ -212,11 +214,11 @@ class MediaService:
 
     async def get_upload_presigned_url(
         self,
-        idempotency_key: UUID,
         content_type: str,
         title: str | None,
         description: str | None,
         user_id: UUID,
+        idempotency_key: UUID,
     ) -> tuple[UUID, str]:
         """Получение presigned-url для загрузка файла в приватное хранилище.
 
@@ -235,6 +237,8 @@ class MediaService:
             Описание загружаемого файла.
         user_id : UUID
             UUID пользователя, загрузившего файл.
+        idempotency_key : UUID
+            Ключ идемпотентности запроса.
 
         Raises
         ------
