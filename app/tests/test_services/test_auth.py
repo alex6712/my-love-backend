@@ -6,7 +6,8 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions.auth import (
-    CredentialsException,
+    IncorrectUsernameOrPasswordException,
+    InvalidTokenException,
     TokenNotPassedException,
     TokenRevokedException,
 )
@@ -105,7 +106,7 @@ class TestAuthServiceLogin:
 
         auth_service = AuthService(uow, mock_redis_client)
 
-        with pytest.raises(CredentialsException):
+        with pytest.raises(IncorrectUsernameOrPasswordException):
             await auth_service.login("nonexistent", "password")
 
     @pytest.mark.asyncio
@@ -131,7 +132,7 @@ class TestAuthServiceLogin:
 
         auth_service = AuthService(uow, mock_redis_client)
 
-        with pytest.raises(CredentialsException):
+        with pytest.raises(IncorrectUsernameOrPasswordException):
             await auth_service.login("test_user", wrong_password)
 
 
@@ -200,7 +201,7 @@ class TestAuthServiceRefresh:
 
         auth_service = AuthService(uow, mock_redis_client)
 
-        with pytest.raises(CredentialsException):
+        with pytest.raises(InvalidTokenException):
             await auth_service.refresh("some_token")
 
     @pytest.mark.asyncio
@@ -226,7 +227,7 @@ class TestAuthServiceRefresh:
 
         auth_service = AuthService(uow, mock_redis_client)
 
-        with pytest.raises(CredentialsException):
+        with pytest.raises(InvalidTokenException):
             await auth_service.refresh(wrong_token)
 
 
