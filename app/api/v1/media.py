@@ -30,6 +30,7 @@ router = APIRouter(
     response_model=StandardResponse,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Загрузка медиа-файлов в приватное хранилище.",
+    response_description="Загрузка завершена успешно",
     responses={401: AUTHORIZATION_ERROR_EXAMPLES},
 )
 async def upload_proxy(
@@ -78,6 +79,7 @@ async def upload_proxy(
     response_model=PresignedURLResponse,
     status_code=status.HTTP_200_OK,
     summary="Получение Presigned URL для загрузки медиа-файлов в приватное хранилище.",
+    response_description="URL для прямой загрузки получена успешно",
     responses={401: AUTHORIZATION_ERROR_EXAMPLES},
 )
 async def upload_direct(
@@ -133,6 +135,7 @@ async def upload_direct(
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
     summary="Подтверждение окончания загрузки файла по Presigned URL.",
+    response_description="Завершение загрузки подтверждено",
     responses={401: AUTHORIZATION_ERROR_EXAMPLES},
 )
 async def upload_confirm(
@@ -174,6 +177,7 @@ async def upload_confirm(
     response_model=AlbumsResponse,
     status_code=status.HTTP_200_OK,
     summary="Получение списка всех доступных пользователю медиа альбомов.",
+    response_description="Список всех доступных альбомов",
     responses={401: AUTHORIZATION_ERROR_EXAMPLES},
 )
 async def get_albums(
@@ -208,6 +212,7 @@ async def get_albums(
     response_model=StandardResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Создать новый медиа альбом.",
+    response_description="Медиа-альбом создан успешно",
     responses={401: AUTHORIZATION_ERROR_EXAMPLES},
 )
 async def post_albums(
@@ -253,6 +258,7 @@ async def post_albums(
     response_model=AlbumResponse,
     status_code=status.HTTP_200_OK,
     summary="Получение подробной информации о медиа-альбоме.",
+    response_description="Информация о меди-альбоме вместе с его элементами",
     responses={401: AUTHORIZATION_ERROR_EXAMPLES},
 )
 async def get_album(
@@ -294,6 +300,7 @@ async def get_album(
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
     summary="Удаление медиа альбома по его UUID.",
+    response_description="Медиа-альбом удалён успешно",
     responses={401: AUTHORIZATION_ERROR_EXAMPLES},
 )
 async def delete_albums(
@@ -331,6 +338,7 @@ async def delete_albums(
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
     summary="Привязка медиа-файлов к альбому.",
+    response_description="Медиа-файлы добавлены в альбом",
     responses={401: AUTHORIZATION_ERROR_EXAMPLES},
 )
 async def attach(

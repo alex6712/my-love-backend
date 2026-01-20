@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
 from fastapi import UploadFile
+from pydantic import AnyHttpUrl
 
 from app.config import Settings
 from app.core.enums import FileStatus, IdempotencyStatus
@@ -219,7 +220,7 @@ class MediaService:
         description: str | None,
         user_id: UUID,
         idempotency_key: UUID,
-    ) -> tuple[UUID, str]:
+    ) -> tuple[UUID, AnyHttpUrl]:
         """Получение presigned-url для загрузка файла в приватное хранилище.
 
         Принимает дополнительные данные о файле для сохранения записи о файле.
@@ -239,6 +240,13 @@ class MediaService:
             UUID пользователя, загрузившего файл.
         idempotency_key : UUID
             Ключ идемпотентности запроса.
+
+        Returns
+        -------
+        tuple[UUID, AnyHttpUrl]
+            Кортеж, состоящий из:
+            - UUID загружаемого файла;
+            - Presigned URL для прямой загрузки.
 
         Raises
         ------
@@ -274,13 +282,15 @@ class MediaService:
             created_by=user_id,
         )
 
-        url: str = await self._s3_client.generate_presigned_url(
-            "put_object",
-            Params={
-                "Bucket": self._settings.MINIO_BUCKET_NAME,
-                "Key": object_key,
-            },
-            ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
+        url: AnyHttpUrl = AnyHttpUrl(
+            await self._s3_client.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": self._settings.MINIO_BUCKET_NAME,
+                    "Key": object_key,
+                },
+                ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
+            )
         )
 
         await self._redis_client.finalize_idempotency_key(
