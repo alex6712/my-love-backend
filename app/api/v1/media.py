@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Path, status
+from fastapi import APIRouter, Body, Path, Query, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import MediaServiceDependency
@@ -173,6 +173,56 @@ async def upload_confirm(
 
 
 @router.get(
+    "/download/{file_id}/direct",
+    response_model=PresignedURLResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Получение Presigned URL для получения медиа-файлов из приватного хранилища.",
+    response_description="URL для прямой загрузки получена успешно",
+    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+)
+async def download_direct(
+    file_id: Annotated[
+        UUID,
+        Path(description="UUID файла для загрузки на клиент."),
+    ],
+    media_service: MediaServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> PresignedURLResponse:
+    """Получение presigned-url для загрузки медиа-файлов в приватное хранилище.
+
+    Предоставляет подписанную ссылку для прямой загрузки файла в объектное
+    хранилище.
+    Необходимы права на выполнение операции загрузки, соответствующие данные о файле
+    и ключ идемпотентности.
+
+    Parameters
+    ----------
+    file_id : UUID
+        UUID файла для загрузки на клиент.
+    media_service : MediaService
+        Зависимость сервиса работы с медиа.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    PresignedURLResponse
+        Успешный ответ о генерации presigned-url.
+    """
+    file_id, presigned_url = await media_service.get_download_presigned_url(
+        file_id,
+        payload["sub"],
+    )
+
+    return PresignedURLResponse(
+        file_id=file_id,
+        presigned_url=presigned_url,
+        detail="Presigned URL generated successfully.",
+    )
+
+
+@router.get(
     "/albums",
     response_model=AlbumsResponse,
     status_code=status.HTTP_200_OK,
@@ -183,11 +233,27 @@ async def upload_confirm(
 async def get_albums(
     media_service: MediaServiceDependency,
     payload: StrictAuthenticationDependency,
+    offset: Annotated[
+        int,
+        Query(
+            ge=0,
+            le=100,
+            description="Смещение от начала списка (количество пропускаемых альбомов)ю",
+        ),
+    ] = 0,
+    limit: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=50,
+            description="Количество возвращаемых альбомов.",
+        ),
+    ] = 10,
 ) -> AlbumsResponse:
-    """Получение списка всех доступных пользователю медиа альбомов.
+    """Получение списка всех доступных пользователю медиа альбомов с пагинацией.
 
-    Возвращает список всех медиа альбомов, для которых установлено,
-    что они доступны пользователю с UUID, переданным в токене доступа.
+    Возвращает список медиа альбомов, доступных пользователю с UUID, переданным в токене доступа.
+    Поддерживает пагинацию для работы с большими объемами данных.
 
     Parameters
     ----------
@@ -196,13 +262,20 @@ async def get_albums(
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    offset : int, optional
+        Смещение от начала списка (количество пропускаемых альбомов).
+    limit : int, optional
+        Количество возвращаемых альбомов.
 
     Returns
     -------
     AlbumsResponse
-        Список всех доступных пользователю медиа альбомов.
+        Объект ответа, содержащий список доступных пользователю медиа альбомов
+        в пределах заданной пагинации и общее количество найденных альбомов.
     """
-    albums: list[AlbumDTO] = await media_service.get_albums(payload["sub"])
+    albums: list[AlbumDTO] = await media_service.get_albums(
+        offset, limit, payload["sub"]
+    )
 
     return AlbumsResponse(albums=albums, detail=f"Found {len(albums)} album entries.")
 

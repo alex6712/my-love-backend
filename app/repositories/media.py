@@ -239,11 +239,17 @@ class MediaRepository(RepositoryInterface):
 
         return AlbumWithItemsDTO.model_validate(album) if album else None
 
-    async def get_albums_by_creator_id(self, creator_id: UUID) -> list[AlbumDTO]:
+    async def get_albums_by_creator_id(
+        self, offset: int, limit: int, creator_id: UUID
+    ) -> list[AlbumDTO]:
         """Возвращает список DTO медиа альбомов по id их создателя.
 
         Parameters
         ----------
+        offset : int
+            Смещение от начала списка (количество пропускаемых альбомов).
+        limit : int
+            Количество возвращаемых альбомов.
         creator_id : UUID
             UUID пользователя, чьи альбомы ищутся.
 
@@ -256,6 +262,8 @@ class MediaRepository(RepositoryInterface):
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
             .where(AlbumModel.created_by == creator_id)
+            .order_by(AlbumModel.created_at)
+            .slice(offset, offset + limit)
         )
 
         return [AlbumDTO.model_validate(album) for album in albums.all()]

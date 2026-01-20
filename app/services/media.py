@@ -260,7 +260,7 @@ class MediaService:
         )
         if not new:
             id_, url = response.split(",", 1)  # type: ignore
-            return UUID(id_), url
+            return UUID(id_), AnyHttpUrl(url)
 
         file_id: UUID = uuid4()
 
@@ -282,15 +282,13 @@ class MediaService:
             created_by=user_id,
         )
 
-        url: AnyHttpUrl = AnyHttpUrl(
-            await self._s3_client.generate_presigned_url(
-                "put_object",
-                Params={
-                    "Bucket": self._settings.MINIO_BUCKET_NAME,
-                    "Key": object_key,
-                },
-                ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
-            )
+        url: str = await self._s3_client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": self._settings.MINIO_BUCKET_NAME,
+                "Key": object_key,
+            },
+            ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
         )
 
         await self._redis_client.finalize_idempotency_key(
@@ -301,7 +299,7 @@ class MediaService:
             response=f"{file_id},{url}",
         )
 
-        return file_id, url
+        return file_id, AnyHttpUrl(url)
 
     async def confirm_upload(self, file_id: UUID, user_id: UUID) -> None:
         """Подтверждает успешную загрузку файла в объектное хранилище.
@@ -355,10 +353,77 @@ class MediaService:
 
         if not exists:
             raise UploadNotCompletedException(
-                detail=f"File with id={file_id} not found in object storage.",
+                detail=f"File with id={file_id} has not been found in object storage yet.",
             )
 
         await self._media_repo.mark_file_uploaded(file.id)
+
+    async def get_download_presigned_url(
+        self, file_id: UUID, user_id: UUID
+    ) -> tuple[UUID, AnyHttpUrl]:
+        """Получение presigned-url для получения файла из приватного хранилища.
+
+        Принимает UUID файла, ищет запись о файле в базе данных, проверяет права доступа
+        пользователя к файлу и возвращает Presigned URL.
+
+        Parameters
+        ----------
+        file_id: UUID
+            UUID файла для загрузки на клиент.
+        user_id : UUID
+            UUID пользователя, загрузившего файл.
+
+        Returns
+        -------
+        tuple[UUID, AnyHttpUrl]
+            Кортеж, состоящий из:
+            - UUID загружаемого файла;
+            - Presigned URL для прямого скачивания.
+
+        Raises
+        ------
+        MediaNotFoundException
+            Файл с переданным UUID не найден или пользователь не имеет прав на его просмотр.
+        """
+        files: list[FileDTO] = await self._media_repo.get_files_by_ids(
+            [file_id], created_by=user_id
+        )
+
+        if len(files) != 1:
+            raise MediaNotFoundException(
+                media_type="file",
+                detail=f"File with id={file_id} not found, or you're not this file's creator.",
+            )
+
+        file: FileDTO = files[0]
+
+        match file.status:
+            case FileStatus.PENDING:
+                raise UploadNotCompletedException(
+                    detail=f"File with id={file_id} is now uploading.",
+                )
+            case FileStatus.FAILED:
+                raise UploadNotCompletedException(
+                    detail=f"There were an error while uploading file with id={file_id}. File not accessible.",
+                )
+            case FileStatus.DELETED:
+                raise MediaNotFoundException(
+                    media_type="file",
+                    detail=f"File with id={file_id} has been deleted.",
+                )
+            case _:
+                pass
+
+        url: str = await self._s3_client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": self._settings.MINIO_BUCKET_NAME,
+                "Key": file.object_key,
+            },
+            ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
+        )
+
+        return file_id, AnyHttpUrl(url)
 
     async def create_album(
         self,
@@ -391,7 +456,9 @@ class MediaService:
             title, description, cover_url, is_private, created_by
         )
 
-    async def get_albums(self, creator_id: UUID) -> list[AlbumDTO]:
+    async def get_albums(
+        self, offset: int, limit: int, creator_id: UUID
+    ) -> list[AlbumDTO]:
         """Получение всех альбомов по UUID создателя.
 
         Получает на вход UUID пользователя, возвращает список
@@ -400,6 +467,10 @@ class MediaService:
 
         Parameters
         ----------
+        offset : int
+            Смещение от начала списка (количество пропускаемых альбомов).
+        limit : int
+            Количество возвращаемых альбомов.
         creator_id : UUID
             UUID пользователя.
 
@@ -408,7 +479,9 @@ class MediaService:
         list[AlbumDTO]
             Список альбомов пользователя.
         """
-        return await self._media_repo.get_albums_by_creator_id(creator_id)
+        return await self._media_repo.get_albums_by_creator_id(
+            offset, limit, creator_id
+        )
 
     async def get_album(self, album_id: UUID, user_id: UUID) -> AlbumWithItemsDTO:
         """Получение подробной информации об альбоме по его UUID.
