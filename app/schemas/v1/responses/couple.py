@@ -17,6 +17,5 @@ class CoupleRequestsResponse(StandardResponse):
     """
 
     requests: list[CoupleRequestDTO] = Field(
-        default=[],
         description="Список всех запросов, подходящих под фильтры.",
     )

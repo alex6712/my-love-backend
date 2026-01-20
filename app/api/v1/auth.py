@@ -8,6 +8,11 @@ from app.core.dependencies.auth import (
     ExtractRefreshTokenDependency,
     SignInCredentialsDependency,
 )
+from app.core.docs import (
+    AUTHORIZATION_ERROR_EXAMPLES,
+    LOGIN_ERROR_EXAMPLE,
+    RATE_LIMIT_ERROR_EXAMPLE,
+)
 from app.core.rate_limiter import LOGIN_LIMIT, REFRESH_LIMIT, REGISTER_LIMIT, limiter
 from app.core.security import Tokens
 from app.schemas.v1.requests.register import RegisterRequest
@@ -25,6 +30,8 @@ router: APIRouter = APIRouter(
     response_model=StandardResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Регистрация пользователя.",
+    response_description="Успешная регистрация",
+    responses={429: RATE_LIMIT_ERROR_EXAMPLE},
 )
 @limiter.limit(REGISTER_LIMIT)  # type: ignore
 async def register(
@@ -64,6 +71,8 @@ async def register(
     response_model=TokensResponse,
     status_code=status.HTTP_200_OK,
     summary="Аутентификация пользователя.",
+    response_description="Успешная аутентификация",
+    responses={401: LOGIN_ERROR_EXAMPLE, 429: RATE_LIMIT_ERROR_EXAMPLE},
 )
 @limiter.limit(LOGIN_LIMIT)  # type: ignore
 async def login(
@@ -107,6 +116,8 @@ async def login(
     response_model=TokensResponse,
     status_code=status.HTTP_200_OK,
     summary="Обновление токенов доступа.",
+    response_description="Обновление токенов прошло успешно",
+    responses={401: AUTHORIZATION_ERROR_EXAMPLES, 429: RATE_LIMIT_ERROR_EXAMPLE},
 )
 @limiter.limit(REFRESH_LIMIT)  # type: ignore
 async def refresh(
@@ -148,6 +159,8 @@ async def refresh(
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
     summary="Выход из системы.",
+    response_description="Успешный выход из системы",
+    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
 )
 async def logout(
     access_token: ExtractAccessTokenDependency,

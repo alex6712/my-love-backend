@@ -4,9 +4,12 @@ from uuid import UUID
 from jose import ExpiredSignatureError, JWTError
 
 from app.core.exceptions.auth import (
-    CredentialsException,
+    IncorrectUsernameOrPasswordException,
+    InvalidTokenException,
     TokenNotPassedException,
     TokenRevokedException,
+    TokenSignatureExpiredException,
+    TokenType,
 )
 from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.core.security import (
@@ -109,16 +112,15 @@ class AuthService:
 
         Raises
         ------
-        CredentialsException
+        IncorrectUsernameOrPasswordException
             Не найден пользователь или несовпадение пароля и его хеша в БД.
         """
         user: (
             UserWithCredentialsDTO | None
         ) = await self._users_repo.get_user_by_username(username)
 
-        credentials_exception: CredentialsException = CredentialsException(
-            detail="Incorrect username or password.",
-            credentials_type="password",
+        credentials_exception = IncorrectUsernameOrPasswordException(
+            detail="Incorrect username or password."
         )
 
         if user is None:
@@ -151,7 +153,7 @@ class AuthService:
         ------
         TokenNotPassedException
             Токен обновления не передан в заголовках запроса.
-        CredentialsException
+        InvalidTokenException
             Не найден пользователь или несовпадение токена обновления и его хеша в БД.
         """
         if refresh_token is None:
@@ -160,21 +162,21 @@ class AuthService:
                 token_type="refresh",
             )
 
-        payload: Payload = await AuthService._validate_token(refresh_token)
+        payload: Payload = await AuthService._validate_token(refresh_token, "refresh")
 
         user: UserWithCredentialsDTO | None = await self._users_repo.get_user_by_id(
             payload["sub"]
         )
 
         if user is None:
-            raise CredentialsException(
+            raise InvalidTokenException(
                 detail="The passed token is damaged or poorly signed.",
-                credentials_type="token",
+                token_type="refresh",
             )
 
-        credentials_exception: CredentialsException = CredentialsException(
+        credentials_exception: InvalidTokenException = InvalidTokenException(
             detail="The passed refresh token and the hash from the database do not match.",
-            credentials_type="token",
+            token_type="refresh",
         )
 
         if user.refresh_token_hash is None:
@@ -201,7 +203,7 @@ class AuthService:
 
         Raises
         ------
-        CredentialsException
+        InvalidTokenException
             Возникает если подпись токена верна, но в payload нет ключа `exp`.
         """
         payload: Payload = await self.validate_access_token(access_token)
@@ -209,9 +211,9 @@ class AuthService:
         exp_timestamp: int | None = payload.get("exp")
 
         if exp_timestamp is None:
-            raise CredentialsException(
+            raise InvalidTokenException(
                 detail="The passed token is damaged or poorly signed.",
-                credentials_type="token",
+                token_type="access",
             )
 
         current_time = datetime.now(timezone.utc).timestamp()
@@ -251,16 +253,18 @@ class AuthService:
         if await self._redis_client.is_token_revoked(access_token):
             raise TokenRevokedException(detail="Access token has been revoked.")
 
-        return await AuthService._validate_token(access_token)
+        return await AuthService._validate_token(access_token, "access")
 
     @staticmethod
-    async def _validate_token(token: str) -> Payload:
+    async def _validate_token(token: str, token_type: TokenType) -> Payload:
         """Валидирует JWT (статический "приватный" метод).
 
         Parameters
         ----------
         token : str
             JWT для валидации.
+        token_type : TokenType
+            Тип обрабатываемого токена.
 
         Returns
         -------
@@ -269,14 +273,15 @@ class AuthService:
 
         Raises
         ------
-        CredentialsException
-            - Если нет "sub" в payload токена;
-            - Если подпись токена просрочена;
+        InvalidTokenException
+            - Если не хватает хотя бы одной из обязательных claims в payload токена;
             - При любых иных ошибках JWT.
+        TokenSignatureExpiredException
+            Если подпись токена просрочена.
         """
-        damaged: CredentialsException = CredentialsException(
+        damaged: InvalidTokenException = InvalidTokenException(
             detail="The passed token is damaged or poorly signed.",
-            credentials_type="token",
+            token_type=token_type,
         )
 
         try:
@@ -285,9 +290,9 @@ class AuthService:
             if not all(payload.get(name) for name in ("sub", "iat", "exp", "jti")):
                 raise damaged
         except ExpiredSignatureError:
-            raise CredentialsException(
+            raise TokenSignatureExpiredException(
                 detail="Signature of passed token has expired.",
-                credentials_type="token",
+                token_type=token_type,
             )
         except JWTError:
             raise damaged

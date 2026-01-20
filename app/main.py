@@ -11,10 +11,11 @@ from app.api.v1 import api_v1_router
 from app.config import Settings, get_settings
 from app.core.enums import APICode
 from app.core.exceptions.auth import (
-    CredentialsException,
-    CredentialsType,
+    IncorrectUsernameOrPasswordException,
+    InvalidTokenException,
     TokenNotPassedException,
     TokenRevokedException,
+    TokenSignatureExpiredException,
 )
 from app.core.exceptions.base import (
     AlreadyExistsException,
@@ -57,6 +58,10 @@ tags_metadata = [
     {
         "name": "media",
         "description": "Операции с **медиа** в приложении.",
+    },
+    {
+        "name": "notes",
+        "description": "Операции с пользовательскими **заметками**.",
     },
 ]
 
@@ -192,21 +197,21 @@ async def rate_limit_handler(
     )
 
 
-@my_love_backend.exception_handler(CredentialsException)
-async def credentials_exception_handler(
+@my_love_backend.exception_handler(IncorrectUsernameOrPasswordException)
+async def incorrect_username_or_password_exception_handler(
     request: Request,
-    exc: CredentialsException,
+    exc: IncorrectUsernameOrPasswordException,
 ) -> JSONResponse:
-    """Обрабатывает исключения CredentialsException.
+    """Обрабатывает исключения IncorrectUsernameOrPasswordException.
 
     Возвращает ошибку 401 Not Authorized при проблемах с предоставленными
-    учётными данными (будь это пароль или токен).
+    учётными данными при логине.
 
     Parameters
     ----------
     request : Request
         Объект запроса с информацией о входящем HTTP-запросе (не используется).
-    exc : CredentialsException
+    exc : IncorrectUsernameOrPasswordException
         Экземпляр исключения, из которого получаются данные для более точного ответа.
 
     Returns
@@ -214,18 +219,9 @@ async def credentials_exception_handler(
     JSONResponse
         Ответ с ошибкой 401.
     """
-    type_to_code: dict[CredentialsType, APICode] = {
-        "password": APICode.INCORRECT_USERNAME_PASSWORD,
-        "token": APICode.INVALID_TOKEN,
-    }
-
-    code: APICode = type_to_code[exc.credentials_type]
-    if exc.detail == "Signature of passed token has expired.":
-        code = APICode.TOKEN_SIGNATURE_EXPIRED
-
     return JSONResponse(
         content=StandardResponse(
-            code=code,
+            code=APICode.INCORRECT_USERNAME_PASSWORD,
             detail=exc.detail,
         ).model_dump(mode="json"),
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -291,6 +287,70 @@ async def token_revoked_exception_handler(
             detail=exc.detail,
         ).model_dump(mode="json"),
         status_code=status.HTTP_401_UNAUTHORIZED,
+    )
+
+
+@my_love_backend.exception_handler(InvalidTokenException)
+async def invalid_token_exception_handler(
+    request: Request,
+    exc: InvalidTokenException,
+) -> JSONResponse:
+    """Обрабатывает исключения InvalidTokenException.
+
+    Возвращает ошибку 401 Not Authorized при проблемах с проверкой
+    подписи переданного токена.
+
+    Parameters
+    ----------
+    request : Request
+        Объект запроса с информацией о входящем HTTP-запросе (не используется).
+    exc : IncorrectUsernameOrPasswordException
+        Экземпляр исключения, из которого получаются данные для более точного ответа.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 401.
+    """
+    return JSONResponse(
+        content=StandardResponse(
+            code=APICode.INVALID_TOKEN,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+@my_love_backend.exception_handler(TokenSignatureExpiredException)
+async def token_signature_expired_exception_handler(
+    request: Request,
+    exc: TokenSignatureExpiredException,
+) -> JSONResponse:
+    """Обрабатывает исключения TokenSignatureExpiredException.
+
+    Возвращает ошибку 401 Not Authorized, если подпись переданного клиентом
+    токена верна, однако просрочена.
+
+    Parameters
+    ----------
+    request : Request
+        Объект запроса с информацией о входящем HTTP-запросе (не используется).
+    exc : IncorrectUsernameOrPasswordException
+        Экземпляр исключения, из которого получаются данные для более точного ответа.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 401.
+    """
+    return JSONResponse(
+        content=StandardResponse(
+            code=APICode.TOKEN_SIGNATURE_EXPIRED,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
 

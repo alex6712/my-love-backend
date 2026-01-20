@@ -2,6 +2,7 @@ from fastapi import APIRouter, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import UsersServiceDependency
+from app.core.docs import AUTHORIZATION_ERROR_EXAMPLES
 from app.schemas.dto.users import UserDTO
 from app.schemas.v1.responses.user import UserResponse
 
@@ -16,6 +17,8 @@ router = APIRouter(
     response_model=UserResponse,
     status_code=status.HTTP_200_OK,
     summary="Получение информации о пользователе.",
+    response_description="Информация о текущем пользователе",
+    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
 )
 async def get_me(
     users_service: UsersServiceDependency,

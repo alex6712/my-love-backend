@@ -1,3 +1,4 @@
+from typing import cast
 from uuid import UUID
 
 import redis.asyncio as redis
@@ -138,7 +139,8 @@ class RedisClient:
         """
         await self.client.delete(f"blacklist:access_token:{token}")
 
-    def _idempotency_key(self, scope: str, user_id: UUID, key: UUID) -> str:
+    @staticmethod
+    def _idempotency_key(scope: str, user_id: UUID, key: UUID) -> str:
         """Вспомогательный "приватный" метод формирования Redis-ключа.
 
         Принимает на вход необходимые аргументы и формирует
@@ -184,22 +186,19 @@ class RedisClient:
         bool
             Текущее состояние ключа идемпотентности.
         """
-        redis_key: str = self._idempotency_key(scope, user_id, key)
+        redis_key: str = RedisClient._idempotency_key(scope, user_id, key)
 
-        created: bool = (  # type: ignore
-            await self.client.hsetnx(  # type: ignore
-                redis_key,
-                "status",
-                IdempotencyStatus.PROCESSING,
-            )
-            == 1
+        created: bool = await self.client.hsetnx(  # type: ignore
+            redis_key,
+            "status",
+            IdempotencyStatus.PROCESSING,
         )
 
         if created:
             await self.client.hset(redis_key, "response", "")  # type: ignore
             await self.client.expire(redis_key, ttl)
 
-        return created  # type: ignore
+        return cast(bool, created == 1)
 
     async def get_idempotency_state(
         self, scope: str, user_id: UUID, key: UUID
@@ -223,7 +222,7 @@ class RedisClient:
         IdempotencyKeyDTO
             Текущий статус идемпотентности по ключу.
         """
-        redis_key: str = self._idempotency_key(scope, user_id, key)
+        redis_key: str = RedisClient._idempotency_key(scope, user_id, key)
 
         data: dict[str, str] = await self.client.hgetall(redis_key)  # type: ignore
 
@@ -255,7 +254,7 @@ class RedisClient:
         response : str | None
             Текст ответа от сервера.
         """
-        redis_key: str = self._idempotency_key(scope, user_id, key)
+        redis_key: str = RedisClient._idempotency_key(scope, user_id, key)
 
         if response is None:
             response = ""

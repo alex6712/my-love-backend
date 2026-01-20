@@ -38,6 +38,5 @@ class AlbumsResponse(StandardResponse):
     """
 
     albums: list[AlbumDTO] = Field(
-        default=[],
         description="Список всех альбомов, подходящих под фильтры.",
     )

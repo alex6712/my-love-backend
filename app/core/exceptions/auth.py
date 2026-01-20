@@ -26,7 +26,7 @@ class AuthDomainException(BaseApplicationException):
         super().__init__(detail, *args, domain="auth")
 
 
-class CredentialsException(AuthDomainException):
+class _CredentialsException(AuthDomainException):
     """Исключение при ошибках аутентификации и проверки учетных данных.
 
     Parameters
@@ -55,8 +55,28 @@ class CredentialsException(AuthDomainException):
         self.credentials_type: CredentialsType = credentials_type
 
 
-class TokenNotPassedException(AuthDomainException):
-    """Исключение при отсутствии обязательного токена в запросе.
+class IncorrectUsernameOrPasswordException(_CredentialsException):
+    """Исключение при ошибке обработки запроса логина пользователя.
+
+    Parameters
+    ----------
+    *args : Any
+        Стандартные аргументы исключения.
+    detail : str
+        Детальное сообщение об ошибке.
+
+    Notes
+    -----
+    Используется для обработки случаев, когда не получилось
+    аутентифицировать пользователя по предоставленным учётным данным.
+    """
+
+    def __init__(self, detail: str, *args: Any):
+        super().__init__(detail, *args, credentials_type="password")
+
+
+class _TokenException(_CredentialsException):
+    """Базовое исключения для ошибок обработки JSON Web Tokens.
 
     Parameters
     ----------
@@ -65,12 +85,27 @@ class TokenNotPassedException(AuthDomainException):
     detail : str
         Детальное сообщение об ошибке.
     token_type : TokenType
-        Тип отсутствующего токена.
+        Тип JSON Web Token.
 
     Attributes
     ----------
     token_type : TokenType
-        Конкретный тип токена, который отсутствует в запросе.
+        Конкретный тип токена.
+
+    Notes
+    -----
+    Является наследуемым классом для всех исключений, связанных с
+    JSON Web Tokens.
+    """
+
+    def __init__(self, detail: str, *args: Any, token_type: TokenType):
+        super().__init__(detail, *args, credentials_type="token")
+
+        self.token_type: TokenType = token_type
+
+
+class TokenNotPassedException(_TokenException):
+    """Исключение при отсутствии обязательного токена в запросе.
 
     Notes
     -----
@@ -78,10 +113,7 @@ class TokenNotPassedException(AuthDomainException):
     отсутствует обязательный токен аутентификации или авторизации.
     """
 
-    def __init__(self, detail: str, *args: Any, token_type: TokenType):
-        super().__init__(detail, *args)
-
-        self.token_type: TokenType = token_type
+    pass
 
 
 class TokenRevokedException(AuthDomainException):
@@ -91,6 +123,31 @@ class TokenRevokedException(AuthDomainException):
     -----
     Возникает в случае, когда токен, предоставленный в запросе, отозван.
     Это может произойти, например, при выходе пользователя из системы.
+    """
+
+    pass
+
+
+class InvalidTokenException(_TokenException):
+    """Исключение при неверной подписи токена.
+
+    Notes
+    -----
+    Возникает в случае, когда не получается удостовериться в подлинности
+    подписи токена. Например:
+    - Подпись неверна (токен выпущен не нами);
+    - В payload отсутствуют обязательные claims.
+    """
+
+    pass
+
+
+class TokenSignatureExpiredException(_TokenException):
+    """Исключение при просроченной подписи токена.
+
+    Notes
+    -----
+    Возникает в случае, когда подпись токена подлинна, однако просрочена.
     """
 
     pass

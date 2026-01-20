@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import AnyHttpUrl, Field
 
 from .standard import StandardResponse
 
@@ -23,7 +23,7 @@ class PresignedURLResponse(StandardResponse):
         description="UUID загружаемого файла.",
         examples=["ccdc1e34-8772-4537-bdba-5e45c4be5d7c"],
     )
-    presigned_url: str = Field(
+    presigned_url: AnyHttpUrl = Field(
         description="Presigned URL на загрузку или получение файла.",
         examples=["https://amzn-s3-demo-bucket.s3.amazonaws.com"],
     )
