@@ -68,7 +68,7 @@ async def get_partner(
     responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def create_couple_request(
-    form_data: Annotated[
+    body: Annotated[
         CreateCoupleRequest,
         Body(description="Схема запроса на создание приглашения в пару."),
     ],
@@ -78,12 +78,12 @@ async def create_couple_request(
     """Запрос на регистрацию новой пары между пользователями.
 
     Создаёт приглашение на регистрацию пары между текущим пользователем
-    и пользователем, чей username указан в `form_data`.
+    и пользователем, чей username указан в `body`.
 
     Parameters
     ----------
-    form_data : CreateCoupleRequest
-        Зависимость для получения данных из формы.
+    body : CreateCoupleRequest
+        Данные, полученные от клиента в теле запроса.
     couples_service : CouplesServiceDependency
         Зависимость сервиса пар пользователей.
     payload : StrictAuthenticationDependency
@@ -95,9 +95,7 @@ async def create_couple_request(
     StandardResponse
         Ответ, подтверждающий успешную регистрацию приглашения в пару.
     """
-    await couples_service.create_couple_request(
-        payload["sub"], form_data.partner_username
-    )
+    await couples_service.create_couple_request(payload["sub"], body.partner_username)
 
     return StandardResponse(detail="Couple request created successfully.")
 

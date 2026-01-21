@@ -83,7 +83,7 @@ async def upload_proxy(
     responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def upload_direct(
-    form_data: Annotated[
+    body: Annotated[
         UploadFileRequest,
         Body(description="Схема получения метаданных загружаемого медиа-файла."),
     ],
@@ -100,8 +100,8 @@ async def upload_direct(
 
     Parameters
     ----------
-    form_data : UploadFileRequest
-        Зависимость для получения данных из формы, содержащих информацию о загружаемом файле.
+    body : UploadFileRequest
+        Данные, полученные от клиента в теле запроса.
     media_service : MediaService
         Зависимость сервиса работы с медиа.
     payload : Payload
@@ -116,9 +116,9 @@ async def upload_direct(
         Успешный ответ о генерации presigned-url.
     """
     file_id, presigned_url = await media_service.get_upload_presigned_url(
-        form_data.content_type,
-        form_data.title,
-        form_data.description,
+        body.content_type,
+        body.title,
+        body.description,
         payload["sub"],
         idempotency_key,
     )
@@ -139,7 +139,7 @@ async def upload_direct(
     responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def upload_confirm(
-    form_data: Annotated[
+    body: Annotated[
         ConfirmUploadRequest,
         Body(description="Схема получения UUID медиа-файла для подтверждения загрузки"),
     ],
@@ -154,8 +154,8 @@ async def upload_confirm(
 
     Parameters
     ----------
-    form_data : ConfirmUploadRequest
-        Зависимость для получения данных из формы.
+    body : ConfirmUploadRequest
+        Данные, полученные от клиента в теле запроса.
     media_service : MediaService
         Зависимость сервиса работы с медиа.
     payload : Payload
@@ -167,7 +167,7 @@ async def upload_confirm(
     StandardResponse
         Успешный ответ о регистрации загруженного файла.
     """
-    await media_service.confirm_upload(form_data.file_id, payload["sub"])
+    await media_service.confirm_upload(body.file_id, payload["sub"])
 
     return StandardResponse(detail="Upload confirmation is successful.")
 
@@ -289,7 +289,7 @@ async def get_albums(
     responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def post_albums(
-    form_data: Annotated[
+    body: Annotated[
         CreateAlbumRequest, Body(description="Схема получения данных о медиа альбоме.")
     ],
     media_service: MediaServiceDependency,
@@ -302,8 +302,8 @@ async def post_albums(
 
     Parameters
     ----------
-    form_data : CreateAlbumRequest
-        Зависимость для получения данных из формы.
+    body : CreateAlbumRequest
+        Данные, полученные от клиента в теле запроса.
     media_service : MediaServiceDependency
         Зависимость сервиса работы с медиа.
     payload : Payload
@@ -316,10 +316,10 @@ async def post_albums(
         Успешный ответ о создании нового альбома.
     """
     await media_service.create_album(
-        title=form_data.title,
-        description=form_data.description,
-        cover_url=form_data.cover_url,
-        is_private=form_data.is_private,
+        title=body.title,
+        description=body.description,
+        cover_url=body.cover_url,
+        is_private=body.is_private,
         created_by=payload["sub"],
     )
 
@@ -418,7 +418,7 @@ async def attach(
     album_id: Annotated[
         UUID, Path(description="UUID альбома, в который добавляются файлы.")
     ],
-    form_data: Annotated[
+    body: Annotated[
         AttachFilesRequest, Body(description="Список UUID медиа файлов к добавлению.")
     ],
     media_service: MediaServiceDependency,
@@ -431,7 +431,7 @@ async def attach(
 
     album_id : UUID
         UUID альбома, к которому добавляются медиа-файлы.
-    form_data : AttachMediaRequest
+    body : AttachMediaRequest
         Список UUID медиа-файлов к добавлению.
     media_service : MediaServiceDependency
         Зависимость сервиса работы с медиа.
@@ -444,6 +444,6 @@ async def attach(
     StandardResponse
         Ответ о результате добавления файлов к альбому.
     """
-    await media_service.attach(album_id, form_data.files_uuids, payload["sub"])
+    await media_service.attach(album_id, body.files_uuids, payload["sub"])
 
     return StandardResponse(detail="Files successfully attached to album.")

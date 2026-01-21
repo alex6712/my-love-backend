@@ -225,7 +225,7 @@ async def not_found_exception_handler(
 
 
 @my_love_backend.exception_handler(status.HTTP_429_TOO_MANY_REQUESTS)
-async def rate_limit_handler(
+async def rate_limit_exception_handler(
     request: Request,
     exc: StarletteHTTPException,
 ) -> JSONResponse:

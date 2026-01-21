@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Request, status
+from fastapi import APIRouter, Body, Request, Response, status
 
 from app.core.dependencies.auth import (
     AuthServiceDependency,
@@ -37,7 +37,8 @@ router: APIRouter = APIRouter(
 @limiter.limit(REGISTER_LIMIT)  # type: ignore
 async def register(
     request: Request,
-    form_data: Annotated[
+    response: Response,
+    body: Annotated[
         RegisterRequest, Body(description="Схема запроса на регистрацию пользователя.")
     ],
     auth_service: AuthServiceDependency,
@@ -52,8 +53,11 @@ async def register(
     request : Request
         Объект HTTP-запроса. Требуется для работы slowapi.Limiter
         при определении rate limit по IP-адресу клиента.
-    form_data : RegisterRequest
-        Зависимость для получения данных регистрации из формы.
+    response : Response
+        Объект HTTP-ответа. Требуется для работы slowapi.Limiter
+        при инъекции заголовков X-RateLimit-*.
+    body : RegisterRequest
+        Данные, полученные от клиента в теле запроса.
     auth_service : AuthServiceDependency
         Зависимость сервиса аутентификации.
 
@@ -62,7 +66,7 @@ async def register(
     StandardResponse
         Ответ с кодом 201 и сообщением об успешной регистрации.
     """
-    await auth_service.register(form_data.username, form_data.password)
+    await auth_service.register(body.username, body.password)
 
     return StandardResponse(detail="User created successfully.")
 
@@ -78,6 +82,7 @@ async def register(
 @limiter.limit(LOGIN_LIMIT)  # type: ignore
 async def login(
     request: Request,
+    response: Response,
     form_data: SignInCredentialsDependency,
     auth_service: AuthServiceDependency,
 ) -> TokensResponse:
@@ -90,7 +95,9 @@ async def login(
     request : Request
         Объект HTTP-запроса. Требуется для работы slowapi.Limiter
         при определении rate limit по IP-адресу клиента.
-    response: Response
+    response : Response
+        Объект HTTP-ответа. Требуется для работы slowapi.Limiter
+        при инъекции заголовков X-RateLimit-*.
     form_data : SignInCredentialsDependency
         Зависимость для получения учетных данных из формы.
     auth_service : AuthServiceDependency
@@ -113,7 +120,7 @@ async def login(
     )
 
 
-@router.get(
+@router.post(
     "/refresh",
     response_model=TokensResponse,
     status_code=status.HTTP_200_OK,
@@ -124,6 +131,7 @@ async def login(
 @limiter.limit(REFRESH_LIMIT)  # type: ignore
 async def refresh(
     request: Request,
+    response: Response,
     refresh_token: ExtractRefreshTokenDependency,
     auth_service: AuthServiceDependency,
 ) -> TokensResponse:
@@ -137,6 +145,9 @@ async def refresh(
     request : Request
         Объект HTTP-запроса. Требуется для работы slowapi.Limiter
         при определении rate limit по IP-адресу клиента.
+    response : Response
+        Объект HTTP-ответа. Требуется для работы slowapi.Limiter
+        при инъекции заголовков X-RateLimit-*.
     refresh_token : ExtractRefreshTokenDependency
         Зависимость на получение токена обновления из заголовков запроса.
     auth_service : AuthServiceDependency
