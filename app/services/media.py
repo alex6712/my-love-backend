@@ -52,6 +52,8 @@ class MediaService:
         Получение presigned-url для загрузка файла в приватное хранилище.
     confirm_upload(file_id, user_id)
         Подтверждение успешной загрузки файла в объектное хранилище.
+    get_download_presigned_url(file_id, user_id)
+        Получение presigned-url для получения файла из приватного хранилища.
     create_album(title, description, cover_url, is_private, created_by)
         Создание нового альбома.
     get_albums(creator_id)
@@ -411,7 +413,7 @@ class MediaService:
                     media_type="file",
                     detail=f"File with id={file_id} has been deleted.",
                 )
-            case _:
+            case FileStatus.UPLOADED:
                 pass
 
         url: str = await self._s3_client.generate_presigned_url(

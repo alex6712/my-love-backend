@@ -5,7 +5,7 @@ from fastapi import APIRouter, Body, Path, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import CouplesServiceDependency
-from app.core.docs import AUTHORIZATION_ERROR_EXAMPLES
+from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.schemas.dto.couples import CoupleRequestDTO
 from app.schemas.dto.users import PartnerDTO
 from app.schemas.v1.requests.create_couple import CreateCoupleRequest
@@ -25,7 +25,7 @@ router = APIRouter(
     status_code=status.HTTP_200_OK,
     summary="Получение информации о партнёре пользователя.",
     response_description="Информация о партнёре текущего пользователя",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def get_partner(
     couples_service: CouplesServiceDependency,
@@ -65,7 +65,7 @@ async def get_partner(
     status_code=status.HTTP_201_CREATED,
     summary="Запрос на регистрацию новой пары между пользователями.",
     response_description="Запрос успешно отправлен",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def create_couple_request(
     form_data: Annotated[
@@ -108,7 +108,7 @@ async def create_couple_request(
     status_code=status.HTTP_201_CREATED,
     summary="Подтверждение регистрации новой пары между пользователями.",
     response_description="Регистрация пары подтверждена",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def accept_couple_request(
     couple_id: Annotated[
@@ -148,7 +148,7 @@ async def accept_couple_request(
     status_code=status.HTTP_200_OK,
     summary="Отказ регистрации новой пары между пользователями.",
     response_description="В регистрации пары отказано",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def decline_couple_request(
     couple_id: Annotated[
@@ -188,7 +188,7 @@ async def decline_couple_request(
     status_code=status.HTTP_200_OK,
     summary="Получение списка текущих приглашений.",
     response_description="Список текущих приглашений в пару",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def get_couple_requests(
     couples_service: CouplesServiceDependency,

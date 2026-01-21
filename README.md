@@ -15,7 +15,7 @@ _Web-клиент: [My Love Web](https://github.com/alex6712/my-love-web)._
 
 ## ✨ Особенности
 
-### 📸 **Интимный медиа-архив**
+### 📸 **Личный медиа-архив**
 - Загружай фото и видео важных моментов
 - Автоматическая сортировка по датам и событиям
 - Приватное облачное хранение (доступно только нам двоим)
@@ -116,30 +116,34 @@ uv run fastapi dev ./app/main.py
 ## 📁 Структура проекта
 
 ```
-my-love-backend/            # FastAPI приложение
-├── .github/workflows/      # CI/CD workflow (тесты и деплой)
-├── alembic/                # Alembic миграции
+my-love-backend/                # FastAPI приложение
+├── .github/workflows/          # CI/CD workflow (тесты и деплой)
+├── alembic/                    # Alembic миграции
 ├── app/
-│   ├── api/                # Эндпоинты
+│   ├── api/                    # Эндпоинты
 │   │   └── v1/
-│   ├── core/               # Конфигурация, безопасность
-│   │   ├── dependencies/   # Зависимости для DI
-│   │   └── exceptions/     # Исключения приложения
-│   ├── infrastructure/     # Инфраструктурные классы
-│   ├── models/             # SQLAlchemy модели
-│   ├── repositories/       # Репозитории для работы с БД
-│   ├── schemas/            # Pydantic схемы
-│   │   ├── dto/            # Схемы DTO
+│   ├── core/                   # Конфигурация, безопасность
+│   │   ├── dependencies/       # Зависимости для DI
+│   │   └── exceptions/         # Исключения приложения
+│   ├── infrastructure/         # Инфраструктурные классы
+│   ├── models/                 # SQLAlchemy модели
+│   ├── repositories/           # Репозитории для работы с БД
+│   ├── schemas/                # Pydantic схемы
+│   │   ├── dto/                # Схемы DTO
 │   │   └── v1/
-│   │       ├── requests/   # Схемы запросов
-│   │       └── responses/  # Схемы ответов
-│   ├── services/           # Бизнес-логика
-│   └── tests/              # Тестирование
-├── keys/                   # Ключи шифрования и подписи
-├── scripts/                # Утилиты для администрирования
-├── .env                    # Значения конфигурации приложения
-├── pyproject.toml          # Зависимости (uv)
-└── docker-compose.yml      # Контейнеры для разработки
+│   │       ├── requests/       # Схемы запросов
+│   │       └── responses/      # Схемы ответов
+│   ├── services/               # Бизнес-логика
+│   └── tests/                  # Тестирование
+│   │   ├── test_api/
+│   │   ├── test_repositories/
+│   │   ├── test_security/
+│   │   └── test_services/
+├── keys/                       # Ключи шифрования и подписи
+├── scripts/                    # Утилиты для администрирования
+├── .env                        # Значения конфигурации приложения
+├── pyproject.toml              # Зависимости (uv)
+└── docker-compose.yml          # Контейнеры для разработки
 ```
 
 ## 📚 API Документация

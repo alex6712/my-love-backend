@@ -9,18 +9,15 @@ from app.core.exceptions.auth import (
     TokenNotPassedException,
     TokenRevokedException,
     TokenSignatureExpiredException,
-    TokenType,
 )
 from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.core.security import (
-    Payload,
-    Token,
-    Tokens,
     create_jwt_pair,
     hash_,
     jwt_decode,
     verify,
 )
+from app.core.types import Payload, Tokens, TokenType
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
 from app.repositories.users import UsersRepository
@@ -131,7 +128,7 @@ class AuthService:
 
         return await self._get_new_jwt_pair(user)
 
-    async def refresh(self, refresh_token: Token | None) -> Tokens:
+    async def refresh(self, refresh_token: str | None) -> Tokens:
         """Обновляет пару токенов по валидному refresh-токену.
 
         Выполняет следующую последовательность действий:
@@ -141,7 +138,7 @@ class AuthService:
 
         Parameters
         ----------
-        refresh_token : Token | None
+        refresh_token : str | None
             Токен обновления, полученный из headers.
 
         Returns
@@ -187,12 +184,12 @@ class AuthService:
 
         return await self._get_new_jwt_pair(user)
 
-    async def logout(self, access_token: Token | None) -> None:
+    async def logout(self, access_token: str | None) -> None:
         """Выполняет выход пользователя из системы путем инвалидации JWT.
 
         Parameters
         ----------
-        access_token : Token | None
+        access_token : srt | None
             Валидный access токен пользователя, полученный при аутентификации.
             Должен содержать актуальный payload с идентификатором пользователя (sub).
 
@@ -224,12 +221,12 @@ class AuthService:
 
         await self._users_repo.update_refresh_token_hash(payload["sub"], None)
 
-    async def validate_access_token(self, access_token: Token | None) -> Payload:
+    async def validate_access_token(self, access_token: str | None) -> Payload:
         """Проверяет валидность access-токена.
 
         Parameters
         ----------
-        access_token : Token
+        access_token : srt
             Токен доступа, полученный из headers.
 
         Returns

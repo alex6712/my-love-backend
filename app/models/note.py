@@ -3,8 +3,10 @@ from uuid import UUID
 
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import Enum as SAEnum
 from sqlalchemy.types import String, Text, Uuid
 
+from app.core.enums import NoteType
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
@@ -15,6 +17,16 @@ class NoteModel(BaseModel):
     __tablename__ = "notes"
     __table_args__ = {"comment": "Пользовательские заметки и записки"}
 
+    type: Mapped[NoteType] = mapped_column(
+        SAEnum(
+            NoteType,
+            name="note_type",
+            native_enum=True,
+        ),
+        nullable=False,
+        index=True,
+        comment="Тип пользовательской заметки",
+    )
     title: Mapped[str] = mapped_column(
         String(64),
         default="Новая заметка",
@@ -42,6 +54,7 @@ class NoteModel(BaseModel):
 
     def __repr__(self, **_) -> str:
         attrs: dict[str, Any] = {
+            "type": self.type,
             "title": self.title,
             "content": self.content,
             "created_by": self.created_by,

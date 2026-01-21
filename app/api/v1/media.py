@@ -9,7 +9,7 @@ from app.core.dependencies.transport import (
     IdempotencyKeyDependency,
     UploadFileDependency,
 )
-from app.core.docs import AUTHORIZATION_ERROR_EXAMPLES
+from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 from app.schemas.v1.requests.attach_files import AttachFilesRequest
 from app.schemas.v1.requests.confirm_upload import ConfirmUploadRequest
@@ -31,7 +31,7 @@ router = APIRouter(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Загрузка медиа-файлов в приватное хранилище.",
     response_description="Загрузка завершена успешно",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def upload_proxy(
     form_data: UploadFileDependency,
@@ -80,7 +80,7 @@ async def upload_proxy(
     status_code=status.HTTP_200_OK,
     summary="Получение Presigned URL для загрузки медиа-файлов в приватное хранилище.",
     response_description="URL для прямой загрузки получена успешно",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def upload_direct(
     form_data: Annotated[
@@ -136,7 +136,7 @@ async def upload_direct(
     status_code=status.HTTP_200_OK,
     summary="Подтверждение окончания загрузки файла по Presigned URL.",
     response_description="Завершение загрузки подтверждено",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def upload_confirm(
     form_data: Annotated[
@@ -178,7 +178,7 @@ async def upload_confirm(
     status_code=status.HTTP_200_OK,
     summary="Получение Presigned URL для получения медиа-файлов из приватного хранилища.",
     response_description="URL для прямой загрузки получена успешно",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def download_direct(
     file_id: Annotated[
@@ -228,7 +228,7 @@ async def download_direct(
     status_code=status.HTTP_200_OK,
     summary="Получение списка всех доступных пользователю медиа альбомов.",
     response_description="Список всех доступных альбомов",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def get_albums(
     media_service: MediaServiceDependency,
@@ -286,7 +286,7 @@ async def get_albums(
     status_code=status.HTTP_201_CREATED,
     summary="Создать новый медиа альбом.",
     response_description="Медиа-альбом создан успешно",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def post_albums(
     form_data: Annotated[
@@ -332,7 +332,7 @@ async def post_albums(
     status_code=status.HTTP_200_OK,
     summary="Получение подробной информации о медиа-альбоме.",
     response_description="Информация о меди-альбоме вместе с его элементами",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def get_album(
     album_id: Annotated[UUID, Path(description="UUID запрашиваемого альбома.")],
@@ -374,7 +374,7 @@ async def get_album(
     status_code=status.HTTP_200_OK,
     summary="Удаление медиа альбома по его UUID.",
     response_description="Медиа-альбом удалён успешно",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def delete_albums(
     album_id: Annotated[UUID, Path(description="UUID медиа альбома к удалению.")],
@@ -412,7 +412,7 @@ async def delete_albums(
     status_code=status.HTTP_200_OK,
     summary="Привязка медиа-файлов к альбому.",
     response_description="Медиа-файлы добавлены в альбом",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def attach(
     album_id: Annotated[

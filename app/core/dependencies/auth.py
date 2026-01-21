@@ -11,7 +11,7 @@ from fastapi.security import (
 from app.config import Settings, get_settings
 from app.core.dependencies.services import AuthServiceDependency
 from app.core.exceptions.auth import AuthDomainException
-from app.core.security import Payload
+from app.core.types import Payload
 
 SignInCredentialsDependency = Annotated[OAuth2PasswordRequestForm, Depends()]
 """Зависимость на получение реквизитов для входа в систему"""

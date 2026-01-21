@@ -1,6 +1,6 @@
-from typing import Any, Literal
+from typing import Any
 
-type Domain = Literal["application", "auth", "user", "couple", "media"]
+from app.core.types import Domain
 
 
 class BaseApplicationException(Exception):

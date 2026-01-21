@@ -7,6 +7,7 @@ settings: Settings = get_settings()
 
 limiter: Limiter = Limiter(
     key_func=get_remote_address,
+    headers_enabled=True,
     storage_uri=settings.REDIS_URL.unicode_string(),
 )
 """Экземпляр RateLimiter с настройками проекта.

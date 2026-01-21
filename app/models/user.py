@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from app.models.album import AlbumModel
     from app.models.couple import CoupleRequestModel
     from app.models.file import FileModel
+    from app.models.note import NoteModel
 
 
 class UserModel(BaseModel):
@@ -66,6 +67,12 @@ class UserModel(BaseModel):
     )
     media_files: Mapped[list["FileModel"]] = relationship(
         "FileModel",
+        back_populates="creator",
+        viewonly=True,
+        lazy="select",
+    )
+    notes: Mapped[list["NoteModel"]] = relationship(
+        "NoteModel",
         back_populates="creator",
         viewonly=True,
         lazy="select",

@@ -38,7 +38,7 @@ class UserWithCredentialsDTO(UserDTO):
 
 
 class CreatorDTO(UserDTO):
-    """DTO для представления создателя медиа.
+    """DTO для представления создателя сущности.
 
     Notes
     -----

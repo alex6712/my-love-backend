@@ -4,11 +4,18 @@ from typing import Any, AsyncGenerator, cast
 from botocore.exceptions import ClientError
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1 import api_v1_router
 from app.config import Settings, get_settings
+from app.core.docs import (
+    AUTHORIZATION_ERROR_SCHEMA,
+    LOGIN_ERROR_SCHEMA,
+    RATE_LIMIT_ERROR_SCHEMA,
+    REGISTER_ERROR_SCHEMA,
+)
 from app.core.enums import APICode
 from app.core.exceptions.auth import (
     IncorrectUsernameOrPasswordException,
@@ -109,18 +116,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
     await redis_client.disconnect()
 
 
-my_love_backend = FastAPI(
-    title=settings.APP_NAME,
-    summary=settings.APP_SUMMARY,
-    description=settings.APP_DESCRIPTION,
-    version=settings.APP_VERSION,
-    openapi_tags=tags_metadata,
-    lifespan=lifespan,
-    contact={
-        "name": settings.ADMIN_NAME,
-        "email": settings.ADMIN_EMAIL,
-    },
-)
+my_love_backend = FastAPI(lifespan=lifespan)
 
 my_love_backend.add_middleware(
     CORSMiddleware,
@@ -131,6 +127,60 @@ my_love_backend.add_middleware(
 )
 
 my_love_backend.include_router(api_v1_router)
+
+
+def custom_openapi() -> dict[str, Any]:
+    """Генерирует и возвращает кастомную схему OpenAPI для FastAPI приложения.
+
+    Функция реализует паттерн кэширования (singleton-like) для схемы OpenAPI.
+    При первом вызове генерирует полную схему на основе конфигурации приложения,
+    добавляет кастомные компоненты ответов и сохраняет результат в кэше.
+    Последующие вызовы возвращают кэшированную схему.
+
+    Returns
+    -------
+    dict[str, Any]
+        Словарь со схемой OpenAPI в формате JSON, содержащий.
+
+    Notes
+    -----
+    Схема включает стандартные компоненты FastAPI, дополненные кастомными
+    ошибками для различных сценариев:
+    - AuthorizationError: Ошибки авторизации;
+    - LoginError: Ошибки аутентификации;
+    - RateLimitError: Превышение лимитов запросов;
+    - RegisterError: Ошибки регистрации.
+
+    Все настройки (название, версия, контакты) берутся из объекта `settings`.
+    """
+    if my_love_backend.openapi_schema:
+        return my_love_backend.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=settings.APP_NAME,
+        version=settings.APP_VERSION,
+        summary=settings.APP_SUMMARY,
+        description=settings.APP_DESCRIPTION,
+        routes=my_love_backend.routes,
+        tags=tags_metadata,
+        contact={
+            "name": settings.ADMIN_NAME,
+            "email": settings.ADMIN_EMAIL,
+        },
+    )
+
+    openapi_schema["components"]["responses"] = {
+        "AuthorizationError": AUTHORIZATION_ERROR_SCHEMA,
+        "LoginError": LOGIN_ERROR_SCHEMA,
+        "RateLimitError": RATE_LIMIT_ERROR_SCHEMA,
+        "RegisterError": REGISTER_ERROR_SCHEMA,
+    }
+
+    my_love_backend.openapi_schema = openapi_schema
+    return my_love_backend.openapi_schema
+
+
+my_love_backend.openapi = custom_openapi
 
 
 @my_love_backend.exception_handler(status.HTTP_404_NOT_FOUND)
@@ -166,7 +216,7 @@ async def not_found_exception_handler(
 @my_love_backend.exception_handler(status.HTTP_429_TOO_MANY_REQUESTS)
 async def rate_limit_handler(
     request: Request,
-    exc: Any,
+    exc: StarletteHTTPException,
 ) -> JSONResponse:
     """Обрабатывает ошибки rate limiting (429 Too Many Requests).
 
@@ -176,25 +226,26 @@ async def rate_limit_handler(
     Parameters
     ----------
     request : Request
-        Объект запроса с информацией о входящем HTTP-запросе (не используется).
-    exc : Any
-        Исключение, вызвавшее ошибку 429 (не используется напрямую,
-        но требуется сигнатурой обработчика).
+        Объект запроса с информацией о входящем HTTP-запросе.
+    exc : StarletteHTTPException
+        Исключение, вызвавшее ошибку 429 (не используется).
 
     Returns
     -------
     JSONResponse
-        Ответ с ошибкой 429, кодом RATE_LIMIT_EXCEEDED
-        и заголовком Retry-After для клиента.
+        Ответ с ошибкой 429, кодом RATE_LIMIT_EXCEEDED.
     """
-    return JSONResponse(
+    response: JSONResponse = JSONResponse(
         content=StandardResponse(
             code=APICode.RATE_LIMIT_EXCEEDED,
             detail="Too many requests. Please slow down.",
         ).model_dump(mode="json"),
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        headers={"Retry-After": "60"},
     )
+
+    request.app.state.limiter._inject_headers(response, request.state.view_rate_limit)
+
+    return response
 
 
 @my_love_backend.exception_handler(IncorrectUsernameOrPasswordException)

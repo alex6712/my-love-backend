@@ -1,7 +1,6 @@
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Literal
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -9,12 +8,7 @@ from jose import jwt
 from passlib.context import CryptContext
 
 from app.config import Settings, get_settings
-
-type TokenType = Literal["access", "refresh"]
-
-type Token = str
-type Tokens = dict[TokenType, Token]
-type Payload = dict[str, Any]
+from app.core.types import Payload, Tokens
 
 settings: Settings = get_settings()
 

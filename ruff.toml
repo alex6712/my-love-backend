@@ -1,6 +1,2 @@
 # Исключаем Alembic-ревизии из области работы ruff
 extend-exclude = ["./alembic/"]
-
-# Причину см. в ./app/models/__init__.py
-[lint]
-exclude = ["./app/models/__init__.py"]

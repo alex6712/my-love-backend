@@ -1,9 +1,7 @@
-from typing import Any, Literal
+from typing import Any
 
 from app.core.exceptions.base import BaseApplicationException
-from app.core.security import TokenType
-
-type CredentialsType = Literal["password", "token"]
+from app.core.types import CredentialsType, TokenType
 
 
 class AuthDomainException(BaseApplicationException):

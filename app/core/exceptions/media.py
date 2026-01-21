@@ -1,11 +1,10 @@
-from typing import Any, Literal
+from typing import Any
 
 from app.core.exceptions.base import (
     BaseApplicationException,
     NotFoundException,
 )
-
-type MediaType = Literal["album", "file"]
+from app.core.types import MediaType
 
 
 class MediaDomainException(BaseApplicationException):

@@ -9,12 +9,13 @@ from app.core.dependencies.auth import (
     SignInCredentialsDependency,
 )
 from app.core.docs import (
-    AUTHORIZATION_ERROR_EXAMPLES,
-    LOGIN_ERROR_EXAMPLE,
-    RATE_LIMIT_ERROR_EXAMPLE,
+    AUTHORIZATION_ERROR_REF,
+    LOGIN_ERROR_REF,
+    RATE_LIMIT_ERROR_REF,
+    REGISTER_ERROR_REF,
 )
 from app.core.rate_limiter import LOGIN_LIMIT, REFRESH_LIMIT, REGISTER_LIMIT, limiter
-from app.core.security import Tokens
+from app.core.types import Tokens
 from app.schemas.v1.requests.register import RegisterRequest
 from app.schemas.v1.responses.standard import StandardResponse
 from app.schemas.v1.responses.tokens import TokensResponse
@@ -31,7 +32,7 @@ router: APIRouter = APIRouter(
     status_code=status.HTTP_201_CREATED,
     summary="Регистрация пользователя.",
     response_description="Успешная регистрация",
-    responses={429: RATE_LIMIT_ERROR_EXAMPLE},
+    responses={422: REGISTER_ERROR_REF, 429: RATE_LIMIT_ERROR_REF},
 )
 @limiter.limit(REGISTER_LIMIT)  # type: ignore
 async def register(
@@ -72,7 +73,7 @@ async def register(
     status_code=status.HTTP_200_OK,
     summary="Аутентификация пользователя.",
     response_description="Успешная аутентификация",
-    responses={401: LOGIN_ERROR_EXAMPLE, 429: RATE_LIMIT_ERROR_EXAMPLE},
+    responses={401: LOGIN_ERROR_REF, 429: RATE_LIMIT_ERROR_REF},
 )
 @limiter.limit(LOGIN_LIMIT)  # type: ignore
 async def login(
@@ -89,6 +90,7 @@ async def login(
     request : Request
         Объект HTTP-запроса. Требуется для работы slowapi.Limiter
         при определении rate limit по IP-адресу клиента.
+    response: Response
     form_data : SignInCredentialsDependency
         Зависимость для получения учетных данных из формы.
     auth_service : AuthServiceDependency
@@ -117,7 +119,7 @@ async def login(
     status_code=status.HTTP_200_OK,
     summary="Обновление токенов доступа.",
     response_description="Обновление токенов прошло успешно",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES, 429: RATE_LIMIT_ERROR_EXAMPLE},
+    responses={401: AUTHORIZATION_ERROR_REF, 429: RATE_LIMIT_ERROR_REF},
 )
 @limiter.limit(REFRESH_LIMIT)  # type: ignore
 async def refresh(
@@ -160,7 +162,7 @@ async def refresh(
     status_code=status.HTTP_200_OK,
     summary="Выход из системы.",
     response_description="Успешный выход из системы",
-    responses={401: AUTHORIZATION_ERROR_EXAMPLES},
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def logout(
     access_token: ExtractAccessTokenDependency,
