@@ -116,7 +116,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
     await redis_client.disconnect()
 
 
-my_love_backend = FastAPI(lifespan=lifespan)
+my_love_backend = FastAPI(
+    title=settings.APP_NAME,
+    summary=settings.APP_SUMMARY,
+    description=settings.APP_DESCRIPTION,
+    version=settings.APP_VERSION,
+    openapi_tags=tags_metadata,
+    lifespan=lifespan,
+    contact={
+        "name": settings.ADMIN_NAME,
+        "email": settings.ADMIN_EMAIL,
+    },
+)
 
 my_love_backend.add_middleware(
     CORSMiddleware,
