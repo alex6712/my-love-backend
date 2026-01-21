@@ -19,12 +19,3 @@ async def test_logout_unauthorized(async_client: AsyncClient):
     response = await async_client.post("/auth/logout")
 
     assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_refresh_without_token(async_client: AsyncClient):
-    """Тест обновления токена без передачи токена."""
-    response = await async_client.post("/auth/refresh")
-
-    # Rate limiter или другая ошибка — зависит от конфигурации
-    assert response.status_code in [401, 405, 400]

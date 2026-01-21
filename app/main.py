@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1 import api_v1_router
@@ -224,10 +225,10 @@ async def not_found_exception_handler(
     )
 
 
-@my_love_backend.exception_handler(status.HTTP_429_TOO_MANY_REQUESTS)
+@my_love_backend.exception_handler(RateLimitExceeded)
 async def rate_limit_exception_handler(
     request: Request,
-    exc: StarletteHTTPException,
+    exc: RateLimitExceeded,
 ) -> JSONResponse:
     """Обрабатывает ошибки rate limiting (429 Too Many Requests).
 
@@ -238,7 +239,7 @@ async def rate_limit_exception_handler(
     ----------
     request : Request
         Объект запроса с информацией о входящем HTTP-запросе.
-    exc : StarletteHTTPException
+    exc : RateLimitExceeded
         Исключение, вызвавшее ошибку 429 (не используется).
 
     Returns
