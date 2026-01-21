@@ -10,7 +10,7 @@ from app.core.dependencies.infrastructure import (
 from app.core.dependencies.settings import SettingsDependency
 from app.services.auth import AuthService
 from app.services.couples import CouplesService
-from app.services.media import MediaService
+from app.services.media import AlbumService, FileService
 from app.services.users import UsersService
 
 
@@ -41,37 +41,55 @@ def get_auth_service(
     return AuthService(unit_of_work, redis_client)
 
 
-def get_media_service(
+def get_file_service(
     unit_of_work: UnitOfWorkDependency,
     redis_client: RedisClientDependency,
     s3_client: S3ClientDependency,
     settings: SettingsDependency,
-) -> MediaService:
-    """Фабрика зависимостей для создания экземпляра сервиса работы с медиа.
+) -> FileService:
+    """Фабрика зависимостей для создания экземпляра сервиса работы с файлами.
 
     Создает и возвращает функцию-зависимость, которая инстанцирует
-    экземпляр сервиса работы с медиа, используя
-    зависимости Unit of Work, MinIO Client и Settings.
+    экземпляр сервиса работы с файлами.
 
     Parameters
     ----------
     unit_of_work : UnitOfWorkDependency
-        Зависимость Unit of Work, которая будет передана
-        в конструктор сервиса работы с медиа.
+        Зависимость Unit of Work.
     redis_client : RedisClientDependency
-        Зависимость RedisClient, которая будет передана
-        в конструктор сервиса аутентификации и авторизации.
-    s3_client: S3ClientDependency
+        Зависимость RedisClient.
+    s3_client : S3ClientDependency
         Зависимость S3Client для работы с файловым хранилищем.
     settings : SettingsDependency
-        Зависимость для установки точного пути до сохранённых медиа.
+        Зависимость настроек приложения.
 
     Returns
     -------
-    MediaService
-        Экземпляр сервиса работы с медиа с внедренными зависимостями.
+    FileService
+        Экземпляр сервиса работы с файлами.
     """
-    return MediaService(unit_of_work, redis_client, s3_client, settings)
+    return FileService(unit_of_work, redis_client, s3_client, settings)
+
+
+def get_album_service(
+    unit_of_work: UnitOfWorkDependency,
+) -> AlbumService:
+    """Фабрика зависимостей для создания экземпляра сервиса работы с альбомами.
+
+    Создает и возвращает функцию-зависимость, которая инстанцирует
+    экземпляр сервиса работы с альбомами.
+
+    Parameters
+    ----------
+    unit_of_work : UnitOfWorkDependency
+        Зависимость Unit of Work.
+
+    Returns
+    -------
+    AlbumService
+        Экземпляр сервиса работы с альбомами.
+    """
+    return AlbumService(unit_of_work)
 
 
 def get_users_service(
@@ -123,8 +141,11 @@ def get_couples_service(
 AuthServiceDependency = Annotated[AuthService, Depends(get_auth_service)]
 """Зависимость на получение сервиса аутентификации и авторизации."""
 
-MediaServiceDependency = Annotated[MediaService, Depends(get_media_service)]
-"""Зависимость на получение сервиса работы с медиа."""
+FileServiceDependency = Annotated[FileService, Depends(get_file_service)]
+"""Зависимость на получение сервиса работы с файлами."""
+
+AlbumServiceDependency = Annotated[AlbumService, Depends(get_album_service)]
+"""Зависимость на получение сервиса работы с альбомами."""
 
 UsersServiceDependency = Annotated[UsersService, Depends(get_users_service)]
 """Зависимость на получение сервиса пользователей."""

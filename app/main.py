@@ -64,8 +64,12 @@ tags_metadata = [
         "description": "Операции с **пользователями** приложения.",
     },
     {
-        "name": "media",
-        "description": "Операции с **медиа** в приложении.",
+        "name": "media-files",
+        "description": "Операции с **медиа-файлами**: загрузка, скачивание, presigned URLs.",
+    },
+    {
+        "name": "media-albums",
+        "description": "Операции с **медиа-альбомами**: создание, получение, привязка файлов.",
     },
     {
         "name": "notes",

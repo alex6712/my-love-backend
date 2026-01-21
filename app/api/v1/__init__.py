@@ -1,11 +1,11 @@
 from fastapi import APIRouter
 
-from .auth import router as _auth_router
-from .couples import router as _couples_router
-from .media import router as _media_router
-from .notes import router as _notes_router
-from .root import router as _root_router
-from .users import router as _users_router
+from app.api.v1.auth import router as _auth_router
+from app.api.v1.couples import router as _couples_router
+from app.api.v1.media import router as _media_router
+from app.api.v1.notes import router as _notes_router
+from app.api.v1.root import router as _root_router
+from app.api.v1.users import router as _users_router
 
 api_v1_router: APIRouter = APIRouter(
     prefix="/v1",
