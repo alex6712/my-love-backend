@@ -17,9 +17,9 @@ class AlbumsService:
 
     Attributes
     ----------
-    _album_repo : AlbumsRepository
+    _albums_repo : AlbumsRepository
         Репозиторий для операций с альбомами в базе данных.
-    _file_repo : FilesRepository
+    _files_repo : FilesRepository
         Репозиторий для операций с файлами в базе данных.
 
     Methods
@@ -39,10 +39,10 @@ class AlbumsService:
     def __init__(self, unit_of_work: UnitOfWork):
         super().__init__()
 
-        self._album_repo: AlbumsRepository = unit_of_work.get_repository(
+        self._albums_repo: AlbumsRepository = unit_of_work.get_repository(
             AlbumsRepository
         )
-        self._file_repo: FilesRepository = unit_of_work.get_repository(FilesRepository)
+        self._files_repo: FilesRepository = unit_of_work.get_repository(FilesRepository)
 
     async def create_album(
         self,
@@ -71,7 +71,7 @@ class AlbumsService:
         created_by : UUID
             UUID пользователя, создавшего альбом.
         """
-        self._album_repo.add_album(
+        self._albums_repo.add_album(
             title, description, cover_url, is_private, created_by
         )
 
@@ -98,7 +98,7 @@ class AlbumsService:
         list[AlbumDTO]
             Список альбомов пользователя.
         """
-        return await self._album_repo.get_albums_by_creator_id(
+        return await self._albums_repo.get_albums_by_creator_id(
             offset, limit, creator_id
         )
 
@@ -129,7 +129,7 @@ class AlbumsService:
         """
         album: (
             AlbumWithItemsDTO | None
-        ) = await self._album_repo.get_album_with_items_by_id(album_id)
+        ) = await self._albums_repo.get_album_with_items_by_id(album_id)
 
         if album is None or album.creator.id != user_id:
             raise MediaNotFoundException(
@@ -159,7 +159,7 @@ class AlbumsService:
             Возникает в случае, если альбом с переданным UUID не существует
             или текущий пользователь не является создателем альбома.
         """
-        album: AlbumDTO | None = await self._album_repo.get_album_by_id(album_id)
+        album: AlbumDTO | None = await self._albums_repo.get_album_by_id(album_id)
 
         if album is None or album.creator.id != user_id:
             raise MediaNotFoundException(
@@ -167,7 +167,7 @@ class AlbumsService:
                 detail=f"Album with id={album_id} not found, or you're not this album's creator.",
             )
 
-        await self._album_repo.delete_album_by_id(album_id)
+        await self._albums_repo.delete_album_by_id(album_id)
 
     async def attach(
         self, album_id: UUID, files_uuids: list[UUID], user_id: UUID
@@ -194,7 +194,7 @@ class AlbumsService:
         MediaNotFoundException
             Если альбом не существует или не все медиа-файлы найдены.
         """
-        album: AlbumDTO | None = await self._album_repo.get_album_by_id(album_id)
+        album: AlbumDTO | None = await self._albums_repo.get_album_by_id(album_id)
 
         if album is None or album.creator.id != user_id:
             raise MediaNotFoundException(
@@ -205,7 +205,7 @@ class AlbumsService:
         if not files_uuids:
             return
 
-        files: list[FileDTO] = await self._file_repo.get_files_by_ids(
+        files: list[FileDTO] = await self._files_repo.get_files_by_ids(
             files_uuids, created_by=user_id
         )
         found_files_ids: set[UUID] = {file.id for file in files}
@@ -222,10 +222,10 @@ class AlbumsService:
                 ),
             )
 
-        attached_files: set[UUID] = await self._album_repo.get_existing_album_items(
+        attached_files: set[UUID] = await self._albums_repo.get_existing_album_items(
             album_id, files_uuids
         )
 
-        self._album_repo.attach_files_to_album(
+        self._albums_repo.attach_files_to_album(
             album_id, list(set(files_uuids) - attached_files)
         )

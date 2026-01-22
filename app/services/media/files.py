@@ -39,7 +39,7 @@ class FilesService:
         Асинхронный клиент для операций с файлами в S3 хранилище.
     _settings : Settings
         Настройки приложения.
-    _file_repo : FilesRepository
+    _files_repo : FilesRepository
         Репозиторий для операций с файлами в БД.
 
     Methods
@@ -78,7 +78,7 @@ class FilesService:
         self._s3_client: "S3Client" = s3_client
         self._settings: Settings = settings
 
-        self._file_repo: FilesRepository = unit_of_work.get_repository(FilesRepository)
+        self._files_repo: FilesRepository = unit_of_work.get_repository(FilesRepository)
 
     async def _idempotency_gate(
         self, idem_scope: str, user_id: UUID, idempotency_key: UUID
@@ -194,7 +194,7 @@ class FilesService:
             ExtraArgs={"ContentType": content_type},
         )
 
-        self._file_repo.add_file(
+        self._files_repo.add_file(
             object_key=object_key,
             content_type=content_type,
             title=title,
@@ -268,7 +268,7 @@ class FilesService:
 
         object_key: str = f"uploads/{uuid4().hex}"
 
-        file_id: UUID = self._file_repo.add_pending_file(
+        file_id: UUID = self._files_repo.add_pending_file(
             object_key=object_key,
             content_type=content_type,
             title=title,
@@ -320,7 +320,7 @@ class FilesService:
             Если файл не найден в объектном хранилище, то есть
             загрузка не была завершена или файл был удалён.
         """
-        files: list[FileDTO] = await self._file_repo.get_files_by_ids(
+        files: list[FileDTO] = await self._files_repo.get_files_by_ids(
             [file_id], created_by=user_id
         )
 
@@ -350,7 +350,7 @@ class FilesService:
                 detail=f"File with id={file_id} has not been found in object storage yet.",
             )
 
-        await self._file_repo.mark_file_uploaded(file.id)
+        await self._files_repo.mark_file_uploaded(file.id)
 
     async def get_download_presigned_url(
         self, file_id: UUID, user_id: UUID
@@ -382,7 +382,7 @@ class FilesService:
             Возникает в случае, если файл находится в статусе загрузки (PENDING),
             загрузка не удалась (FAILED) или файл был удалён (DELETED).
         """
-        files: list[FileDTO] = await self._file_repo.get_files_by_ids(
+        files: list[FileDTO] = await self._files_repo.get_files_by_ids(
             [file_id], created_by=user_id
         )
 

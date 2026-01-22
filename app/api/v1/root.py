@@ -16,7 +16,7 @@ router = APIRouter(
     summary="Проверка работоспособности API.",
     response_description="API работает",
 )
-async def root() -> StandardResponse:
+async def health() -> StandardResponse:
     """Путь для проверки работоспособности API.
 
     Ничего не делает, кроме как возвращает положительный ответ на запрос.
@@ -40,12 +40,12 @@ async def app_info(settings: SettingsDependency) -> AppInfoResponse:
     """Запрос на получение информации о серверной стороне приложения.
 
     Получаемая информация:
-        * app_name: str, имя приложения;
-        * app_version: str, версия приложения;
-        * app_description: str, полное описание приложения;
-        * app_summary: str, краткое описание приложения;
-        * admin_name: str, полное имя ответственного лица;
-        * admin_email: str, адрес электронной почты для связи с ответственным лицом.
+    - app_name: str, имя приложения;
+    - app_version: str, версия приложения;
+    - app_description: str, полное описание приложения;
+    - app_summary: str, краткое описание приложения;
+    - admin_name: str, полное имя ответственного лица;
+    - admin_email: str, адрес электронной почты для связи с ответственным лицом.
 
     Parameters
     ----------
