@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, cast
 
 from botocore.exceptions import ClientError
@@ -99,6 +100,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
     None
         При успешном выполнении ничего не возвращает.
     """
+    app.state.startup_at = datetime.now(timezone.utc)
     app.state.limiter = limiter
 
     async with get_s3_client() as s3_client:

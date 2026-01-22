@@ -1,4 +1,4 @@
-from app.services.media.album import AlbumService
-from app.services.media.file import FileService
+from app.services.media.albums import AlbumsService
+from app.services.media.files import FilesService
 
-__all__ = ["AlbumService", "FileService"]
+__all__ = ["AlbumsService", "FilesService"]

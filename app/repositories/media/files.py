@@ -11,7 +11,7 @@ from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.file import FileDTO
 
 
-class FileRepository(RepositoryInterface):
+class FilesRepository(RepositoryInterface):
     """Репозиторий медиа-файлов.
 
     Реализация паттерна Репозиторий для работы с медиа-файлами.

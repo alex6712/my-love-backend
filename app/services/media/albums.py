@@ -2,12 +2,12 @@ from uuid import UUID
 
 from app.core.exceptions.media import MediaNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
-from app.repositories.media import AlbumRepository, FileRepository
+from app.repositories.media import AlbumsRepository, FilesRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 from app.schemas.dto.file import FileDTO
 
 
-class AlbumService:
+class AlbumsService:
     """Сервис работы с медиа-альбомами.
 
     Реализует бизнес-логику для:
@@ -17,9 +17,9 @@ class AlbumService:
 
     Attributes
     ----------
-    _album_repo : AlbumRepository
+    _album_repo : AlbumsRepository
         Репозиторий для операций с альбомами в базе данных.
-    _file_repo : FileRepository
+    _file_repo : FilesRepository
         Репозиторий для операций с файлами в базе данных.
 
     Methods
@@ -39,8 +39,10 @@ class AlbumService:
     def __init__(self, unit_of_work: UnitOfWork):
         super().__init__()
 
-        self._album_repo: AlbumRepository = unit_of_work.get_repository(AlbumRepository)
-        self._file_repo: FileRepository = unit_of_work.get_repository(FileRepository)
+        self._album_repo: AlbumsRepository = unit_of_work.get_repository(
+            AlbumsRepository
+        )
+        self._file_repo: FilesRepository = unit_of_work.get_repository(FilesRepository)
 
     async def create_album(
         self,

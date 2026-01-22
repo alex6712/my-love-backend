@@ -10,7 +10,7 @@ from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 
 
-class AlbumRepository(RepositoryInterface):
+class AlbumsRepository(RepositoryInterface):
     """Репозиторий медиа-альбомов.
 
     Реализация паттерна Репозиторий для работы с медиа-альбомами.

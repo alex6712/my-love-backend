@@ -15,7 +15,7 @@ from app.core.exceptions.media import (
 )
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
-from app.repositories.media import FileRepository
+from app.repositories.media import FilesRepository
 from app.schemas.dto.file import FileDTO
 from app.schemas.dto.idempotency_key import IdempotencyKeyDTO
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from types_aiobotocore_s3 import S3Client
 
 
-class FileService:
+class FilesService:
     """Сервис работы с медиа-файлами.
 
     Реализует бизнес-логику для:
@@ -39,7 +39,7 @@ class FileService:
         Асинхронный клиент для операций с файлами в S3 хранилище.
     _settings : Settings
         Настройки приложения.
-    _file_repo : FileRepository
+    _file_repo : FilesRepository
         Репозиторий для операций с файлами в БД.
 
     Methods
@@ -78,7 +78,7 @@ class FileService:
         self._s3_client: "S3Client" = s3_client
         self._settings: Settings = settings
 
-        self._file_repo: FileRepository = unit_of_work.get_repository(FileRepository)
+        self._file_repo: FilesRepository = unit_of_work.get_repository(FilesRepository)
 
     async def _idempotency_gate(
         self, idem_scope: str, user_id: UUID, idempotency_key: UUID
@@ -117,7 +117,7 @@ class FileService:
         response: str | None = None
 
         created: bool = await self._redis_client.acquire_idempotency_key(
-            idem_scope, user_id, idempotency_key, FileService._IDEMPOTENCY_KEY_TTL
+            idem_scope, user_id, idempotency_key, FilesService._IDEMPOTENCY_KEY_TTL
         )
 
         if not created:
@@ -203,7 +203,7 @@ class FileService:
         )
 
         await self._redis_client.finalize_idempotency_key(
-            idem_scope, user_id, idempotency_key, FileService._IDEMPOTENCY_KEY_TTL
+            idem_scope, user_id, idempotency_key, FilesService._IDEMPOTENCY_KEY_TTL
         )
 
     async def get_upload_presigned_url(
@@ -289,7 +289,7 @@ class FileService:
             scope=idem_scope,
             user_id=user_id,
             key=idempotency_key,
-            ttl=FileService._IDEMPOTENCY_KEY_TTL,
+            ttl=FilesService._IDEMPOTENCY_KEY_TTL,
             response=f"{file_id},{url}",
         )
 

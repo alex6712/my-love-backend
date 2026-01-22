@@ -10,7 +10,7 @@ from app.core.dependencies.infrastructure import (
 from app.core.dependencies.settings import SettingsDependency
 from app.services.auth import AuthService
 from app.services.couples import CouplesService
-from app.services.media import AlbumService, FileService
+from app.services.media import AlbumsService, FilesService
 from app.services.users import UsersService
 
 
@@ -46,7 +46,7 @@ def get_file_service(
     redis_client: RedisClientDependency,
     s3_client: S3ClientDependency,
     settings: SettingsDependency,
-) -> FileService:
+) -> FilesService:
     """Фабрика зависимостей для создания экземпляра сервиса работы с файлами.
 
     Создает и возвращает функцию-зависимость, которая инстанцирует
@@ -65,15 +65,15 @@ def get_file_service(
 
     Returns
     -------
-    FileService
+    FilesService
         Экземпляр сервиса работы с файлами.
     """
-    return FileService(unit_of_work, redis_client, s3_client, settings)
+    return FilesService(unit_of_work, redis_client, s3_client, settings)
 
 
 def get_album_service(
     unit_of_work: UnitOfWorkDependency,
-) -> AlbumService:
+) -> AlbumsService:
     """Фабрика зависимостей для создания экземпляра сервиса работы с альбомами.
 
     Создает и возвращает функцию-зависимость, которая инстанцирует
@@ -86,10 +86,10 @@ def get_album_service(
 
     Returns
     -------
-    AlbumService
+    AlbumsService
         Экземпляр сервиса работы с альбомами.
     """
-    return AlbumService(unit_of_work)
+    return AlbumsService(unit_of_work)
 
 
 def get_users_service(
@@ -141,10 +141,10 @@ def get_couples_service(
 AuthServiceDependency = Annotated[AuthService, Depends(get_auth_service)]
 """Зависимость на получение сервиса аутентификации и авторизации."""
 
-FileServiceDependency = Annotated[FileService, Depends(get_file_service)]
+FilesServiceDependency = Annotated[FilesService, Depends(get_file_service)]
 """Зависимость на получение сервиса работы с файлами."""
 
-AlbumServiceDependency = Annotated[AlbumService, Depends(get_album_service)]
+AlbumsServiceDependency = Annotated[AlbumsService, Depends(get_album_service)]
 """Зависимость на получение сервиса работы с альбомами."""
 
 UsersServiceDependency = Annotated[UsersService, Depends(get_users_service)]

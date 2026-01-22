@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Path, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
-from app.core.dependencies.services import FileServiceDependency
+from app.core.dependencies.services import FilesServiceDependency
 from app.core.dependencies.transport import (
     IdempotencyKeyDependency,
     UploadFileDependency,
@@ -31,7 +31,7 @@ router = APIRouter(
 )
 async def upload_proxy(
     form_data: UploadFileDependency,
-    file_service: FileServiceDependency,
+    file_service: FilesServiceDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
 ) -> StandardResponse:
@@ -45,7 +45,7 @@ async def upload_proxy(
     ----------
     form_data : UploadFileRequestForm
         Зависимость для получения данных из формы, содержащих информацию о загружаемом файле.
-    file_service : FileService
+    file_service : FilesService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -83,7 +83,7 @@ async def upload_direct(
         UploadFileRequest,
         Body(description="Схема получения метаданных загружаемого медиа-файла."),
     ],
-    file_service: FileServiceDependency,
+    file_service: FilesServiceDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLResponse:
@@ -98,7 +98,7 @@ async def upload_direct(
     ----------
     body : UploadFileRequest
         Данные, полученные от клиента в теле запроса.
-    file_service : FileService
+    file_service : FilesService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -139,7 +139,7 @@ async def upload_confirm(
         ConfirmUploadRequest,
         Body(description="Схема получения UUID медиа-файла для подтверждения загрузки"),
     ],
-    file_service: FileServiceDependency,
+    file_service: FilesServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Подтверждение окончания загрузки файла по Presigned URL.
@@ -152,7 +152,7 @@ async def upload_confirm(
     ----------
     body : ConfirmUploadRequest
         Данные, полученные от клиента в теле запроса.
-    file_service : FileService
+    file_service : FilesService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -181,7 +181,7 @@ async def download_direct(
         UUID,
         Path(description="UUID файла для скачивания на клиент."),
     ],
-    file_service: FileServiceDependency,
+    file_service: FilesServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> PresignedURLResponse:
     """Получение presigned-url для скачивания медиа-файла из приватного хранилища.
@@ -194,7 +194,7 @@ async def download_direct(
     ----------
     file_id : UUID
         UUID файла для скачивания на клиент.
-    file_service : FileService
+    file_service : FilesService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
