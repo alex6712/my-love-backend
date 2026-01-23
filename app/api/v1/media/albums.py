@@ -179,6 +179,7 @@ async def search_albums(
     albums: list[AlbumDTO] = await album_service.search_albums(
         search_query, threshold, limit, payload["sub"]
     )
+
     return AlbumsResponse(albums=albums, detail=f"Found {len(albums)} album entries.")
 
 

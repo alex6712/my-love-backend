@@ -30,6 +30,8 @@ class AlbumsService:
         Получение всех медиа альбомов по UUID создателя.
     get_album(album_id, user_id)
         Получение подробной информации об альбоме по его UUID.
+    search_albums(search_query, threshold, limit, created_by)
+        Производит поиск альбомов по переданному запросу.
     delete_album(album_id, user_id)
         Удаление альбома по его UUID.
     attach(album_id, files_uuids, user_id)
@@ -142,6 +144,29 @@ class AlbumsService:
     async def search_albums(
         self, search_query: str, threshold: float, limit: int, created_by: UUID
     ) -> list[AlbumDTO]:
+        """Поиск альбомов по переданному запросу.
+
+        Получает на вход поисковой запрос, параметры поиска и UUID пользователя,
+        возвращает список альбомов этого пользователя, для которых поиск по запросу
+        удовлетворяет параметрам.
+
+        Parameters
+        ----------
+        search_query : str
+            Поисковый запрос, по которому производится поиск.
+        threshold : float
+            Порог сходства для поиска по триграммам.
+        limit : int
+            Максимальное количество, которое необходимо вернуть.
+        created_by : UUID
+            UUID создателя альбома. Поиск проводится только среди альбомов,
+            для которых данный пользователь считается создателем.
+
+        Returns
+        -------
+        list[AlbumDTO]
+            Список найденных альбомов.
+        """
         return await self._albums_repo.search_albums_by_trigram(
             search_query, threshold, limit, created_by
         )
