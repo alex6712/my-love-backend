@@ -40,3 +40,6 @@ class AlbumsResponse(StandardResponse):
     albums: list[AlbumDTO] = Field(
         description="Список всех альбомов, подходящих под фильтры.",
     )
+    # total_count: int = Field(
+    #     description="Общее количество альбомов, доступных пользователей.",
+    # )

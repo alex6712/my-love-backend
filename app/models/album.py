@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Boolean, String, Text, Uuid
 
@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 
 class AlbumModel(BaseModel):
     __tablename__ = "albums"
-    __table_args__ = {"comment": "Созданные пользователями альбомы медиа"}
 
     title: Mapped[str] = mapped_column(
         String(64),
@@ -58,6 +57,22 @@ class AlbumModel(BaseModel):
         cascade="all, delete-orphan",
         viewonly=True,
         lazy="select",
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_album_title_trgm",
+            title,
+            postgresql_using="gin",
+            postgresql_ops={"title": "gin_trgm_ops"},
+        ),
+        Index(
+            "idx_album_description_trgm",
+            description,
+            postgresql_using="gin",
+            postgresql_ops={"description": "gin_trgm_ops"},
+        ),
+        {"comment": "Созданные пользователями альбомы медиа"},
     )
 
     def __repr__(self, **_) -> str:

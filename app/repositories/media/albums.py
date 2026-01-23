@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, case, delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -26,6 +26,8 @@ class AlbumsRepository(RepositoryInterface):
         Возвращает DTO медиа альбома с его элементами.
     get_albums_by_creator_id(offset, limit, creator_id)
         Возвращает список DTO медиа альбомов по id их создателя.
+    search_albums_by_trigram(search_query, threshold, limit, created_by)
+        Производит поиск альбомов по переданному запросу.
     delete_album_by_id(album_id)
         Удаляет запись о медиа альбоме из базы данных.
     get_existing_album_items(album_id, files_ids)
@@ -142,6 +144,81 @@ class AlbumsRepository(RepositoryInterface):
             .where(AlbumModel.created_by == creator_id)
             .order_by(AlbumModel.created_at)
             .slice(offset, offset + limit)
+        )
+
+        return [AlbumDTO.model_validate(album) for album in albums.all()]
+
+    async def search_albums_by_trigram(
+        self, search_query: str, threshold: float, limit: int, created_by: UUID
+    ) -> list[AlbumDTO]:
+        """Производит поиск альбомов по переданному запросу.
+
+        Используется гибридный подход с поиском по полному вхождению (ILIKE)
+        и по триграммам (% + GIN-индексы). Результат возвращается в порядке
+        возрастания сходства с запросом:
+        - Первыми возвращаются результаты с полным совпадением;
+        - Далее следуют результаты, отсортированные по значению функции `similarity`.
+
+        Parameters
+        ----------
+        search_query : str
+            Поисковый запрос, по которому производится поиск.
+        threshold : float
+            Порог сходства для поиска по триграммам.
+        limit : int
+            Максимальное количество, которое необходимо вернуть.
+        created_by : UUID
+            UUID создателя альбома. Поиск проводится только среди альбомов,
+            для которых данный пользователь считается создателем.
+
+        Returns
+        -------
+        list[AlbumDTO]
+            Список найденных альбомов.
+        """
+        await self.session.execute(
+            text("SELECT set_limit(:threshold)"),
+            {"threshold": threshold},
+        )
+
+        ilike_pattern: str = f"%{search_query}%"
+
+        albums = await self.session.scalars(
+            select(AlbumModel)
+            .options(selectinload(AlbumModel.creator))
+            .where(AlbumModel.created_by == created_by)
+            .filter(
+                or_(
+                    # поиск полного вхождения
+                    AlbumModel.title.ilike(ilike_pattern),
+                    AlbumModel.description.ilike(ilike_pattern),
+                    # поиск по триграммам
+                    AlbumModel.title.op("%")(search_query),
+                    AlbumModel.description.op("%")(search_query),
+                )
+            )
+            .order_by(
+                # если найдено полное вхождение, этому альбому в сортировке
+                # присваивается значение 1, иначе 0
+                case(
+                    (
+                        or_(
+                            AlbumModel.title.ilike(ilike_pattern),
+                            AlbumModel.description.ilike(ilike_pattern),
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                ).desc(),
+                # второе условие сортировки - результат функции similarity
+                func.greatest(
+                    func.coalesce(func.similarity(AlbumModel.title, search_query), 0.0),
+                    func.coalesce(
+                        func.similarity(AlbumModel.description, search_query), 0.0
+                    ),
+                ).desc(),
+            )
+            .limit(limit)
         )
 
         return [AlbumDTO.model_validate(album) for album in albums.all()]

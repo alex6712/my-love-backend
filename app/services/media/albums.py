@@ -139,6 +139,13 @@ class AlbumsService:
 
         return album
 
+    async def search_albums(
+        self, search_query: str, threshold: float, limit: int, created_by: UUID
+    ) -> list[AlbumDTO]:
+        return await self._albums_repo.search_albums_by_trigram(
+            search_query, threshold, limit, created_by
+        )
+
     async def delete_album(self, album_id: UUID, user_id: UUID) -> None:
         """Удаление альбома по его UUID.
 

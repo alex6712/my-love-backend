@@ -123,6 +123,66 @@ async def post_albums(
 
 
 @router.get(
+    "/search",
+    response_model=AlbumsResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Поиск альбомов по переданному тексту.",
+    response_description="Список альбомов с похожим названием или описанием",
+    responses={401: AUTHORIZATION_ERROR_REF},
+)
+async def search_albums(
+    search_query: Annotated[
+        str,
+        Query(alias="q", min_length=2, description="Поисковый запрос пользователя."),
+    ],
+    album_service: AlbumsServiceDependency,
+    payload: StrictAuthenticationDependency,
+    threshold: Annotated[
+        float,
+        Query(ge=0.0, le=1.0, description="Порог сходства для поиска по триграммам."),
+    ] = 0.2,
+    limit: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=50,
+            description="Количество возвращаемых альбомов.",
+        ),
+    ] = 10,
+) -> AlbumsResponse:
+    """Поиск альбомов по переданному тексту.
+
+    Возвращает список медиа альбомов, доступных пользователю с UUID, переданным в токене доступа,
+    в наименовании или описании которых был найден поисковый запрос.
+
+    Поиск проводится не только по полному вхождению, но и по триграммам.
+
+    Parameters
+    ----------
+    search_query : str
+        Поисковый запрос пользователя.
+    album_service : AlbumsService
+        Зависимость сервиса работы с альбомами.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+    threshold : float, optional
+        Порог сходства для поиска по триграммам.
+    limit : int, optional
+        Количество возвращаемых альбомов.
+
+    Returns
+    -------
+    AlbumsResponse
+        Объект ответа, содержащий список найденных альбомов.
+    """
+    albums: list[AlbumDTO] = await album_service.search_albums(
+        search_query, threshold, limit, payload["sub"]
+    )
+    return AlbumsResponse(albums=albums, detail=f"Found {len(albums)} album entries.")
+
+
+@router.get(
     "/{album_id}",
     response_model=AlbumResponse,
     status_code=status.HTTP_200_OK,

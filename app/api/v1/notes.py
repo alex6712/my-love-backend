@@ -21,6 +21,7 @@ router = APIRouter(
     summary="Получение пользовательских заметок.",
     response_description="Список пользовательских заметок",
     responses={401: AUTHORIZATION_ERROR_REF},
+    include_in_schema=False,
 )
 async def get_notes(
     notes_service: NotesServiceDependency,
@@ -37,6 +38,7 @@ async def get_notes(
     summary="Создание пользовательской заметки.",
     response_description="Заметка создана успешно",
     responses={401: AUTHORIZATION_ERROR_REF},
+    include_in_schema=False,
 )
 async def post_notes(
     body: Annotated[
