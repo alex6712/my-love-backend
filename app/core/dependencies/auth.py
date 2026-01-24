@@ -8,7 +8,7 @@ from fastapi.security import (
     OAuth2PasswordRequestForm,
 )
 
-from app.config import Settings, get_settings
+from app.config import get_settings
 from app.core.dependencies.services import AuthServiceDependency
 from app.core.exceptions.auth import AuthDomainException
 from app.core.types import Payload
@@ -16,7 +16,7 @@ from app.core.types import Payload
 SignInCredentialsDependency = Annotated[OAuth2PasswordRequestForm, Depends()]
 """Зависимость на получение реквизитов для входа в систему"""
 
-settings: Settings = get_settings()
+settings = get_settings()
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl=f"/{settings.CURRENT_API_PATH}/auth/login",

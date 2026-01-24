@@ -3,9 +3,9 @@ from uuid import UUID
 
 from fastapi import Depends, File, Form, Request, UploadFile
 
-from app.core.exceptions.base import IdempotencyKeyNotPassedException as _IKNotPassed
 from app.core.exceptions.base import (
-    InvalidIdempotencyKeyFormatException as _IKInvalidFormat,
+    IdempotencyKeyNotPassedException,
+    InvalidIdempotencyKeyFormatException,
 )
 
 
@@ -90,9 +90,9 @@ class UploadFileRequestForm:
             ),
         ] = None,
     ):
-        self.file: UploadFile = file
-        self.title: str | None = title
-        self.description: str | None = description
+        self.file = file
+        self.title = title
+        self.description = description
 
 
 async def get_idempotency_key(request: Request) -> UUID:
@@ -119,19 +119,19 @@ async def get_idempotency_key(request: Request) -> UUID:
     InvalidIdempotencyKeyFormatException
         Если предоставленный ключ не в формате UUIDv4.
     """
-    idempotency_key: str | None = request.headers.get("Idempotency-Key")
+    idempotency_key = request.headers.get("Idempotency-Key")
 
     if not idempotency_key:
-        raise _IKNotPassed(
+        raise IdempotencyKeyNotPassedException(
             detail="Idempotency key not found in the 'Idempotency-Key' header.",
         )
 
-    invalid_format: _IKInvalidFormat = _IKInvalidFormat(
+    invalid_format = InvalidIdempotencyKeyFormatException(
         detail="Passed idempotency key is not UUIDv4.",
     )
 
     try:
-        parsed_uuid: UUID = UUID(idempotency_key)
+        parsed_uuid = UUID(idempotency_key)
     except ValueError:
         raise invalid_format
 

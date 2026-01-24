@@ -68,7 +68,7 @@ class UsersRepository(RepositoryInterface):
         UserDTO | None
             DTO записи пользователя, None - если пользователь с таким UUID не найден.
         """
-        user: UserModel | None = await self._get_user_by_id(id_)
+        user = await self._get_user_by_id(id_)
 
         return UserWithCredentialsDTO.model_validate(user) if user else None
 
@@ -122,7 +122,7 @@ class UsersRepository(RepositoryInterface):
         UserDTO | None
             DTO записи пользователя, None - если пользователь не найден.
         """
-        user: UserModel | None = await self._get_user_by_username(username)
+        user = await self._get_user_by_username(username)
 
         return UserWithCredentialsDTO.model_validate(user) if user else None
 

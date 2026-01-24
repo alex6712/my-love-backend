@@ -28,7 +28,7 @@ class MediaDomainException(BaseApplicationException):
     def __init__(self, media_type: MediaType, detail: str | None = None, *args: Any):
         super().__init__(detail, *args, domain="media")
 
-        self.media_type: MediaType = media_type
+        self.media_type = media_type
 
 
 class MediaNotFoundException(MediaDomainException, NotFoundException):

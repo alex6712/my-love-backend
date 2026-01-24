@@ -4,7 +4,6 @@ from app.core.exceptions.media import MediaNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
 from app.repositories.media import AlbumsRepository, FilesRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
-from app.schemas.dto.file import FileDTO
 
 
 class AlbumsService:
@@ -41,10 +40,8 @@ class AlbumsService:
     def __init__(self, unit_of_work: UnitOfWork):
         super().__init__()
 
-        self._albums_repo: AlbumsRepository = unit_of_work.get_repository(
-            AlbumsRepository
-        )
-        self._files_repo: FilesRepository = unit_of_work.get_repository(FilesRepository)
+        self._albums_repo = unit_of_work.get_repository(AlbumsRepository)
+        self._files_repo = unit_of_work.get_repository(FilesRepository)
 
     async def create_album(
         self,
@@ -129,9 +126,7 @@ class AlbumsService:
             В случае если альбом по переданному UUID не существует или
             текущий пользователь не имеет прав на просмотр этого альбома.
         """
-        album: (
-            AlbumWithItemsDTO | None
-        ) = await self._albums_repo.get_album_with_items_by_id(album_id)
+        album = await self._albums_repo.get_album_with_items_by_id(album_id)
 
         if album is None or album.creator.id != user_id:
             raise MediaNotFoundException(
@@ -191,7 +186,7 @@ class AlbumsService:
             Возникает в случае, если альбом с переданным UUID не существует
             или текущий пользователь не является создателем альбома.
         """
-        album: AlbumDTO | None = await self._albums_repo.get_album_by_id(album_id)
+        album = await self._albums_repo.get_album_by_id(album_id)
 
         if album is None or album.creator.id != user_id:
             raise MediaNotFoundException(
@@ -226,7 +221,7 @@ class AlbumsService:
         MediaNotFoundException
             Если альбом не существует или не все медиа-файлы найдены.
         """
-        album: AlbumDTO | None = await self._albums_repo.get_album_by_id(album_id)
+        album = await self._albums_repo.get_album_by_id(album_id)
 
         if album is None or album.creator.id != user_id:
             raise MediaNotFoundException(
@@ -237,15 +232,13 @@ class AlbumsService:
         if not files_uuids:
             return
 
-        files: list[FileDTO] = await self._files_repo.get_files_by_ids(
-            files_uuids, created_by=user_id
-        )
-        found_files_ids: set[UUID] = {file.id for file in files}
+        files = await self._files_repo.get_files_by_ids(files_uuids, created_by=user_id)
+        found_files_ids = {file.id for file in files}
 
         if len(found_files_ids) != len(files_uuids):
-            missing_ids: set[UUID] = set(files_uuids) - found_files_ids
+            missing_ids = set(files_uuids) - found_files_ids
 
-            missing_list: str = ", ".join(str(mid) for mid in missing_ids)
+            missing_list = ", ".join(str(mid) for mid in missing_ids)
             raise MediaNotFoundException(
                 media_type="file",
                 detail=(
@@ -254,7 +247,7 @@ class AlbumsService:
                 ),
             )
 
-        attached_files: set[UUID] = await self._albums_repo.get_existing_album_items(
+        attached_files = await self._albums_repo.get_existing_album_items(
             album_id, files_uuids
         )
 

@@ -1,11 +1,11 @@
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from app.config import Settings, get_settings
+from app.config import get_settings
 
-settings: Settings = get_settings()
+settings = get_settings()
 
-limiter: Limiter = Limiter(
+limiter = Limiter(
     key_func=get_remote_address,
     headers_enabled=True,
     storage_uri=settings.REDIS_URL.unicode_string(),
@@ -16,14 +16,14 @@ limiter: Limiter = Limiter(
 что обеспечивает корректную работу в распределённых системах.
 """
 
-LOGIN_LIMIT: str = "10/minute"
+LOGIN_LIMIT = "10/minute"
 """Ограничение на количество попыток аутентификации.
 
 Значение: 10 запросов в минуту на один IP-адрес.
 Применяется к эндпоинту /auth/login для защиты от перебора паролей.
 """
 
-REGISTER_LIMIT: str = "5/minute"
+REGISTER_LIMIT = "5/minute"
 """Ограничение на количество регистраций.
 
 Значение: 5 запросов в минуту на один IP-адрес.
@@ -31,7 +31,7 @@ REGISTER_LIMIT: str = "5/minute"
 массовой регистрации аккаунтов.
 """
 
-REFRESH_LIMIT: str = "20/minute"
+REFRESH_LIMIT = "20/minute"
 """Ограничение на количество обновлений токенов.
 
 Значение: 20 запросов в минуту на один IP-адрес.

@@ -60,9 +60,9 @@ class AuthService:
     def __init__(self, unit_of_work: UnitOfWork, redis_client: RedisClient):
         super().__init__()
 
-        self._redis_client: RedisClient = redis_client
+        self._redis_client = redis_client
 
-        self._users_repo: UsersRepository = unit_of_work.get_repository(UsersRepository)
+        self._users_repo = unit_of_work.get_repository(UsersRepository)
 
     async def register(self, username: str, password: str) -> None:
         """Регистрирует пользователя в системе.
@@ -112,9 +112,7 @@ class AuthService:
         IncorrectUsernameOrPasswordException
             Не найден пользователь или несовпадение пароля и его хеша в БД.
         """
-        user: (
-            UserWithCredentialsDTO | None
-        ) = await self._users_repo.get_user_by_username(username)
+        user = await self._users_repo.get_user_by_username(username)
 
         credentials_exception = IncorrectUsernameOrPasswordException(
             detail="Incorrect username or password."
@@ -159,11 +157,9 @@ class AuthService:
                 token_type="refresh",
             )
 
-        payload: Payload = await AuthService._validate_token(refresh_token, "refresh")
+        payload = await AuthService._validate_token(refresh_token, "refresh")
 
-        user: UserWithCredentialsDTO | None = await self._users_repo.get_user_by_id(
-            payload["sub"]
-        )
+        user = await self._users_repo.get_user_by_id(payload["sub"])
 
         if user is None:
             raise InvalidTokenException(
@@ -171,7 +167,7 @@ class AuthService:
                 token_type="refresh",
             )
 
-        credentials_exception: InvalidTokenException = InvalidTokenException(
+        credentials_exception = InvalidTokenException(
             detail="The passed refresh token and the hash from the database do not match.",
             token_type="refresh",
         )
@@ -203,9 +199,9 @@ class AuthService:
         InvalidTokenException
             Возникает если подпись токена верна, но в payload нет ключа `exp`.
         """
-        payload: Payload = await self.validate_access_token(access_token)
+        payload = await self.validate_access_token(access_token)
 
-        exp_timestamp: int | None = payload.get("exp")
+        exp_timestamp = payload.get("exp")
 
         if exp_timestamp is None:
             raise InvalidTokenException(
@@ -276,13 +272,13 @@ class AuthService:
         TokenSignatureExpiredException
             Если подпись токена просрочена.
         """
-        damaged: InvalidTokenException = InvalidTokenException(
+        damaged = InvalidTokenException(
             detail="The passed token is damaged or poorly signed.",
             token_type=token_type,
         )
 
         try:
-            payload: Payload = jwt_decode(token)
+            payload = jwt_decode(token)
 
             if not all(payload.get(name) for name in ("sub", "iat", "exp", "jti")):
                 raise damaged
@@ -316,7 +312,7 @@ class AuthService:
         -----
         Обязательное поле в payload: {"sub": user_id}
         """
-        tokens: Tokens = create_jwt_pair(
+        tokens = create_jwt_pair(
             {
                 # перевод UUID в строку, т.к. этот объект не сериализуется
                 "sub": str(user.id),

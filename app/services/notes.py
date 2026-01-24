@@ -27,7 +27,7 @@ class NotesService:
     def __init__(self, unit_of_work: UnitOfWork):
         super().__init__()
 
-        self._notes_repo: NotesRepository = unit_of_work.get_repository(NotesRepository)
+        self._notes_repo = unit_of_work.get_repository(NotesRepository)
 
     def create_note(
         self, type: NoteType, title: str, content: str, created_by: UUID

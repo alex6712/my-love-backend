@@ -7,10 +7,10 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from jose import jwt
 from passlib.context import CryptContext
 
-from app.config import Settings, get_settings
+from app.config import get_settings
 from app.core.types import Payload, Tokens
 
-settings: Settings = get_settings()
+settings = get_settings()
 
 
 def _jwt_encode(payload: Payload) -> str:
@@ -72,7 +72,7 @@ def create_jwt(payload: Payload, expires_delta: timedelta) -> str:
     """
     to_encode = payload.copy()
 
-    now: datetime = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
     to_encode.update(
         {
             "iat": now,

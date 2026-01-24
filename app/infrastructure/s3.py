@@ -3,14 +3,14 @@ from typing import TYPE_CHECKING, AsyncGenerator
 
 import aioboto3  # type: ignore
 
-from app.config import Settings, get_settings
+from app.config import get_settings
 
 if TYPE_CHECKING:
     from types_aiobotocore_s3 import S3Client
 
-settings: Settings = get_settings()
+settings = get_settings()
 
-_session: aioboto3.Session = aioboto3.Session(
+_session = aioboto3.Session(
     aws_access_key_id=settings.MINIO_ROOT_USER,
     aws_secret_access_key=settings.MINIO_ROOT_PASSWORD,
 )

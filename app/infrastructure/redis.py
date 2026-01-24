@@ -3,11 +3,11 @@ from uuid import UUID
 
 import redis.asyncio as redis
 
-from app.config import Settings, get_settings
+from app.config import get_settings
 from app.core.enums import IdempotencyStatus
 from app.schemas.dto.idempotency_key import IdempotencyKeyDTO
 
-settings: Settings = get_settings()
+settings = get_settings()
 
 
 class RedisClient:
@@ -38,7 +38,7 @@ class RedisClient:
     """
 
     def __init__(self, redis_url: str):
-        self._redis_url: str = redis_url
+        self._redis_url = redis_url
 
         self._pool: redis.ConnectionPool | None = None
 
@@ -186,9 +186,9 @@ class RedisClient:
         bool
             Текущее состояние ключа идемпотентности.
         """
-        redis_key: str = RedisClient._idempotency_key(scope, user_id, key)
+        redis_key = RedisClient._idempotency_key(scope, user_id, key)
 
-        created: bool = await self.client.hsetnx(  # type: ignore
+        created = await self.client.hsetnx(  # type: ignore
             redis_key,
             "status",
             IdempotencyStatus.PROCESSING,
@@ -222,7 +222,7 @@ class RedisClient:
         IdempotencyKeyDTO
             Текущий статус идемпотентности по ключу.
         """
-        redis_key: str = RedisClient._idempotency_key(scope, user_id, key)
+        redis_key = RedisClient._idempotency_key(scope, user_id, key)
 
         data: dict[str, str] = await self.client.hgetall(redis_key)  # type: ignore
 
@@ -254,7 +254,7 @@ class RedisClient:
         response : str | None
             Текст ответа от сервера.
         """
-        redis_key: str = RedisClient._idempotency_key(scope, user_id, key)
+        redis_key = RedisClient._idempotency_key(scope, user_id, key)
 
         if response is None:
             response = ""

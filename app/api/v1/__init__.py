@@ -7,7 +7,7 @@ from app.api.v1.notes import router as _notes_router
 from app.api.v1.root import router as _root_router
 from app.api.v1.users import router as _users_router
 
-api_v1_router: APIRouter = APIRouter(
+api_v1_router = APIRouter(
     prefix="/v1",
 )
 

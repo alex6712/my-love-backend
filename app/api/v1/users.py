@@ -3,7 +3,6 @@ from fastapi import APIRouter, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import UsersServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
-from app.schemas.dto.users import UserDTO
 from app.schemas.v1.responses.user import UserResponse
 
 router = APIRouter(
@@ -42,7 +41,7 @@ async def get_me(
     UserResponse
         Ответ с вложенным DTO пользователя.
     """
-    user: UserDTO = await users_service.get_me(payload["sub"])
+    user = await users_service.get_me(payload["sub"])
 
     return UserResponse(
         user=user,

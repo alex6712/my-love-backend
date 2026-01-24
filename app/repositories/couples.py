@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import ScalarResult, and_, or_, select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -81,9 +81,7 @@ class CouplesRepository(RepositoryInterface):
             - PartnerDTO если партнёр найден;
             - None если партнёр не найден.
         """
-        couple: CoupleRequestDTO | None = await self.get_active_couple_by_partner_id(
-            user_id
-        )
+        couple = await self.get_active_couple_by_partner_id(user_id)
 
         if couple is None:
             return None
@@ -108,7 +106,7 @@ class CouplesRepository(RepositoryInterface):
         CoupleDTO | None
             DTO пары между пользователем и его партнёром, None - если пользователь не состоит в паре.
         """
-        couple: CoupleRequestModel | None = await self.session.scalar(
+        couple = await self.session.scalar(
             select(CoupleRequestModel)
             .options(
                 selectinload(CoupleRequestModel.initiator),
@@ -147,7 +145,7 @@ class CouplesRepository(RepositoryInterface):
         CoupleRequestDTO | None
             DTO запроса на создание пары или None, если такого не имеется.
         """
-        request: CoupleRequestModel | None = await self.session.scalar(
+        request = await self.session.scalar(
             select(CoupleRequestModel)
             .options(
                 selectinload(CoupleRequestModel.initiator),
@@ -187,7 +185,7 @@ class CouplesRepository(RepositoryInterface):
         list[CoupleRequestDTO]
             Список всех приглашений на создание пары.
         """
-        requests: ScalarResult[CoupleRequestModel] = await self.session.scalars(
+        requests = await self.session.scalars(
             select(CoupleRequestModel)
             .options(
                 selectinload(CoupleRequestModel.initiator),

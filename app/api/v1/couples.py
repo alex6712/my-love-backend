@@ -6,8 +6,6 @@ from fastapi import APIRouter, Body, Path, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import CouplesServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
-from app.schemas.dto.couples import CoupleRequestDTO
-from app.schemas.dto.users import PartnerDTO
 from app.schemas.v1.requests.create_couple import CreateCoupleRequest
 from app.schemas.v1.responses.couple import CoupleRequestsResponse
 from app.schemas.v1.responses.partner import PartnerResponse
@@ -49,7 +47,7 @@ async def get_partner(
     PartnerResponse
         Ответ с вложенным DTO партнёра.
     """
-    partner: PartnerDTO | None = await couples_service.get_partner(payload["sub"])
+    partner = await couples_service.get_partner(payload["sub"])
 
     return PartnerResponse(
         partner=partner,
@@ -211,11 +209,9 @@ async def get_couple_requests(
     CoupleRequestsResponse
         Список всех запросов на создание пары текущего пользователя.
     """
-    requests: list[CoupleRequestDTO] = await couples_service.get_couple_requests(
-        payload["sub"]
-    )
+    requests = await couples_service.get_couple_requests(payload["sub"])
 
-    detail: str = "Couple requests not found."
+    detail = "Couple requests not found."
     if len(requests) > 0:
         detail = f"Found {len(requests)} couple requests."
 

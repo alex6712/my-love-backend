@@ -6,7 +6,6 @@ from fastapi import APIRouter, Body, Path, Query, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import AlbumsServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
-from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 from app.schemas.v1.requests.attach_files import AttachFilesRequest
 from app.schemas.v1.requests.create_album import CreateAlbumRequest
 from app.schemas.v1.responses.albums import AlbumResponse, AlbumsResponse
@@ -69,9 +68,7 @@ async def get_albums(
         Объект ответа, содержащий список доступных пользователю медиа альбомов
         в пределах заданной пагинации и общее количество найденных альбомов.
     """
-    albums: list[AlbumDTO] = await album_service.get_albums(
-        offset, limit, payload["sub"]
-    )
+    albums = await album_service.get_albums(offset, limit, payload["sub"])
 
     return AlbumsResponse(albums=albums, detail=f"Found {len(albums)} album entries.")
 
@@ -176,7 +173,7 @@ async def search_albums(
     AlbumsResponse
         Объект ответа, содержащий список найденных альбомов.
     """
-    albums: list[AlbumDTO] = await album_service.search_albums(
+    albums = await album_service.search_albums(
         search_query, threshold, limit, payload["sub"]
     )
 
@@ -220,7 +217,7 @@ async def get_album(
     AlbumResponse
         Подробная информация о конкретном медиа-альбоме.
     """
-    album: AlbumWithItemsDTO = await album_service.get_album(album_id, payload["sub"])
+    album = await album_service.get_album(album_id, payload["sub"])
 
     return AlbumResponse(
         album=album, detail=f"Found album with {len(album.items)} files."

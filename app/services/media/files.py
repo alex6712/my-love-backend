@@ -16,8 +16,6 @@ from app.core.exceptions.media import (
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
 from app.repositories.media import FilesRepository
-from app.schemas.dto.file import FileDTO
-from app.schemas.dto.idempotency_key import IdempotencyKeyDTO
 
 if TYPE_CHECKING:
     from types_aiobotocore_s3 import S3Client
@@ -54,10 +52,10 @@ class FilesService:
         Получение presigned-url для получения файла из приватного хранилища.
     """
 
-    _IDEMPOTENCY_KEY_TTL: int = 300
+    _IDEMPOTENCY_KEY_TTL = 300
     """Время в секундах, которое живёт ключ идемпотентности."""
 
-    _SUPPORTED_CONTENT_TYPES: tuple[str, ...] = (
+    _SUPPORTED_CONTENT_TYPES = (
         "image/jpeg",
         "image/png",
         "video/mp4",
@@ -74,11 +72,11 @@ class FilesService:
     ):
         super().__init__()
 
-        self._redis_client: RedisClient = redis_client
-        self._s3_client: "S3Client" = s3_client
-        self._settings: Settings = settings
+        self._redis_client = redis_client
+        self._s3_client = s3_client
+        self._settings = settings
 
-        self._files_repo: FilesRepository = unit_of_work.get_repository(FilesRepository)
+        self._files_repo = unit_of_work.get_repository(FilesRepository)
 
     async def _idempotency_gate(
         self, idem_scope: str, user_id: UUID, idempotency_key: UUID
@@ -116,12 +114,12 @@ class FilesService:
         """
         response: str | None = None
 
-        created: bool = await self._redis_client.acquire_idempotency_key(
+        created = await self._redis_client.acquire_idempotency_key(
             idem_scope, user_id, idempotency_key, FilesService._IDEMPOTENCY_KEY_TTL
         )
 
         if not created:
-            key: IdempotencyKeyDTO = await self._redis_client.get_idempotency_state(
+            key = await self._redis_client.get_idempotency_state(
                 idem_scope, user_id, idempotency_key
             )
 
@@ -169,13 +167,13 @@ class FilesService:
             Возникает в том случае, если запрос с переданным ключом идемпотентности
             уже находится в процессе обработки.
         """
-        idem_scope: str = "media_upload_proxy"
+        idem_scope = "media_upload_proxy"
 
         new, _ = await self._idempotency_gate(idem_scope, user_id, idempotency_key)
         if not new:
             return
 
-        content_type: str | None = file.content_type
+        content_type = file.content_type
 
         if content_type is None or content_type not in self._SUPPORTED_CONTENT_TYPES:
             raise UnsupportedFileTypeException(
@@ -185,7 +183,7 @@ class FilesService:
                 )
             )
 
-        object_key: str = f"uploads/{uuid4().hex}"
+        object_key = f"uploads/{uuid4().hex}"
 
         await self._s3_client.upload_fileobj(
             Fileobj=file.file,
@@ -249,7 +247,7 @@ class FilesService:
             Возникает в том случае, если запрос с переданным ключом идемпотентности
             уже находится в процессе обработки.
         """
-        idem_scope: str = "media_upload_direct"
+        idem_scope = "media_upload_direct"
 
         new, response = await self._idempotency_gate(
             idem_scope, user_id, idempotency_key
@@ -266,9 +264,9 @@ class FilesService:
                 )
             )
 
-        object_key: str = f"uploads/{uuid4().hex}"
+        object_key = f"uploads/{uuid4().hex}"
 
-        file_id: UUID = self._files_repo.add_pending_file(
+        file_id = self._files_repo.add_pending_file(
             object_key=object_key,
             content_type=content_type,
             title=title,
@@ -276,7 +274,7 @@ class FilesService:
             created_by=user_id,
         )
 
-        url: str = await self._s3_client.generate_presigned_url(
+        url = await self._s3_client.generate_presigned_url(
             "put_object",
             Params={
                 "Bucket": self._settings.MINIO_BUCKET_NAME,
@@ -320,9 +318,7 @@ class FilesService:
             Если файл не найден в объектном хранилище, то есть
             загрузка не была завершена или файл был удалён.
         """
-        files: list[FileDTO] = await self._files_repo.get_files_by_ids(
-            [file_id], created_by=user_id
-        )
+        files = await self._files_repo.get_files_by_ids([file_id], created_by=user_id)
 
         if len(files) != 1:
             raise MediaNotFoundException(
@@ -330,12 +326,12 @@ class FilesService:
                 detail=f"File with id={file_id} not found, or you're not this file's creator.",
             )
 
-        file: FileDTO = files[0]
+        file = files[0]
 
         if file.status == FileStatus.UPLOADED:
             return
 
-        exists: bool = False
+        exists = False
         try:
             await self._s3_client.head_object(
                 Bucket=self._settings.MINIO_BUCKET_NAME,
@@ -382,9 +378,7 @@ class FilesService:
             Возникает в случае, если файл находится в статусе загрузки (PENDING),
             загрузка не удалась (FAILED) или файл был удалён (DELETED).
         """
-        files: list[FileDTO] = await self._files_repo.get_files_by_ids(
-            [file_id], created_by=user_id
-        )
+        files = await self._files_repo.get_files_by_ids([file_id], created_by=user_id)
 
         if len(files) != 1:
             raise MediaNotFoundException(
@@ -392,7 +386,7 @@ class FilesService:
                 detail=f"File with id={file_id} not found, or you're not this file's creator.",
             )
 
-        file: FileDTO = files[0]
+        file = files[0]
 
         match file.status:
             case FileStatus.PENDING:
@@ -411,7 +405,7 @@ class FilesService:
             case FileStatus.UPLOADED:
                 pass
 
-        url: str = await self._s3_client.generate_presigned_url(
+        url = await self._s3_client.generate_presigned_url(
             "get_object",
             Params={
                 "Bucket": self._settings.MINIO_BUCKET_NAME,

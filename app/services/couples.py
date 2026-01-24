@@ -12,7 +12,7 @@ from app.infrastructure.postgresql import UnitOfWork
 from app.repositories.couples import CouplesRepository
 from app.repositories.users import UsersRepository
 from app.schemas.dto.couples import CoupleRequestDTO
-from app.schemas.dto.users import PartnerDTO, UserWithCredentialsDTO
+from app.schemas.dto.users import PartnerDTO
 
 
 class CouplesService:
@@ -39,10 +39,8 @@ class CouplesService:
     def __init__(self, unit_of_work: UnitOfWork):
         super().__init__()
 
-        self._users_repo: UsersRepository = unit_of_work.get_repository(UsersRepository)
-        self._couples_repo: CouplesRepository = unit_of_work.get_repository(
-            CouplesRepository
-        )
+        self._users_repo = unit_of_work.get_repository(UsersRepository)
+        self._couples_repo = unit_of_work.get_repository(CouplesRepository)
 
     async def get_partner(self, user_id: UUID) -> PartnerDTO | None:
         """Получение информации о партнёре пользователя.
@@ -93,14 +91,12 @@ class CouplesService:
         CoupleRequestAlreadyExistsException
             Если уже отправлено подобное приглашение.
         """
-        recipient_user: (
-            UserWithCredentialsDTO | None
-        ) = await self._users_repo.get_user_by_username(recipient_username)
+        recipient_user = await self._users_repo.get_user_by_username(recipient_username)
         if recipient_user is None:
             raise UserNotFoundException(
                 detail=f"User with username={recipient_username} not found."
             )
-        recipient_id: UUID = recipient_user.id
+        recipient_id = recipient_user.id
 
         if initiator_id == recipient_id:
             raise CoupleNotSelfException(detail="Cannot register couple with yourself!")
@@ -152,14 +148,12 @@ class CouplesService:
         # TODO: убрать это безобразие. Создать метод в репозитории
         # на получение запроса по его UUID и UUID партнёра
 
-        requests: list[
-            CoupleRequestDTO
-        ] = await self._couples_repo.get_pending_requests_for_recipient(user_id)
+        requests = await self._couples_repo.get_pending_requests_for_recipient(user_id)
 
         try:
-            request_idx: int = [request.id for request in requests].index(couple_id)
+            request_idx = [request.id for request in requests].index(couple_id)
 
-            request: CoupleRequestDTO = requests[request_idx]
+            request = requests[request_idx]
 
             if await self._couples_repo.get_active_couple_by_partner_id(
                 request.initiator.id
@@ -194,9 +188,7 @@ class CouplesService:
         CoupleRequestNotFoundException
             Если запрос с переданным UUID не найден в запросах к текущему пользователю.
         """
-        requests: list[
-            CoupleRequestDTO
-        ] = await self._couples_repo.get_pending_requests_for_recipient(user_id)
+        requests = await self._couples_repo.get_pending_requests_for_recipient(user_id)
 
         if couple_id not in [request.id for request in requests]:
             raise CoupleRequestNotFoundException(

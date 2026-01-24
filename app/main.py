@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1 import api_v1_router
-from app.config import Settings, get_settings
+from app.config import get_settings
 from app.core.docs import (
     AUTHORIZATION_ERROR_SCHEMA,
     LOGIN_ERROR_SCHEMA,
@@ -45,7 +45,7 @@ from app.infrastructure.redis import redis_client
 from app.infrastructure.s3 import get_s3_client
 from app.schemas.v1.responses.standard import StandardResponse
 
-settings: Settings = get_settings()
+settings = get_settings()
 
 tags_metadata = [
     {
@@ -253,7 +253,7 @@ async def rate_limit_exception_handler(
     JSONResponse
         Ответ с ошибкой 429, кодом RATE_LIMIT_EXCEEDED.
     """
-    response: JSONResponse = JSONResponse(
+    response = JSONResponse(
         content=StandardResponse(
             code=APICode.RATE_LIMIT_EXCEEDED,
             detail="Too many requests. Please slow down.",
@@ -445,17 +445,19 @@ async def domain_not_found_exception_handler(
     JSONResponse
         Ответ с ошибкой 404.
     """
-    code: APICode = APICode.RESOURCE_NOT_FOUND
+    code = APICode.RESOURCE_NOT_FOUND
 
     match exc.domain:
         case "media":
-            media_exc: MediaNotFoundException = cast(MediaNotFoundException, exc)
+            media_exc = cast(MediaNotFoundException, exc)
 
             match media_exc.media_type:
                 case "album":
                     code = APICode.ALBUM_NOT_FOUND
                 case "file":
                     code = APICode.FILE_NOT_FOUND
+                case _:
+                    pass
         case _:
             pass
 

@@ -50,7 +50,7 @@ class _CredentialsException(AuthDomainException):
     def __init__(self, detail: str, *args: Any, credentials_type: CredentialsType):
         super().__init__(detail, *args)
 
-        self.credentials_type: CredentialsType = credentials_type
+        self.credentials_type = credentials_type
 
 
 class IncorrectUsernameOrPasswordException(_CredentialsException):
@@ -99,7 +99,7 @@ class _TokenException(_CredentialsException):
     def __init__(self, detail: str, *args: Any, token_type: TokenType):
         super().__init__(detail, *args, credentials_type="token")
 
-        self.token_type: TokenType = token_type
+        self.token_type = token_type
 
 
 class TokenNotPassedException(_TokenException):

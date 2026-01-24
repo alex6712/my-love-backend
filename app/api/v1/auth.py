@@ -15,12 +15,11 @@ from app.core.docs import (
     REGISTER_ERROR_REF,
 )
 from app.core.rate_limiter import LOGIN_LIMIT, REFRESH_LIMIT, REGISTER_LIMIT, limiter
-from app.core.types import Tokens
 from app.schemas.v1.requests.register import RegisterRequest
 from app.schemas.v1.responses.standard import StandardResponse
 from app.schemas.v1.responses.tokens import TokensResponse
 
-router: APIRouter = APIRouter(
+router = APIRouter(
     prefix="/auth",
     tags=["authorization"],
 )
@@ -108,7 +107,7 @@ async def login(
     TokensResponse
         Ответ с вложенными JWT access и refresh токенами.
     """
-    tokens: Tokens = await auth_service.login(
+    tokens = await auth_service.login(
         form_data.username,
         form_data.password,
     )
@@ -158,7 +157,7 @@ async def refresh(
     TokensResponse
         Ответ с вложенными JWT access и refresh токенами.
     """
-    tokens: Tokens = await auth_service.refresh(refresh_token)
+    tokens = await auth_service.refresh(refresh_token)
 
     return TokensResponse(
         detail="Refresh successful.",

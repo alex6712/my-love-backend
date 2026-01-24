@@ -85,7 +85,7 @@ class AlbumsRepository(RepositoryInterface):
         AlbumDTO | None
             DTO записи альбома или None, если альбом не найден.
         """
-        album: AlbumModel | None = await self.session.scalar(
+        album = await self.session.scalar(
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
             .where(AlbumModel.id == album_id)
@@ -108,7 +108,7 @@ class AlbumsRepository(RepositoryInterface):
         AlbumWithItemsDTO | None
             DTO альбома с файлами или None, если альбом не найден.
         """
-        album: AlbumModel | None = await self.session.scalar(
+        album = await self.session.scalar(
             select(AlbumModel)
             .options(
                 selectinload(AlbumModel.creator),
@@ -181,7 +181,7 @@ class AlbumsRepository(RepositoryInterface):
             {"threshold": threshold},
         )
 
-        ilike_pattern: str = f"%{search_query}%"
+        ilike_pattern = f"%{search_query}%"
 
         albums = await self.session.scalars(
             select(AlbumModel)
@@ -198,8 +198,7 @@ class AlbumsRepository(RepositoryInterface):
                 )
             )
             .order_by(
-                # если найдено полное вхождение, этому альбому в сортировке
-                # присваивается значение 1, иначе 0
+                # полные вхождения в списке идут выше
                 case(
                     (
                         or_(
@@ -210,7 +209,6 @@ class AlbumsRepository(RepositoryInterface):
                     ),
                     else_=0,
                 ).desc(),
-                # второе условие сортировки - результат функции similarity
                 func.greatest(
                     func.coalesce(func.similarity(AlbumModel.title, search_query), 0.0),
                     func.coalesce(
@@ -271,7 +269,7 @@ class AlbumsRepository(RepositoryInterface):
         files_uuids : list[UUID]
             Список UUID медиа-файлов для прикрепления.
         """
-        new_items: list[AlbumItemsModel] = [
+        new_items = [
             AlbumItemsModel(album_id=album_id, file_id=file_id)
             for file_id in files_uuids
         ]

@@ -29,7 +29,7 @@ class BaseApplicationException(Exception):
     def __init__(self, detail: str | None = None, *args: Any, domain: Domain):
         super().__init__(detail, *args)
 
-        self.domain: Domain = domain
+        self.domain = domain
 
     @property
     def detail(self) -> str:
