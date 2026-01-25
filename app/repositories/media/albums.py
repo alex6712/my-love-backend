@@ -24,9 +24,9 @@ class AlbumsRepository(RepositoryInterface):
         Возвращает DTO медиа альбома по его id.
     get_album_with_items_by_id(album_id)
         Возвращает DTO медиа альбома с его элементами.
-    get_albums_by_creator_id(offset, limit, creator_id)
+    get_albums_by_creator(offset, limit, user_id, partner_id)
         Возвращает список DTO медиа альбомов по id их создателя.
-    search_albums_by_trigram(search_query, threshold, limit, created_by)
+    search_albums_by_trigram(search_query, threshold, limit, user_id, partner_id)
         Производит поиск альбомов по переданному запросу.
     delete_album_by_id(album_id)
         Удаляет запись о медиа альбоме из базы данных.
@@ -120,7 +120,7 @@ class AlbumsRepository(RepositoryInterface):
         return AlbumWithItemsDTO.model_validate(album) if album else None
 
     async def get_albums_by_creator(
-        self, offset: int, limit: int, created_by: list[UUID]
+        self, offset: int, limit: int, user_id: UUID, partner_id: UUID | None = None
     ) -> list[AlbumDTO]:
         """Возвращает список DTO медиа альбомов по id их создателя.
 
@@ -130,14 +130,20 @@ class AlbumsRepository(RepositoryInterface):
             Смещение от начала списка.
         limit : int
             Количество возвращаемых альбомов.
-        created_by : list[UUID]
-            Список UUID пользователей, чьи альбомы ищутся.
+        user_id : UUID
+            UUID текущего пользователя.
+        partner_id : UUID | None, optional
+            UUID партнёра текущего пользователя.
 
         Returns
         -------
         list[AlbumDTO]
             Список DTO созданных пользователем альбомов.
         """
+        created_by = [user_id]
+        if partner_id:
+            created_by.append(partner_id)
+
         albums = await self.session.scalars(
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
@@ -149,7 +155,12 @@ class AlbumsRepository(RepositoryInterface):
         return [AlbumDTO.model_validate(album) for album in albums.all()]
 
     async def search_albums_by_trigram(
-        self, search_query: str, threshold: float, limit: int, created_by: list[UUID]
+        self,
+        search_query: str,
+        threshold: float,
+        limit: int,
+        user_id: UUID,
+        partner_id: UUID | None = None,
     ) -> list[AlbumDTO]:
         """Производит поиск альбомов по переданному запросу.
 
@@ -167,8 +178,10 @@ class AlbumsRepository(RepositoryInterface):
             Порог сходства для поиска по триграммам.
         limit : int
             Максимальное количество, которое необходимо вернуть.
-        created_by : list[UUID]
-            Список UUID пользователей, по которым ищутся альбомы.
+        user_id : UUID
+            UUID текущего пользователя.
+        partner_id : UUID | None, optional
+            UUID партнёра текущего пользователя.
 
         Returns
         -------
@@ -181,6 +194,10 @@ class AlbumsRepository(RepositoryInterface):
         )
 
         ilike_pattern = f"%{search_query}%"
+
+        created_by = [user_id]
+        if partner_id:
+            created_by.append(partner_id)
 
         albums = await self.session.scalars(
             select(AlbumModel)
@@ -214,6 +231,7 @@ class AlbumsRepository(RepositoryInterface):
                         func.similarity(AlbumModel.description, search_query), 0.0
                     ),
                 ).desc(),
+                AlbumModel.created_at,
             )
             .limit(limit)
         )

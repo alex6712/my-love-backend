@@ -101,11 +101,9 @@ class AlbumsService:
         """
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 
-        uuids = [user_id]
-        if partner_id:
-            uuids.append(partner_id)
-
-        return await self._albums_repo.get_albums_by_creator(offset, limit, uuids)
+        return await self._albums_repo.get_albums_by_creator(
+            offset, limit, user_id, partner_id
+        )
 
     async def get_album(self, album_id: UUID, user_id: UUID) -> AlbumWithItemsDTO:
         """Получение подробной информации об альбоме по его UUID.
@@ -175,12 +173,8 @@ class AlbumsService:
         """
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 
-        uuids = [user_id]
-        if partner_id:
-            uuids.append(partner_id)
-
         return await self._albums_repo.search_albums_by_trigram(
-            search_query, threshold, limit, uuids
+            search_query, threshold, limit, user_id, partner_id
         )
 
     async def delete_album(self, album_id: UUID, user_id: UUID) -> None:
