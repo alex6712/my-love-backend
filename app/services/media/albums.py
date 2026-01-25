@@ -255,7 +255,7 @@ class AlbumsService:
         if not files_uuids:
             return
 
-        files = await self._files_repo.get_files_by_ids(files_uuids, [user_id])
+        files = await self._files_repo.get_files_by_ids(files_uuids, user_id)
         found_files_ids = {file.id for file in files}
 
         if len(found_files_ids) != len(files_uuids):

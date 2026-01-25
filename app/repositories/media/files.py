@@ -134,7 +134,7 @@ class FilesRepository(RepositoryInterface):
         return file_id
 
     async def get_files_by_ids(
-        self, files_ids: list[UUID], created_by: list[UUID] | None = None
+        self, files_ids: list[UUID], created_by: UUID | None = None
     ) -> list[FileDTO]:
         """Получает медиа-файлы по списку UUID.
 
@@ -142,7 +142,7 @@ class FilesRepository(RepositoryInterface):
         ----------
         files_ids : list[UUID]
             Список UUID медиа-файлов.
-        created_by : list[UUID] | None, optional
+        created_by : UUID | None, optional
             Если указан, фильтрует по создателю.
 
         Returns
@@ -157,7 +157,7 @@ class FilesRepository(RepositoryInterface):
         )
 
         if created_by:
-            query = query.where(FileModel.created_by.in_(created_by))
+            query = query.where(FileModel.created_by == created_by)
 
         files = await self.session.scalars(query)
 
