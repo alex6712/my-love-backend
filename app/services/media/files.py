@@ -15,6 +15,7 @@ from app.core.exceptions.media import (
 )
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
+from app.repositories.couples import CouplesRepository
 from app.repositories.media import FilesRepository
 
 if TYPE_CHECKING:
@@ -76,6 +77,7 @@ class FilesService:
         self._s3_client = s3_client
         self._settings = settings
 
+        self._couples_repo = unit_of_work.get_repository(CouplesRepository)
         self._files_repo = unit_of_work.get_repository(FilesRepository)
 
     async def _idempotency_gate(
@@ -318,7 +320,7 @@ class FilesService:
             Если файл не найден в объектном хранилище, то есть
             загрузка не была завершена или файл был удалён.
         """
-        files = await self._files_repo.get_files_by_ids([file_id], created_by=user_id)
+        files = await self._files_repo.get_files_by_ids([file_id], user_id)
 
         if len(files) != 1:
             raise MediaNotFoundException(
@@ -378,7 +380,9 @@ class FilesService:
             Возникает в случае, если файл находится в статусе загрузки (PENDING),
             загрузка не удалась (FAILED) или файл был удалён (DELETED).
         """
-        files = await self._files_repo.get_files_by_ids([file_id], created_by=user_id)
+        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+
+        files = await self._files_repo.get_files_by_ids([file_id], user_id, partner_id)
 
         if len(files) != 1:
             raise MediaNotFoundException(

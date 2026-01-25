@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.album import AlbumModel
 from app.models.album_items import AlbumItemsModel
+from app.models.file import FileModel
 from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 
@@ -112,7 +113,7 @@ class AlbumsRepository(RepositoryInterface):
             select(AlbumModel)
             .options(
                 selectinload(AlbumModel.creator),
-                selectinload(AlbumModel.items),
+                selectinload(AlbumModel.items).selectinload(FileModel.creator),
             )
             .where(AlbumModel.id == album_id)
         )
