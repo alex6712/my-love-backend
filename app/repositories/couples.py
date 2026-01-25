@@ -63,6 +63,43 @@ class CouplesRepository(RepositoryInterface):
             )
         )
 
+    async def get_partner_id_by_user_id(self, user_id: UUID) -> UUID | None:
+        """Получение UUID партнёра пользователя.
+
+        Получает UUID пользователя, после чего ищет в БД запись
+        о паре пользователей и возвращает UUID партнёра пользователя.
+
+        Parameters
+        ----------
+        user_id : UUID
+            UUID пользователя в системе.
+
+        Returns
+        -------
+        UUID | None
+            UUID партнёра пользователя или None, если пользователь не в паре.
+        """
+        couple = await self.session.scalar(
+            select(CoupleRequestModel).where(
+                and_(
+                    CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
+                    or_(
+                        CoupleRequestModel.initiator_id == user_id,
+                        CoupleRequestModel.recipient_id == user_id,
+                    ),
+                ),
+            )
+        )
+
+        if couple is None:
+            return None
+
+        return (
+            couple.initiator_id
+            if couple.recipient_id == user_id
+            else couple.recipient_id
+        )
+
     async def get_partner_by_user_id(self, user_id: UUID) -> PartnerDTO | None:
         """Получение информации о партнёре пользователя.
 

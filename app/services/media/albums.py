@@ -2,6 +2,7 @@ from uuid import UUID
 
 from app.core.exceptions.media import MediaNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
+from app.repositories.couples import CouplesRepository
 from app.repositories.media import AlbumsRepository, FilesRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 
@@ -42,6 +43,7 @@ class AlbumsService:
 
         self._albums_repo = unit_of_work.get_repository(AlbumsRepository)
         self._files_repo = unit_of_work.get_repository(FilesRepository)
+        self._couples_repo = unit_of_work.get_repository(CouplesRepository)
 
     async def create_album(
         self,
@@ -75,13 +77,13 @@ class AlbumsService:
         )
 
     async def get_albums(
-        self, offset: int, limit: int, creator_id: UUID
+        self, offset: int, limit: int, user_id: UUID
     ) -> list[AlbumDTO]:
         """Получение всех альбомов по UUID создателя.
 
-        Получает на вход UUID пользователя, возвращает список
-        всех альбомов, для которых данный пользователь считается
-        создателем.
+        Получает на вход UUID пользователя, ищет UUID партнёра,
+        возвращает список всех альбомов, которые доступны пользователю (
+        созданы им или его партнёром).
 
         Parameters
         ----------
@@ -89,17 +91,21 @@ class AlbumsService:
             Смещение от начала списка (количество пропускаемых альбомов).
         limit : int
             Количество возвращаемых альбомов.
-        creator_id : UUID
+        user_id : UUID
             UUID пользователя.
 
         Returns
         -------
         list[AlbumDTO]
-            Список альбомов пользователя.
+            Список альбомов, доступных пользователю.
         """
-        return await self._albums_repo.get_albums_by_creator_id(
-            offset, limit, creator_id
-        )
+        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+
+        uuids = [user_id]
+        if partner_id:
+            uuids.append(partner_id)
+
+        return await self._albums_repo.get_albums_by_creator(offset, limit, uuids)
 
     async def get_album(self, album_id: UUID, user_id: UUID) -> AlbumWithItemsDTO:
         """Получение подробной информации об альбоме по его UUID.
@@ -128,22 +134,28 @@ class AlbumsService:
         """
         album = await self._albums_repo.get_album_with_items_by_id(album_id)
 
-        if album is None or album.creator.id != user_id:
+        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+
+        uuids = [user_id]
+        if partner_id:
+            uuids.append(partner_id)
+
+        if album is None or album.creator.id not in uuids:
             raise MediaNotFoundException(
                 media_type="album",
-                detail=f"Album with id={album_id} not found, or you're not this album's creator.",
+                detail=f"Album with id={album_id} not found, or you're lack of rights.",
             )
 
         return album
 
     async def search_albums(
-        self, search_query: str, threshold: float, limit: int, created_by: UUID
+        self, search_query: str, threshold: float, limit: int, user_id: UUID
     ) -> list[AlbumDTO]:
         """Поиск альбомов по переданному запросу.
 
         Получает на вход поисковой запрос, параметры поиска и UUID пользователя,
-        возвращает список альбомов этого пользователя, для которых поиск по запросу
-        удовлетворяет параметрам.
+        возвращает список альбомов этого пользователя и его партнёра,
+        для которых поиск по запросу удовлетворяет параметрам.
 
         Parameters
         ----------
@@ -153,17 +165,22 @@ class AlbumsService:
             Порог сходства для поиска по триграммам.
         limit : int
             Максимальное количество, которое необходимо вернуть.
-        created_by : UUID
-            UUID создателя альбома. Поиск проводится только среди альбомов,
-            для которых данный пользователь считается создателем.
+        user_id : UUID
+            UUID текущего пользователя.
 
         Returns
         -------
         list[AlbumDTO]
             Список найденных альбомов.
         """
+        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+
+        uuids = [user_id]
+        if partner_id:
+            uuids.append(partner_id)
+
         return await self._albums_repo.search_albums_by_trigram(
-            search_query, threshold, limit, created_by
+            search_query, threshold, limit, uuids
         )
 
     async def delete_album(self, album_id: UUID, user_id: UUID) -> None:
@@ -203,7 +220,7 @@ class AlbumsService:
 
         Проверяет:
         1. Существование альбома;
-        2. Права пользователя на альбом (должен быть создателем);
+        2. Права пользователя на альбом (должен быть создателем или партнёром создателя);
         3. Существование всех медиа-файлов;
         4. Права пользователя на медиа-файлы (должен быть создателем).
 
@@ -223,16 +240,22 @@ class AlbumsService:
         """
         album = await self._albums_repo.get_album_by_id(album_id)
 
-        if album is None or album.creator.id != user_id:
+        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+
+        uuids = [user_id]
+        if partner_id:
+            uuids.append(partner_id)
+
+        if album is None or album.creator.id not in uuids:
             raise MediaNotFoundException(
                 media_type="album",
-                detail=f"Album with id={album_id} not found, or you're not this album's creator.",
+                detail=f"Album with id={album_id} not found, or you're lack of rights.",
             )
 
         if not files_uuids:
             return
 
-        files = await self._files_repo.get_files_by_ids(files_uuids, created_by=user_id)
+        files = await self._files_repo.get_files_by_ids(files_uuids, [user_id])
         found_files_ids = {file.id for file in files}
 
         if len(found_files_ids) != len(files_uuids):

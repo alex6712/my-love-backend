@@ -119,8 +119,8 @@ class AlbumsRepository(RepositoryInterface):
 
         return AlbumWithItemsDTO.model_validate(album) if album else None
 
-    async def get_albums_by_creator_id(
-        self, offset: int, limit: int, creator_id: UUID
+    async def get_albums_by_creator(
+        self, offset: int, limit: int, created_by: list[UUID]
     ) -> list[AlbumDTO]:
         """Возвращает список DTO медиа альбомов по id их создателя.
 
@@ -130,8 +130,8 @@ class AlbumsRepository(RepositoryInterface):
             Смещение от начала списка.
         limit : int
             Количество возвращаемых альбомов.
-        creator_id : UUID
-            UUID пользователя, чьи альбомы ищутся.
+        created_by : list[UUID]
+            Список UUID пользователей, чьи альбомы ищутся.
 
         Returns
         -------
@@ -141,7 +141,7 @@ class AlbumsRepository(RepositoryInterface):
         albums = await self.session.scalars(
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
-            .where(AlbumModel.created_by == creator_id)
+            .where(AlbumModel.created_by.in_(created_by))
             .order_by(AlbumModel.created_at)
             .slice(offset, offset + limit)
         )
@@ -149,7 +149,7 @@ class AlbumsRepository(RepositoryInterface):
         return [AlbumDTO.model_validate(album) for album in albums.all()]
 
     async def search_albums_by_trigram(
-        self, search_query: str, threshold: float, limit: int, created_by: UUID
+        self, search_query: str, threshold: float, limit: int, created_by: list[UUID]
     ) -> list[AlbumDTO]:
         """Производит поиск альбомов по переданному запросу.
 
@@ -167,9 +167,8 @@ class AlbumsRepository(RepositoryInterface):
             Порог сходства для поиска по триграммам.
         limit : int
             Максимальное количество, которое необходимо вернуть.
-        created_by : UUID
-            UUID создателя альбома. Поиск проводится только среди альбомов,
-            для которых данный пользователь считается создателем.
+        created_by : list[UUID]
+            Список UUID пользователей, по которым ищутся альбомы.
 
         Returns
         -------
@@ -186,7 +185,7 @@ class AlbumsRepository(RepositoryInterface):
         albums = await self.session.scalars(
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
-            .where(AlbumModel.created_by == created_by)
+            .where(AlbumModel.created_by.in_(created_by))
             .filter(
                 or_(
                     # поиск полного вхождения
