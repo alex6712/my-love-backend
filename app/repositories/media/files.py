@@ -23,7 +23,7 @@ class FilesRepository(RepositoryInterface):
         Добавляет в базу данных новую запись о загруженном медиа файле.
     add_pending_file(object_key, content_type, created_by, title=None, description=None, geo_data=None)
         Добавляет в базу данных новую запись о загружаемом медиа файле.
-    get_files_by_ids(files_ids, created_by)
+    get_files_by_ids(files_ids, user_id, partner_id)
         Получает медиа-файлы по списку UUID.
     mark_file_uploaded(file_id)
         Обновляет статус файла на UPLOADED после успешной загрузки.
@@ -136,40 +136,42 @@ class FilesRepository(RepositoryInterface):
     async def get_files_by_ids(
         self,
         files_ids: list[UUID],
-        user_id: UUID | None = None,
+        user_id: UUID,
         partner_id: UUID | None = None,
     ) -> list[FileDTO]:
         """Получает медиа-файлы по списку UUID.
+
+        Возвращает список DTO медиа-файлов с указанными UUID
+        и создателем (текущей пользователь и его партнёр).
 
         Parameters
         ----------
         files_ids : list[UUID]
             Список UUID медиа-файлов.
-        user_id : UUID | None, optional
-            Если указан, фильтрует по создателю.
+        user_id : UUID | None
+            UUID пользователя, чьи файлы ищутся.
         partner_id : UUID | None, optional
-            Если указан, фильтрует по создателю.
+            Если указано, ищут также файла партнёра.
 
         Returns
         -------
         list[FileDTO]
             Список найденных медиа-файлов.
         """
+        if not files_ids:
+            return []
+
         query = (
             select(FileModel)
             .options(selectinload(FileModel.creator))
             .where(FileModel.id.in_(files_ids))
+            .order_by(FileModel.created_at)
         )
 
-        created_by: list[UUID] = []
-
-        if user_id:
-            created_by.append(user_id)
         if partner_id:
-            created_by.append(partner_id)
-
-        if created_by:
-            query = query.where(FileModel.created_by.in_(created_by))
+            query = query.where(FileModel.created_by.in_([user_id, partner_id]))
+        else:
+            query = query.where(FileModel.created_by == user_id)
 
         files = await self.session.scalars(query)
 

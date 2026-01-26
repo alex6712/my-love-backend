@@ -137,7 +137,7 @@ async def search_albums(
     threshold: Annotated[
         float,
         Query(ge=0.0, le=1.0, description="Порог сходства для поиска по триграммам."),
-    ] = 0.2,
+    ] = 0.15,
     limit: Annotated[
         int,
         Query(

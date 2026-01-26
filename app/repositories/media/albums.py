@@ -141,17 +141,19 @@ class AlbumsRepository(RepositoryInterface):
         list[AlbumDTO]
             Список DTO созданных пользователем альбомов.
         """
-        created_by = [user_id]
-        if partner_id:
-            created_by.append(partner_id)
-
-        albums = await self.session.scalars(
+        query = (
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
-            .where(AlbumModel.created_by.in_(created_by))
             .order_by(AlbumModel.created_at)
             .slice(offset, offset + limit)
         )
+
+        if partner_id:
+            query = query.where(AlbumModel.created_by.in_([user_id, partner_id]))
+        else:
+            query = query.where(AlbumModel.created_by == user_id)
+
+        albums = await self.session.scalars(query)
 
         return [AlbumDTO.model_validate(album) for album in albums.all()]
 
@@ -196,14 +198,9 @@ class AlbumsRepository(RepositoryInterface):
 
         ilike_pattern = f"%{search_query}%"
 
-        created_by = [user_id]
-        if partner_id:
-            created_by.append(partner_id)
-
-        albums = await self.session.scalars(
+        query = (
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
-            .where(AlbumModel.created_by.in_(created_by))
             .filter(
                 or_(
                     # поиск полного вхождения
@@ -236,6 +233,13 @@ class AlbumsRepository(RepositoryInterface):
             )
             .limit(limit)
         )
+
+        if partner_id:
+            query = query.where(AlbumModel.created_by.in_([user_id, partner_id]))
+        else:
+            query = query.where(AlbumModel.created_by == user_id)
+
+        albums = await self.session.scalars(query)
 
         return [AlbumDTO.model_validate(album) for album in albums.all()]
 
