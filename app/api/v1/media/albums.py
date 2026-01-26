@@ -8,6 +8,7 @@ from app.core.dependencies.services import AlbumsServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.schemas.v1.requests.attach_files import AttachFilesRequest
 from app.schemas.v1.requests.create_album import CreateAlbumRequest
+from app.schemas.v1.requests.update_album import UpdateAlbumRequest
 from app.schemas.v1.responses.albums import AlbumResponse, AlbumsResponse
 from app.schemas.v1.responses.standard import StandardResponse
 
@@ -224,6 +225,57 @@ async def get_album(
     )
 
 
+@router.put(
+    "/{album_id}",
+    response_model=StandardResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Изменение атрибутов существующего медиа-альбома.",
+    response_description="Данные успешно изменены",
+    responses={401: AUTHORIZATION_ERROR_REF},
+)
+async def put_album(
+    album_id: Annotated[UUID, Path(description="UUID медиа альбома к изменению.")],
+    body: Annotated[
+        UpdateAlbumRequest,
+        Body(description="Схема предоставления обновлённых атрибутов альбома"),
+    ],
+    album_service: AlbumsServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> StandardResponse:
+    """Изменение медиа альбома по его UUID.
+
+    Проверяет права владения текущего пользователя над альбомом с
+    переданным UUID, изменяет его атрибуты при достатке прав.
+
+    Parameters
+    ----------
+    album_id : UUID
+        UUID альбома к изменению.
+    body : UpdateAlbumRequest
+        Данные, полученные от клиента в теле запроса.
+    album_service : AlbumsServiceDependency
+        Зависимость сервиса работы с альбомами.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    StandardResponse
+        Ответ о результате изменения медиа альбома.
+    """
+    await album_service.update_album(
+        album_id,
+        body.title,
+        body.description,
+        body.cover_url,
+        body.is_private,
+        payload["sub"],
+    )
+
+    return StandardResponse(detail="Album info edited successfully.")
+
+
 @router.delete(
     "/{album_id}",
     response_model=StandardResponse,
@@ -232,7 +284,7 @@ async def get_album(
     response_description="Медиа-альбом удалён успешно",
     responses={401: AUTHORIZATION_ERROR_REF},
 )
-async def delete_albums(
+async def delete_album(
     album_id: Annotated[UUID, Path(description="UUID медиа альбома к удалению.")],
     album_service: AlbumsServiceDependency,
     payload: StrictAuthenticationDependency,

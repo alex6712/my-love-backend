@@ -1,6 +1,7 @@
+from typing import Any, Protocol, Self, TypeVar
 from uuid import UUID
 
-from sqlalchemy import and_, case, delete, func, or_, select, text
+from sqlalchemy import and_, case, delete, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -21,14 +22,16 @@ class AlbumsRepository(RepositoryInterface):
     -------
     add_album(title, description, cover_url, is_private, created_by)
         Добавляет в базу данных новую запись о медиа альбоме.
-    get_album_by_id(album_id)
+    get_album_by_id(album_id, user_id, partner_id)
         Возвращает DTO медиа альбома по его id.
-    get_album_with_items_by_id(album_id)
-        Возвращает DTO медиа альбома с его элементами.
     get_albums_by_creator(offset, limit, user_id, partner_id)
         Возвращает список DTO медиа альбомов по id их создателя.
     search_albums_by_trigram(search_query, threshold, limit, user_id, partner_id)
         Производит поиск альбомов по переданному запросу.
+    get_album_with_items_by_id(album_id, user_id, partner_id)
+        Возвращает DTO медиа альбома с его элементами.
+    update_album_by_id(album_id, title, description, cover_url, is_private, user_id, partner_id)
+
     delete_album_by_id(album_id)
         Удаляет запись о медиа альбоме из базы данных.
     get_existing_album_items(album_id, files_ids)
@@ -37,8 +40,56 @@ class AlbumsRepository(RepositoryInterface):
         Прикрепляет медиа-файлы к альбому.
     """
 
+    class _HasWhere(Protocol):
+        def where(self, *clauses: Any) -> Self: ...
+
+    _Q = TypeVar("_Q", bound=_HasWhere)
+    """Generic-тип для обозначения запроса с возможностью модификации WHERE."""
+
     def __init__(self, session: AsyncSession):
         super().__init__(session)
+
+    @staticmethod
+    def _insert_creator_in_query(
+        query: _Q, user_id: UUID, partner_id: UUID | None = None
+    ) -> _Q:
+        """Добавляет фильтр по создателю в SQL-запрос.
+
+        Модифицирует переданный SQLAlchemy запрос, добавляя условие фильтрации
+        по полю `created_by`. В зависимости от наличия `partner_id` применяет
+        разные условия фильтрации.
+
+        Parameters
+        ----------
+        query : _Q
+            Исходный SQLAlchemy запрос для модификации.
+        user_id : UUID
+            Уникальный идентификатор основного пользователя.
+        partner_id : UUID | None, optional
+            Уникальный идентификатор партнера. Если передан, запрос будет
+            фильтровать по обоим идентификаторам (user_id И partner_id).
+            По умолчанию None.
+
+        Returns
+        -------
+        _Q
+            Модифицированный SQLAlchemy запрос с добавленным условием WHERE.
+
+        Notes
+        -----
+        1. Если `partner_id` не передан, используется строгое равенство
+           с `user_id` (AlbumModel.created_by == user_id).
+        2. Если `partner_id` передан, используется оператор IN с двумя
+           значениями (AlbumModel.created_by.in_([user_id, partner_id])).
+        3. Метод не изменяет исходный запрос, а возвращает новый объект
+           запроса с добавленными условиями.
+        """
+        if partner_id:
+            query = query.where(AlbumModel.created_by.in_([user_id, partner_id]))
+        else:
+            query = query.where(AlbumModel.created_by == user_id)
+
+        return query
 
     def add_album(
         self,
@@ -73,52 +124,35 @@ class AlbumsRepository(RepositoryInterface):
             )
         )
 
-    async def get_album_by_id(self, album_id: UUID) -> AlbumDTO | None:
+    async def get_album_by_id(
+        self, album_id: UUID, user_id: UUID, partner_id: UUID | None = None
+    ) -> AlbumDTO | None:
         """Возвращает DTO медиа альбома по его id.
 
         Parameters
         ----------
         album_id : UUID
             UUID альбома.
+        user_id : UUID
+            UUID текущего пользователя.
+        partner_id : UUID | None, optional
+            UUID партнёра текущего пользователя.
 
         Returns
         -------
         AlbumDTO | None
             DTO записи альбома или None, если альбом не найден.
         """
-        album = await self.session.scalar(
+        query = (
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
             .where(AlbumModel.id == album_id)
         )
+        query = AlbumsRepository._insert_creator_in_query(query, user_id, partner_id)
+
+        album = await self.session.scalar(query)
 
         return AlbumDTO.model_validate(album) if album else None
-
-    async def get_album_with_items_by_id(
-        self, album_id: UUID
-    ) -> AlbumWithItemsDTO | None:
-        """Возвращает DTO медиа альбома по его id с элементами.
-
-        Parameters
-        ----------
-        album_id : UUID
-            UUID альбома.
-
-        Returns
-        -------
-        AlbumWithItemsDTO | None
-            DTO альбома с файлами или None, если альбом не найден.
-        """
-        album = await self.session.scalar(
-            select(AlbumModel)
-            .options(
-                selectinload(AlbumModel.creator),
-                selectinload(AlbumModel.items).selectinload(FileModel.creator),
-            )
-            .where(AlbumModel.id == album_id)
-        )
-
-        return AlbumWithItemsDTO.model_validate(album) if album else None
 
     async def get_albums_by_creator(
         self, offset: int, limit: int, user_id: UUID, partner_id: UUID | None = None
@@ -147,11 +181,7 @@ class AlbumsRepository(RepositoryInterface):
             .order_by(AlbumModel.created_at)
             .slice(offset, offset + limit)
         )
-
-        if partner_id:
-            query = query.where(AlbumModel.created_by.in_([user_id, partner_id]))
-        else:
-            query = query.where(AlbumModel.created_by == user_id)
+        query = AlbumsRepository._insert_creator_in_query(query, user_id, partner_id)
 
         albums = await self.session.scalars(query)
 
@@ -233,15 +263,96 @@ class AlbumsRepository(RepositoryInterface):
             )
             .limit(limit)
         )
-
-        if partner_id:
-            query = query.where(AlbumModel.created_by.in_([user_id, partner_id]))
-        else:
-            query = query.where(AlbumModel.created_by == user_id)
+        query = AlbumsRepository._insert_creator_in_query(query, user_id, partner_id)
 
         albums = await self.session.scalars(query)
 
         return [AlbumDTO.model_validate(album) for album in albums.all()]
+
+    async def get_album_with_items_by_id(
+        self, album_id: UUID, user_id: UUID, partner_id: UUID | None = None
+    ) -> AlbumWithItemsDTO | None:
+        """Возвращает DTO медиа альбома по его id с элементами.
+
+        Parameters
+        ----------
+        album_id : UUID
+            UUID альбома.
+        user_id : UUID
+            UUID текущего пользователя.
+        partner_id : UUID | None, optional
+            UUID партнёра текущего пользователя.
+
+        Returns
+        -------
+        AlbumWithItemsDTO | None
+            DTO альбома с файлами или None, если альбом не найден.
+        """
+        query = (
+            select(AlbumModel)
+            .options(
+                selectinload(AlbumModel.creator),
+                selectinload(AlbumModel.items).selectinload(FileModel.creator),
+            )
+            .where(AlbumModel.id == album_id)
+        )
+        query = AlbumsRepository._insert_creator_in_query(query, user_id, partner_id)
+
+        album = await self.session.scalar(query)
+
+        return AlbumWithItemsDTO.model_validate(album) if album else None
+
+    async def update_album_by_id(
+        self,
+        album_id: UUID,
+        title: str,
+        description: str | None,
+        cover_url: str | None,
+        is_private: bool,
+        user_id: UUID,
+        partner_id: UUID | None = None,
+    ) -> None:
+        """Обновление атрибутов альбома в базе данных.
+
+        Выполняет SQL-запрос UPDATE для изменения атрибутов альбома,
+        фильтруя записи по идентификатору альбома и правам создателя.
+
+        Parameters
+        ----------
+        album_id : UUID
+            UUID альбома к изменению.
+        title : str
+            Новое значение заголовка альбома.
+        description : str | None
+            Новое значение описания альбома.
+        cover_url : str | None
+            Новая ссылка на обложку альбома.
+        is_private : bool
+            Новый статус приватности альбома.
+        user_id : UUID
+            UUID пользователя-создателя альбома.
+        partner_id : UUID | None, optional
+            UUID партнера пользователя для проверки совместного доступа.
+            По умолчанию None.
+
+        Notes
+        -----
+        Внутренний метод `_insert_creator_in_query` добавляет условие
+        WHERE для проверки прав создателя (пользователь или партнер).
+        """
+        query = (
+            update(AlbumModel)
+            .where(AlbumModel.id == album_id)
+            .values(
+                title=title,
+                description=description,
+                cover_url=cover_url,
+                is_private=is_private,
+            )
+        )
+        query = AlbumsRepository._insert_creator_in_query(query, user_id, partner_id)
+
+        await self.session.execute(query)
 
     async def delete_album_by_id(self, album_id: UUID) -> None:
         """Удаляет запись о медиа альбоме из базы данных по его UUID.

@@ -28,10 +28,12 @@ class AlbumsService:
         Создание нового медиа альбома.
     get_albums(offset, limit, creator_id)
         Получение всех медиа альбомов по UUID создателя.
-    get_album(album_id, user_id)
-        Получение подробной информации об альбоме по его UUID.
     search_albums(search_query, threshold, limit, created_by)
         Производит поиск альбомов по переданному запросу.
+    get_album(album_id, user_id)
+        Получение подробной информации об альбоме по его UUID.
+    update_album(album_id, title, description, cover_url, is_private, user_id)
+
     delete_album(album_id, user_id)
         Удаление альбома по его UUID.
     attach(album_id, files_uuids, user_id)
@@ -105,47 +107,6 @@ class AlbumsService:
             offset, limit, user_id, partner_id
         )
 
-    async def get_album(self, album_id: UUID, user_id: UUID) -> AlbumWithItemsDTO:
-        """Получение подробной информации об альбоме по его UUID.
-
-        Получает на вход UUID медиа-альбома и UUID текущего пользователя,
-        возвращает DTO медиа-альбома с подробным представлением входящих
-        в него медиа-файлов.
-
-        Parameters
-        ----------
-        album_id : UUID
-            UUID медиа-альбома к получению.
-        user_id : UUID
-            UUID текущего пользователя.
-
-        Returns
-        -------
-        AlbumWithItemsDTO
-            Подробный DTO медиа-альбома.
-
-        Raises
-        ------
-        MediaNotFoundException
-            В случае если альбом по переданному UUID не существует или
-            текущий пользователь не имеет прав на просмотр этого альбома.
-        """
-        album = await self._albums_repo.get_album_with_items_by_id(album_id)
-
-        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
-
-        uuids = [user_id]
-        if partner_id:
-            uuids.append(partner_id)
-
-        if album is None or album.creator.id not in uuids:
-            raise MediaNotFoundException(
-                media_type="album",
-                detail=f"Album with id={album_id} not found, or you're lack of rights.",
-            )
-
-        return album
-
     async def search_albums(
         self, search_query: str, threshold: float, limit: int, user_id: UUID
     ) -> list[AlbumDTO]:
@@ -177,6 +138,80 @@ class AlbumsService:
             search_query, threshold, limit, user_id, partner_id
         )
 
+    async def get_album(self, album_id: UUID, user_id: UUID) -> AlbumWithItemsDTO:
+        """Получение подробной информации об альбоме по его UUID.
+
+        Получает на вход UUID медиа-альбома и UUID текущего пользователя,
+        возвращает DTO медиа-альбома с подробным представлением входящих
+        в него медиа-файлов.
+
+        Parameters
+        ----------
+        album_id : UUID
+            UUID медиа-альбома к получению.
+        user_id : UUID
+            UUID текущего пользователя.
+
+        Returns
+        -------
+        AlbumWithItemsDTO
+            Подробный DTO медиа-альбома.
+
+        Raises
+        ------
+        MediaNotFoundException
+            В случае если альбом по переданному UUID не существует или
+            текущий пользователь не имеет прав на просмотр этого альбома.
+        """
+        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+
+        album = await self._albums_repo.get_album_with_items_by_id(
+            album_id, user_id, partner_id
+        )
+
+        if album is None:
+            raise MediaNotFoundException(
+                media_type="album",
+                detail=f"Album with id={album_id} not found, or you're lack of rights.",
+            )
+
+        return album
+
+    async def update_album(
+        self,
+        album_id: UUID,
+        title: str,
+        description: str | None,
+        cover_url: str | None,
+        is_private: bool,
+        user_id: UUID,
+    ) -> None:
+        """Обновление атрибутов медиа-альбома по его UUID.
+
+        Получает идентификатор партнера текущего пользователя и передает данные
+        в репозиторий для обновления альбома с учетом прав доступа.
+
+        Parameters
+        ----------
+        album_id : UUID
+            UUID альбома к изменению.
+        title : str
+            Новый заголовок альбома.
+        description : str | None
+            Новое описание альбома или None для сохранения текущего значения.
+        cover_url : str | None
+            Новая ссылка на обложку альбома или None для сброса обложки.
+        is_private : bool
+            Новый статус приватности альбома.
+        user_id : UUID
+            UUID пользователя, инициирующего изменение альбома.
+        """
+        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+
+        await self._albums_repo.update_album_by_id(
+            album_id, title, description, cover_url, is_private, user_id, partner_id
+        )
+
     async def delete_album(self, album_id: UUID, user_id: UUID) -> None:
         """Удаление альбома по его UUID.
 
@@ -197,9 +232,9 @@ class AlbumsService:
             Возникает в случае, если альбом с переданным UUID не существует
             или текущий пользователь не является создателем альбома.
         """
-        album = await self._albums_repo.get_album_by_id(album_id)
+        album = await self._albums_repo.get_album_by_id(album_id, user_id)
 
-        if album is None or album.creator.id != user_id:
+        if album is None:
             raise MediaNotFoundException(
                 media_type="album",
                 detail=f"Album with id={album_id} not found, or you're not this album's creator.",
@@ -232,15 +267,11 @@ class AlbumsService:
         MediaNotFoundException
             Если альбом не существует или не все медиа-файлы найдены.
         """
-        album = await self._albums_repo.get_album_by_id(album_id)
-
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 
-        uuids = [user_id]
-        if partner_id:
-            uuids.append(partner_id)
+        album = await self._albums_repo.get_album_by_id(album_id, user_id, partner_id)
 
-        if album is None or album.creator.id not in uuids:
+        if album is None:
             raise MediaNotFoundException(
                 media_type="album",
                 detail=f"Album with id={album_id} not found, or you're lack of rights.",
