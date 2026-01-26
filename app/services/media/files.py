@@ -419,3 +419,41 @@ class FilesService:
         )
 
         return file_id, AnyHttpUrl(url)
+
+    async def delete_file(self, file_id: UUID, user_id: UUID) -> None:
+        """Удаление файла по его UUID.
+
+        Получает UUID медиа-файла и UUID пользователя, совершающего действие удаления.
+        Если UUID пользователя не совпадает с UUID создателя файла, завершает
+        действие исключением. В ином случае удаляет файл.
+
+        Parameters
+        ----------
+        file_id : UUID
+            UUID файла к удалению.
+        user_id : UUID
+            UUID пользователя, запрашивающего удаление.
+
+        Raises
+        ------
+        MediaNotFoundException
+            Возникает в случае, если файл с переданным UUID не существует
+            или текущий пользователь не является создателем файла.
+        """
+        files = await self._files_repo.get_files_by_ids([file_id], user_id)
+
+        if len(files) != 1:
+            raise MediaNotFoundException(
+                media_type="file",
+                detail=f"File with id={file_id} not found, or you're not this file's creator.",
+            )
+
+        try:
+            await self._s3_client.delete_object(
+                Bucket=self._settings.MINIO_BUCKET_NAME,
+                Key=files[0].object_key,
+            )
+        except ClientError:
+            pass
+
+        await self._files_repo.delete_file_by_id(file_id)

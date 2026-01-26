@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -190,3 +190,13 @@ class FilesRepository(RepositoryInterface):
             .where(FileModel.id == file_id)
             .values(status=FileStatus.UPLOADED)
         )
+
+    async def delete_file_by_id(self, file_id: UUID) -> None:
+        """Удаляет запись о медиа файле из базы данных по его UUID.
+
+        Parameters
+        ----------
+        file_id : UUID
+            UUID файла для удаления.
+        """
+        await self.session.execute(delete(FileModel).where(FileModel.id == file_id))

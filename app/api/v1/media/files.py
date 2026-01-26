@@ -215,3 +215,44 @@ async def download_direct(
         presigned_url=presigned_url,
         detail="Presigned URL generated successfully.",
     )
+
+
+@router.delete(
+    "/{file_id}",
+    response_model=StandardResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Удаление медиа-файла из системы.",
+    response_description="Файл удалён успешно",
+    responses={401: AUTHORIZATION_ERROR_REF},
+)
+async def delete_file(
+    file_id: Annotated[
+        UUID,
+        Path(description="UUID файла для удаления."),
+    ],
+    file_service: FilesServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> StandardResponse:
+    """Удаление медиа-файла по его UUID.
+
+    Удаляет файл по переданному UUID, что открепляет его от альбома.
+    Необходимы права на выполнение операции удаления.
+
+    Parameters
+    ----------
+    file_id : UUID
+        UUID файла для удаления.
+    file_service : FilesService
+        Зависимость сервиса работы с файлами.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    StandardResponse
+        Успешный ответ об удалении медиа-файла.
+    """
+    await file_service.delete_file(file_id, payload["sub"])
+
+    return StandardResponse(detail="File deleted successfully.")
