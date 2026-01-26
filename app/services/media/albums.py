@@ -38,6 +38,8 @@ class AlbumsService:
         Удаление альбома по его UUID.
     attach(album_id, files_uuids, user_id)
         Прикрепляет медиа-файлы к альбому.
+    detach(album_id, files_uuids, user_id)
+        Открепляет медиа-файлы от альбома.
     """
 
     def __init__(self, unit_of_work: UnitOfWork):
@@ -288,13 +290,15 @@ class AlbumsService:
         if not files_uuids:
             return
 
+        received_files_uuids = set(files_uuids)
+
         files = await self._files_repo.get_files_by_ids(files_uuids, user_id)
-        found_files_ids = {file.id for file in files}
+        found_files_uuids = {file.id for file in files}
 
-        if len(found_files_ids) != len(files_uuids):
-            missing_ids = set(files_uuids) - found_files_ids
+        if received_files_uuids != found_files_uuids:
+            missing_uuids = received_files_uuids - found_files_uuids
 
-            missing_list = ", ".join(str(mid) for mid in missing_ids)
+            missing_list = ", ".join(str(muuid) for muuid in missing_uuids)
             raise MediaNotFoundException(
                 media_type="file",
                 detail=(
@@ -303,10 +307,69 @@ class AlbumsService:
                 ),
             )
 
-        attached_files = await self._albums_repo.get_existing_album_items(
+        attached_files_uuids = await self._albums_repo.get_existing_album_items(
             album_id, files_uuids
         )
 
         self._albums_repo.attach_files_to_album(
-            album_id, list(set(files_uuids) - attached_files)
+            album_id, list(received_files_uuids - attached_files_uuids)
+        )
+
+    async def detach(
+        self, album_id: UUID, files_uuids: list[UUID], user_id: UUID
+    ) -> None:
+        """Открепляет медиа-файлы от альбома.
+
+        Проверяет:
+        1. Существование альбома;
+        2. Права пользователя на альбом (должен быть создателем или партнёром создателя);
+        3. Прикрепление всех медиа-файлов;
+        4. Права пользователя на медиа-файлы (должен быть создателем).
+
+        Parameters
+        ----------
+        album_id : UUID
+            UUID альбома.
+        files_uuids : list[UUID]
+            Список UUID медиа-файлов для открепления.
+        user_id : UUID
+            UUID пользователя, выполняющего операцию.
+
+        Raises
+        ------
+        MediaNotFoundException
+            Если альбом не существует или не все медиа-файлы найдены.
+        """
+        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+
+        album = await self._albums_repo.get_album_by_id(album_id, user_id, partner_id)
+
+        if album is None:
+            raise MediaNotFoundException(
+                media_type="album",
+                detail=f"Album with id={album_id} not found, or you're lack of rights.",
+            )
+
+        if not files_uuids:
+            return
+
+        received_files_uuids = set(files_uuids)
+        attached_files_uuids = await self._albums_repo.get_existing_album_items(
+            album_id, files_uuids
+        )
+
+        if attached_files_uuids != received_files_uuids:
+            missing_uuids = received_files_uuids - attached_files_uuids
+
+            missing_list = ", ".join(str(muuid) for muuid in missing_uuids)
+            raise MediaNotFoundException(
+                media_type="file",
+                detail=(
+                    "One or more media files are not attached to media album. "
+                    f"Missing IDs: {missing_list}"
+                ),
+            )
+
+        await self._albums_repo.detach_files_from_album(
+            album_id, list(received_files_uuids)
         )

@@ -357,3 +357,48 @@ async def attach(
     await albums_service.attach(album_id, body.files_uuids, payload["sub"])
 
     return StandardResponse(detail="Files successfully attached to album.")
+
+
+@router.patch(
+    "/{album_id}/detach",
+    response_model=StandardResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Отвязка медиа-файлов от альбома.",
+    response_description="Медиа-файлы удалены из альбома",
+    responses={401: AUTHORIZATION_ERROR_REF},
+)
+async def detach(
+    album_id: Annotated[
+        UUID, Path(description="UUID альбома, из которого удаляются файлы.")
+    ],
+    body: Annotated[
+        AttachFilesRequest, Body(description="Список UUID медиа-файлов к удалению.")
+    ],
+    albums_service: AlbumsServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> StandardResponse:
+    """Отвязка медиа-файлов от медиа-альбома.
+
+    Получает в теле запроса список UUID медиа-файлов, которые
+    будут удалены из медиа альбома.
+
+    Parameters
+    ----------
+    album_id : UUID
+        UUID альбома, из которого удаляются файлы.
+    body : AttachFilesRequest
+        Список UUID медиа-файлов к удалению.
+    albums_service : AlbumsServiceDependency
+        Зависимость сервиса работы с альбомами.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    StandardResponse
+        Ответ о результате удаления файлов из альбома.
+    """
+    await albums_service.detach(album_id, body.files_uuids, payload["sub"])
+
+    return StandardResponse(detail="Files successfully detached from album.")

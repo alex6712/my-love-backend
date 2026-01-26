@@ -361,3 +361,24 @@ class AlbumsRepository(RepositoryInterface):
 
         if new_items:
             self.session.add_all(new_items)
+
+    async def detach_files_from_album(
+        self, album_id: UUID, files_uuids: list[UUID]
+    ) -> None:
+        """Открепляет медиа-файлы от альбома.
+
+        Parameters
+        ----------
+        album_id : UUID
+            UUID альбома.
+        files_uuids : list[UUID]
+            Список UUID медиа-файлов для удаления.
+        """
+        await self.session.execute(
+            delete(AlbumItemsModel).where(
+                and_(
+                    AlbumItemsModel.album_id == album_id,
+                    AlbumItemsModel.file_id.in_(files_uuids),
+                )
+            )
+        )
