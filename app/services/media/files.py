@@ -17,6 +17,7 @@ from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
 from app.repositories.couples import CouplesRepository
 from app.repositories.media import FilesRepository
+from app.schemas.dto.file import FileDTO
 
 if TYPE_CHECKING:
     from types_aiobotocore_s3 import S3Client
@@ -43,6 +44,8 @@ class FilesService:
 
     Methods
     -------
+    get_files(offset, limit, user_id)
+        Получение всех файлов по UUID создателя.
     upload_file(file, title, description, created_by, idempotency_key)
         Загрузка файла в приватное хранилище через прокси.
     get_upload_presigned_url(content_type, title, description, created_by, idempotency_key)
@@ -51,6 +54,10 @@ class FilesService:
         Подтверждение успешной загрузки файла в объектное хранилище.
     get_download_presigned_url(file_id, user_id)
         Получение presigned-url для получения файла из приватного хранилища.
+    update_file(file_id, title, description, user_id)
+        Обновление атрибутов медиа-файла по его UUID.
+    delete_file(file_id, user_id)
+        Удаление файла по его UUID.
     """
 
     _IDEMPOTENCY_KEY_TTL = 300
@@ -131,6 +138,33 @@ class FilesService:
             response = key.response
 
         return created, response
+
+    async def get_files(self, offset: int, limit: int, user_id: UUID) -> list[FileDTO]:
+        """Получение всех файлов по UUID создателя.
+
+        Получает на вход UUID пользователя, ищет UUID партнёра,
+        возвращает список всех файлов, которые доступны пользователю (
+        созданы им или его партнёром).
+
+        Parameters
+        ----------
+        offset : int
+            Смещение от начала списка (количество пропускаемых файлов).
+        limit : int
+            Количество возвращаемых файлов.
+        user_id : UUID
+            UUID пользователя.
+
+        Returns
+        -------
+        list[AlbumDTO]
+            Список файлов, доступных пользователю.
+        """
+        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+
+        return await self._files_repo.get_files_by_creator(
+            offset, limit, user_id, partner_id
+        )
 
     async def upload_file(
         self,
@@ -419,6 +453,35 @@ class FilesService:
         )
 
         return file_id, AnyHttpUrl(url)
+
+    async def update_file(
+        self, file_id: UUID, title: str | None, description: str | None, user_id: UUID
+    ) -> None:
+        """Обновление атрибутов медиа-файла по его UUID.
+
+        Получает идентификатор партнера текущего пользователя и передает данные
+        в репозиторий для обновления файла с учетом прав доступа.
+
+        Parameters
+        ----------
+        album_id : UUID
+            UUID файла к изменению.
+        title : str | None
+            Новый заголовок файла.
+        description : str | None
+            Новое описание файла или None для сохранения текущего значения.
+        user_id : UUID
+            UUID пользователя, инициирующего изменение файла.
+        """
+        files = await self._files_repo.get_files_by_ids([file_id], user_id)
+
+        if len(files) != 1:
+            raise MediaNotFoundException(
+                media_type="file",
+                detail=f"File with id={file_id} not found, or you're not this file's creator.",
+            )
+
+        await self._files_repo.update_file_by_id(file_id, title, description)
 
     async def delete_file(self, file_id: UUID, user_id: UUID) -> None:
         """Удаление файла по его UUID.

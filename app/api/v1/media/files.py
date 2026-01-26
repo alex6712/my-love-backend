@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Path, status
+from fastapi import APIRouter, Body, Path, Query, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import FilesServiceDependency
@@ -11,7 +11,9 @@ from app.core.dependencies.transport import (
 )
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.schemas.v1.requests.confirm_upload import ConfirmUploadRequest
+from app.schemas.v1.requests.update_file import UpdateFileRequest
 from app.schemas.v1.requests.upload_file import UploadFileRequest
+from app.schemas.v1.responses.files import FilesResponse
 from app.schemas.v1.responses.standard import StandardResponse
 from app.schemas.v1.responses.urls import PresignedURLResponse
 
@@ -19,6 +21,62 @@ router = APIRouter(
     prefix="/files",
     tags=["media-files"],
 )
+
+
+@router.get(
+    "",
+    response_model=FilesResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Получение списка всех доступных пользователю медиа файлов.",
+    response_description="Список всех доступных файлов",
+    responses={401: AUTHORIZATION_ERROR_REF},
+)
+async def get_files(
+    files_service: FilesServiceDependency,
+    payload: StrictAuthenticationDependency,
+    offset: Annotated[
+        int,
+        Query(
+            ge=0,
+            le=100,
+            description="Смещение от начала списка (количество пропускаемых файлов).",
+        ),
+    ] = 0,
+    limit: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=50,
+            description="Количество возвращаемых файлов.",
+        ),
+    ] = 10,
+) -> FilesResponse:
+    """Получение списка всех доступных пользователю медиа файлов с пагинацией.
+
+    Возвращает список медиа файлов, доступных пользователю с UUID, переданным в токене доступа.
+    Поддерживает пагинацию для работы с большими объемами данных.
+
+    Parameters
+    ----------
+    files_service : AlbumsService
+        Зависимость сервиса работы с файлами.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+    offset : int, optional
+        Смещение от начала списка (количество пропускаемых файлов).
+    limit : int, optional
+        Количество возвращаемых файлов.
+
+    Returns
+    -------
+    FilesResponse
+        Объект ответа, содержащий список доступных пользователю медиа файлов
+        в пределах заданной пагинации и общее количество найденных файлов.
+    """
+    files = await files_service.get_files(offset, limit, payload["sub"])
+
+    return FilesResponse(files=files, detail=f"Found {len(files)} file entries.")
 
 
 @router.post(
@@ -31,7 +89,7 @@ router = APIRouter(
 )
 async def upload_proxy(
     form_data: UploadFileDependency,
-    file_service: FilesServiceDependency,
+    files_service: FilesServiceDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
 ) -> StandardResponse:
@@ -45,7 +103,7 @@ async def upload_proxy(
     ----------
     form_data : UploadFileRequestForm
         Зависимость для получения данных из формы, содержащих информацию о загружаемом файле.
-    file_service : FilesService
+    files_service : FilesService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -59,7 +117,7 @@ async def upload_proxy(
         Успешный ответ о загрузке файла.
         Возвращает сообщение об успешной загрузке файла и детальную информацию.
     """
-    await file_service.upload_file(
+    await files_service.upload_file(
         form_data.file,
         form_data.title,
         form_data.description,
@@ -83,7 +141,7 @@ async def upload_direct(
         UploadFileRequest,
         Body(description="Схема получения метаданных загружаемого медиа-файла."),
     ],
-    file_service: FilesServiceDependency,
+    files_service: FilesServiceDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLResponse:
@@ -98,7 +156,7 @@ async def upload_direct(
     ----------
     body : UploadFileRequest
         Данные, полученные от клиента в теле запроса.
-    file_service : FilesService
+    files_service : FilesService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -111,7 +169,7 @@ async def upload_direct(
     PresignedURLResponse
         Успешный ответ о генерации presigned-url.
     """
-    file_id, presigned_url = await file_service.get_upload_presigned_url(
+    file_id, presigned_url = await files_service.get_upload_presigned_url(
         body.content_type,
         body.title,
         body.description,
@@ -139,7 +197,7 @@ async def upload_confirm(
         ConfirmUploadRequest,
         Body(description="Схема получения UUID медиа-файла для подтверждения загрузки"),
     ],
-    file_service: FilesServiceDependency,
+    files_service: FilesServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Подтверждение окончания загрузки файла по Presigned URL.
@@ -152,7 +210,7 @@ async def upload_confirm(
     ----------
     body : ConfirmUploadRequest
         Данные, полученные от клиента в теле запроса.
-    file_service : FilesService
+    files_service : FilesService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -163,7 +221,7 @@ async def upload_confirm(
     StandardResponse
         Успешный ответ о регистрации загруженного файла.
     """
-    await file_service.confirm_upload(body.file_id, payload["sub"])
+    await files_service.confirm_upload(body.file_id, payload["sub"])
 
     return StandardResponse(detail="Upload confirmation is successful.")
 
@@ -181,7 +239,7 @@ async def download_direct(
         UUID,
         Path(description="UUID файла для скачивания на клиент."),
     ],
-    file_service: FilesServiceDependency,
+    files_service: FilesServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> PresignedURLResponse:
     """Получение presigned-url для скачивания медиа-файла из приватного хранилища.
@@ -194,7 +252,7 @@ async def download_direct(
     ----------
     file_id : UUID
         UUID файла для скачивания на клиент.
-    file_service : FilesService
+    files_service : FilesService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -205,7 +263,7 @@ async def download_direct(
     PresignedURLResponse
         Успешный ответ о генерации presigned-url для скачивания.
     """
-    file_id, presigned_url = await file_service.get_download_presigned_url(
+    file_id, presigned_url = await files_service.get_download_presigned_url(
         file_id,
         payload["sub"],
     )
@@ -215,6 +273,55 @@ async def download_direct(
         presigned_url=presigned_url,
         detail="Presigned URL generated successfully.",
     )
+
+
+@router.put(
+    "/{file_id}",
+    response_model=StandardResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Изменение атрибутов существующего медиа-файла.",
+    response_description="Данные успешно изменены",
+    responses={401: AUTHORIZATION_ERROR_REF},
+)
+async def put_file(
+    file_id: Annotated[UUID, Path(description="UUID медиа файла к изменению.")],
+    body: Annotated[
+        UpdateFileRequest,
+        Body(description="Схема предоставления обновлённых атрибутов файла"),
+    ],
+    files_service: FilesServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> StandardResponse:
+    """Изменение медиа файла по его UUID.
+
+    Проверяет права владения текущего пользователя над файлом с
+    переданным UUID, изменяет его атрибуты при достатке прав.
+
+    Parameters
+    ----------
+    file_id : UUID
+        UUID файла к изменению.
+    body : UpdateFileRequest
+        Данные, полученные от клиента в теле запроса.
+    files_service : FilesServiceDependency
+        Зависимость сервиса работы с файлами.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    StandardResponse
+        Ответ о результате изменения медиа файла.
+    """
+    await files_service.update_file(
+        file_id,
+        body.title,
+        body.description,
+        payload["sub"],
+    )
+
+    return StandardResponse(detail="File info edited successfully.")
 
 
 @router.delete(
@@ -230,19 +337,19 @@ async def delete_file(
         UUID,
         Path(description="UUID файла для удаления."),
     ],
-    file_service: FilesServiceDependency,
+    files_service: FilesServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Удаление медиа-файла по его UUID.
 
-    Удаляет файл по переданному UUID, что открепляет его от альбома.
+    Удаляет файл по переданному UUID, что открепляет его от файла.
     Необходимы права на выполнение операции удаления.
 
     Parameters
     ----------
     file_id : UUID
         UUID файла для удаления.
-    file_service : FilesService
+    files_service : FilesService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -253,6 +360,6 @@ async def delete_file(
     StandardResponse
         Успешный ответ об удалении медиа-файла.
     """
-    await file_service.delete_file(file_id, payload["sub"])
+    await files_service.delete_file(file_id, payload["sub"])
 
     return StandardResponse(detail="File deleted successfully.")

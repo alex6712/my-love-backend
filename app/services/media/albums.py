@@ -33,7 +33,7 @@ class AlbumsService:
     get_album(album_id, user_id)
         Получение подробной информации об альбоме по его UUID.
     update_album(album_id, title, description, cover_url, is_private, user_id)
-
+        Обновление атрибутов медиа-альбома по его UUID.
     delete_album(album_id, user_id)
         Удаление альбома по его UUID.
     attach(album_id, files_uuids, user_id)
@@ -47,7 +47,7 @@ class AlbumsService:
         self._files_repo = unit_of_work.get_repository(FilesRepository)
         self._couples_repo = unit_of_work.get_repository(CouplesRepository)
 
-    async def create_album(
+    def create_album(
         self,
         title: str,
         description: str | None,
@@ -208,8 +208,16 @@ class AlbumsService:
         """
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 
+        album = await self._albums_repo.get_album_by_id(album_id, user_id, partner_id)
+
+        if album is None:
+            raise MediaNotFoundException(
+                media_type="album",
+                detail=f"Album with id={album_id} not found, or you're not this album's creator.",
+            )
+
         await self._albums_repo.update_album_by_id(
-            album_id, title, description, cover_url, is_private, user_id, partner_id
+            album_id, title, description, cover_url, is_private
         )
 
     async def delete_album(self, album_id: UUID, user_id: UUID) -> None:

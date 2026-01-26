@@ -157,7 +157,7 @@ class AuthService:
                 token_type="refresh",
             )
 
-        payload = await AuthService._validate_token(refresh_token, "refresh")
+        payload = AuthService._validate_token(refresh_token, "refresh")
 
         user = await self._users_repo.get_user_by_id(payload["sub"])
 
@@ -246,10 +246,10 @@ class AuthService:
         if await self._redis_client.is_token_revoked(access_token):
             raise TokenRevokedException(detail="Access token has been revoked.")
 
-        return await AuthService._validate_token(access_token, "access")
+        return AuthService._validate_token(access_token, "access")
 
     @staticmethod
-    async def _validate_token(token: str, token_type: TokenType) -> Payload:
+    def _validate_token(token: str, token_type: TokenType) -> Payload:
         """Валидирует JWT (статический "приватный" метод).
 
         Parameters

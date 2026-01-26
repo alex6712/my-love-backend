@@ -23,10 +23,16 @@ class FilesRepository(RepositoryInterface):
         Добавляет в базу данных новую запись о загруженном медиа файле.
     add_pending_file(object_key, content_type, created_by, title=None, description=None, geo_data=None)
         Добавляет в базу данных новую запись о загружаемом медиа файле.
+    get_files_by_creator(offset, limit, user_id, partner_id)
+        Получение списка файлов по создателю.
     get_files_by_ids(files_ids, user_id, partner_id)
         Получает медиа-файлы по списку UUID.
     mark_file_uploaded(file_id)
         Обновляет статус файла на UPLOADED после успешной загрузки.
+    update_file_by_id(file_id, title, description)
+        Обновление атрибутов файла в базе данных.
+    delete_file_by_id(file_id):
+        Удаляет запись о медиа файле из базы данных по его UUID.
     """
 
     def __init__(self, session: AsyncSession):
@@ -133,6 +139,43 @@ class FilesRepository(RepositoryInterface):
 
         return file_id
 
+    async def get_files_by_creator(
+        self, offset: int, limit: int, user_id: UUID, partner_id: UUID | None = None
+    ) -> list[FileDTO]:
+        """Возвращает список DTO медиа файлов по id их создателя.
+
+        Parameters
+        ----------
+        offset : int
+            Смещение от начала списка.
+        limit : int
+            Количество возвращаемых файлов.
+        user_id : UUID
+            UUID текущего пользователя.
+        partner_id : UUID | None, optional
+            UUID партнёра текущего пользователя.
+
+        Returns
+        -------
+        list[AlbumDTO]
+            Список DTO файлов доступных пользователю.
+        """
+        query = (
+            select(FileModel)
+            .options(selectinload(FileModel.creator))
+            .order_by(FileModel.created_at)
+            .slice(offset, offset + limit)
+        )
+
+        if partner_id:
+            query = query.where(FileModel.created_by.in_([user_id, partner_id]))
+        else:
+            query = query.where(FileModel.created_by == user_id)
+
+        files = await self.session.scalars(query)
+
+        return [FileDTO.model_validate(file) for file in files.all()]
+
     async def get_files_by_ids(
         self,
         files_ids: list[UUID],
@@ -189,6 +232,35 @@ class FilesRepository(RepositoryInterface):
             update(FileModel)
             .where(FileModel.id == file_id)
             .values(status=FileStatus.UPLOADED)
+        )
+
+    async def update_file_by_id(
+        self,
+        file_id: UUID,
+        title: str | None,
+        description: str | None,
+    ) -> None:
+        """Обновление атрибутов файла в базе данных.
+
+        Выполняет SQL-запрос UPDATE для изменения атрибутов файла,
+        фильтруя записи по идентификатору файла и правам создателя.
+
+        Parameters
+        ----------
+        album_id : UUID
+            UUID файла к изменению.
+        title : str
+            Новое значение заголовка файла.
+        description : str | None
+            Новое значение описания файла.
+        """
+        await self.session.execute(
+            update(FileModel)
+            .where(FileModel.id == file_id)
+            .values(
+                title=title,
+                description=description,
+            )
         )
 
     async def delete_file_by_id(self, file_id: UUID) -> None:
