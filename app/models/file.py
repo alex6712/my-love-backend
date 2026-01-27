@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON, String, Text, Uuid
 from sqlalchemy.types import Enum as SAEnum
@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 class FileModel(BaseModel):
     __tablename__ = "files"
-    __table_args__ = {"comment": "Загруженные пользователями медиа файлы"}
 
     object_key: Mapped[str] = mapped_column(
         String(512),
@@ -75,6 +74,16 @@ class FileModel(BaseModel):
         cascade="all, delete-orphan",
         viewonly=True,
         lazy="select",
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_files_pending_created",
+            "status",
+            "created_at",
+            postgresql_where=text("status = 'PENDING'"),
+        ),
+        {"comment": "Загруженные пользователями медиа файлы"},
     )
 
     def __repr__(self, **_) -> str:
