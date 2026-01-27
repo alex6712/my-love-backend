@@ -31,7 +31,7 @@ async def get_s3_client() -> AsyncGenerator["S3Client", None]:
     """
     async with _session.client(  # type: ignore
         "s3",
-        endpoint_url=settings.MINIO_HOST.unicode_string(),
+        endpoint_url=settings.MINIO_HOST,
         config=aioboto3.session.AioConfig(  # type: ignore
             signature_version="s3v4",
             s3={"addressing_style": "path"},
