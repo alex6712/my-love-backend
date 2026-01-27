@@ -1,8 +1,7 @@
-from uuid import UUID
+from pydantic import Field
 
-from pydantic import AnyHttpUrl, Field
-
-from .standard import StandardResponse
+from app.schemas.dto.presigned_url import PresignedURLDTO
+from app.schemas.v1.responses.standard import StandardResponse
 
 
 class PresignedURLResponse(StandardResponse):
@@ -13,17 +12,27 @@ class PresignedURLResponse(StandardResponse):
 
     Attributes
     ----------
-    file_id : UUID
-        UUID загружаемого файла.
-    presigned_url : str
-        Presigned URL на загрузку или получение файла.
+    url : PresignedURLDTO
+        Подписанная ссылка вместе с UUID файла.
     """
 
-    file_id: UUID = Field(
-        description="UUID загружаемого файла.",
-        examples=["ccdc1e34-8772-4537-bdba-5e45c4be5d7c"],
+    url: PresignedURLDTO = Field(
+        description="Подписанная ссылка вместе с UUID файла.",
     )
-    presigned_url: AnyHttpUrl = Field(
-        description="Presigned URL на загрузку или получение файла.",
-        examples=["https://amzn-s3-demo-bucket.s3.amazonaws.com"],
+
+
+class PresignedURLsBatchResponse(StandardResponse):
+    """Модель ответа сервера с вложенными Presigned URL.
+
+    Используется в качестве ответа с сервера на запрос на загрузку
+    или получение пакета медиа-файлов.
+
+    Attributes
+    ----------
+    urls : list[PresignedURLDTO]
+        Подписанные ссылки для каждого файла в пакете.
+    """
+
+    urls: list[PresignedURLDTO] = Field(
+        description="Подписанные ссылки для каждого файла в пакете.",
     )

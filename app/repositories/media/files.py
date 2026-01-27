@@ -1,14 +1,13 @@
-from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import FileStatus
 from app.models.file import FileModel
 from app.repositories.interface import RepositoryInterface
-from app.schemas.dto.file import FileDTO
+from app.schemas.dto.file import FileDTO, FileMetadataDTO
 
 
 class FilesRepository(RepositoryInterface):
@@ -19,10 +18,8 @@ class FilesRepository(RepositoryInterface):
 
     Methods
     -------
-    add_file(object_key, content_type, created_by, title=None, description=None, geo_data=None)
-        Добавляет в базу данных новую запись о загруженном медиа файле.
-    add_pending_file(object_key, content_type, created_by, title=None, description=None, geo_data=None)
-        Добавляет в базу данных новую запись о загружаемом медиа файле.
+    add_pending_files(files_metadata, object_keys, created_by)
+        Добавляет в базу данных новые записи о загружаемых медиа-файлах.
     get_files_by_creator(offset, limit, user_id, partner_id)
         Получение списка файлов по создателю.
     get_files_by_ids(files_ids, user_id, partner_id)
@@ -38,106 +35,47 @@ class FilesRepository(RepositoryInterface):
     def __init__(self, session: AsyncSession):
         super().__init__(session)
 
-    def add_file(
+    async def add_pending_files(
         self,
-        object_key: str,
-        content_type: str,
+        files_metadata: list[FileMetadataDTO],
+        object_keys: list[str],
         created_by: UUID,
-        file_id: UUID | None = None,
-        title: str | None = None,
-        description: str | None = None,
-        geo_data: dict[str, Any] | None = None,
-    ) -> None:
-        """Добавляет в базу данных новую запись о загруженном медиа файле.
+    ) -> list[UUID]:
+        """Добавляет в базу данных новые записи о загружаемых медиа-файлах.
 
-        Добавляет запись со статусом файла `FileStatus.UPLOADED`.
+        Все записи добавляются со статусом `FileStatus.PENDING`.
 
         Parameters
         ----------
-        object_key : str
-            Путь до файла внутри бакета приложения.
-        content_type : str
-            Content Type переданного файла.
+        files_metadata : list[FileMetadataDTO]
+            Список DTO и метаинформацией файлов.
+        object_keys : list[str]
+            Список ключей объектов (= идентификаторов файлов в S3).
         created_by : UUID
             UUID пользователя, создавшего файл.
-        file_id : UUID | None
-            UUID медиа-файла.
-        title : str | None
-            Наименование файла.
-        description : str | None
-            Описание файла.
-        geo_data : dict[str, Any] | None
-            Географические данные файла.
-        """
-        if file_id is None:
-            file_id = uuid4()
-
-        self.session.add(
-            FileModel(
-                id=file_id,
-                object_key=object_key,
-                content_type=content_type,
-                status=FileStatus.UPLOADED,
-                title=title,
-                description=description,
-                geo_data=geo_data,
-                created_by=created_by,
-            )
-        )
-
-    def add_pending_file(
-        self,
-        object_key: str,
-        content_type: str,
-        created_by: UUID,
-        file_id: UUID | None = None,
-        title: str | None = None,
-        description: str | None = None,
-        geo_data: dict[str, Any] | None = None,
-    ) -> UUID:
-        """Добавляет в базу данных новую запись о загружаемом медиа файле.
-
-        Добавляет запись со статусом файла `FileStatus.PENDING`.
-
-        Parameters
-        ----------
-        object_key : str
-            Путь до файла внутри бакета приложения.
-        content_type : str
-            Content Type переданного файла.
-        created_by : UUID
-            UUID пользователя, создавшего файл.
-        file_id : UUID | None
-            UUID медиа-файла.
-        title : str | None
-            Наименование файла.
-        description : str | None
-            Описание файла.
-        geo_data : dict[str, Any] | None
-            Географические данные файла.
 
         Returns
         -------
-        UUID
-            UUID записи медиа-файла.
+        list[UUID]
+            UUID записей медиа-файлов.
         """
-        if file_id is None:
-            file_id = uuid4()
-
-        self.session.add(
-            FileModel(
-                id=file_id,
-                object_key=object_key,
-                content_type=content_type,
-                status=FileStatus.PENDING,
-                title=title,
-                description=description,
-                geo_data=geo_data,
-                created_by=created_by,
+        file_ids = await self.session.scalars(
+            insert(FileModel)
+            .values(
+                [
+                    {
+                        "object_key": k,
+                        "status": FileStatus.PENDING,
+                        "created_by": created_by,
+                        **m.model_dump(),
+                    }
+                    for m, k in zip(files_metadata, object_keys, strict=True)
+                ]
             )
+            .returning(FileModel.id)
         )
 
-        return file_id
+        return [file_id for file_id in file_ids.all()]
 
     async def get_files_by_creator(
         self, offset: int, limit: int, user_id: UUID, partner_id: UUID | None = None

@@ -1,11 +1,29 @@
 from typing import Any
 
 from app.core.enums import FileStatus
-from app.schemas.dto.base import BaseSQLModelDTO
+from app.schemas.dto.base import BaseDTO, BaseSQLModelDTO
 from app.schemas.dto.users import CreatorDTO
 
 
-class FileDTO(BaseSQLModelDTO):
+class FileMetadataDTO(BaseDTO):
+    """DTO для представления метаданных медиа-файла.
+
+    Attributes
+    ----------
+    content_type : str
+        Тип сохранённого медиа-файла.
+    title : str
+        Наименование медиа-файла.
+    description : str | None
+        Описание медиа-файла.
+    """
+
+    content_type: str
+    title: str
+    description: str | None
+
+
+class FileDTO(BaseSQLModelDTO, FileMetadataDTO):
     """DTO для представления медиа-файла.
 
     Attributes
@@ -14,12 +32,6 @@ class FileDTO(BaseSQLModelDTO):
         Путь до файла внутри бакета приложения.
     status : FileStatus
         Текущий статус медиа-файла.
-    content_type : str
-        Тип сохранённого медиа-файла.
-    title : str
-        Наименование медиа-файла.
-    description : str | None
-        Описание медиа-файла.
     geo_data : dict[str, Any] | None
         Данные о местоположении сохранённого медиа
     creator : CreatorDTO
@@ -28,9 +40,6 @@ class FileDTO(BaseSQLModelDTO):
 
     object_key: str
     status: FileStatus
-    content_type: str
-    title: str
-    description: str | None
     geo_data: dict[str, Any] | None
 
     creator: CreatorDTO

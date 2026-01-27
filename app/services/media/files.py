@@ -1,8 +1,9 @@
+import asyncio
+import json
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
-from fastapi import UploadFile
 from pydantic import AnyHttpUrl
 
 from app.config import Settings
@@ -17,7 +18,8 @@ from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
 from app.repositories.couples import CouplesRepository
 from app.repositories.media import FilesRepository
-from app.schemas.dto.file import FileDTO
+from app.schemas.dto.file import FileDTO, FileMetadataDTO
+from app.schemas.dto.presigned_url import PresignedURLDTO
 
 if TYPE_CHECKING:
     from types_aiobotocore_s3 import S3Client
@@ -46,10 +48,10 @@ class FilesService:
     -------
     get_files(offset, limit, user_id)
         Получение всех файлов по UUID создателя.
-    upload_file(file, title, description, created_by, idempotency_key)
-        Загрузка файла в приватное хранилище через прокси.
-    get_upload_presigned_url(content_type, title, description, created_by, idempotency_key)
+    get_upload_presigned_url(files_metadata, user_id, idempotency_key)
         Получение presigned-url для загрузки файла напрямую в S3.
+    get_upload_presigned_urls(files_metadata, user_id, idempotency_key)
+        Получение presigned-url для загрузки нескольких файлов напрямую в S3.
     confirm_upload(file_id, user_id)
         Подтверждение успешной загрузки файла в объектное хранилище.
     get_download_presigned_url(file_id, user_id)
@@ -86,6 +88,29 @@ class FilesService:
 
         self._couples_repo = unit_of_work.get_repository(CouplesRepository)
         self._files_repo = unit_of_work.get_repository(FilesRepository)
+
+    @staticmethod
+    def _generate_object_key(user_id: UUID, batch_id: UUID) -> str:
+        """Генерация уникального ключа объекта для хранения в файловом хранилище.
+
+        Создает структурированный ключ, который гарантирует уникальность файлов
+        и обеспечивает логическую организацию данных в хранилище.
+        Ключ формируется по схеме: `{user_id}/{batch_id}/{уникальный_идентификатор}`.
+
+        Parameters
+        ----------
+        user_id : UUID
+            Уникальный идентификатор пользователя,
+            которому принадлежит файл.
+        batch_id : UUID
+            Уникальный идентификатор пакета (группы файлов).
+
+        Returns
+        -------
+        str
+            Сгенерированный ключ объекта в формате строки.
+        """
+        return f"{user_id}/{batch_id}/{uuid4().hex}"
 
     async def _idempotency_gate(
         self, idem_scope: str, user_id: UUID, idempotency_key: UUID
@@ -166,34 +191,32 @@ class FilesService:
             offset, limit, user_id, partner_id
         )
 
-    async def upload_file(
+    async def get_upload_presigned_url(
         self,
-        file: UploadFile,
-        title: str | None,
-        description: str | None,
+        file_metadata: FileMetadataDTO,
         user_id: UUID,
         idempotency_key: UUID,
-    ) -> None:
-        """Загрузка файла в приватное хранилище через прокси.
+    ) -> PresignedURLDTO:
+        """Получение presigned-url для загрузки файла напрямую в S3.
 
-        Принимает файл в виде объекта-обёртки `fastapi.UploadFile`, также
-        ожидает дополнительные данные о файле для сохранения записи о файле.
+        Принимает дополнительные данные о файле для сохранения записи.
 
-        Генерирует уникальное имя файла, используя `uuid4`, сохраняет содержимое
-        файла в бакет S3, создаёт в базе данных новую запись о загруженном файле.
+        Генерирует уникальный ключ объекта, генерирует presigned-url
+        для прямой загрузки в S3 хранилище, создаёт в базе данных новую запись о загружаемом файле.
 
         Parameters
         ----------
-        file : UploadFile
-            Файл к загрузке.
-        title : str | None
-            Наименование загружаемого файла.
-        description : str | None
-            Описание загружаемого файла.
+        file_metadata : FileMetadataDTO
+            Метаданные загружаемого файла.
         user_id : UUID
-            UUID пользователя, загрузившего файл.
+            UUID пользователя, загружающего файл.
         idempotency_key : UUID
             Ключ идемпотентности запроса.
+
+        Returns
+        -------
+        PresignedURLDTO
+            Сгенерированная presigned URL.
 
         Raises
         ------
@@ -203,82 +226,43 @@ class FilesService:
             Возникает в том случае, если запрос с переданным ключом идемпотентности
             уже находится в процессе обработки.
         """
-        idem_scope = "media_upload_proxy"
-
-        new, _ = await self._idempotency_gate(idem_scope, user_id, idempotency_key)
-        if not new:
-            return
-
-        content_type = file.content_type
-
-        if content_type is None or content_type not in self._SUPPORTED_CONTENT_TYPES:
-            raise UnsupportedFileTypeException(
-                detail=(
-                    f"File type '{content_type}' is not supported. "
-                    f"Supported types: {self._SUPPORTED_CONTENT_TYPES}."
-                )
+        return (
+            await self.get_upload_presigned_urls(
+                [file_metadata], user_id, idempotency_key
             )
+        )[0]
 
-        object_key = f"uploads/{uuid4().hex}"
-
-        await self._s3_client.upload_fileobj(
-            Fileobj=file.file,
-            Bucket=self._settings.MINIO_BUCKET_NAME,
-            Key=object_key,
-            ExtraArgs={"ContentType": content_type},
-        )
-
-        self._files_repo.add_file(
-            object_key=object_key,
-            content_type=content_type,
-            title=title,
-            description=description,
-            created_by=user_id,
-        )
-
-        await self._redis_client.finalize_idempotency_key(
-            idem_scope, user_id, idempotency_key, FilesService._IDEMPOTENCY_KEY_TTL
-        )
-
-    async def get_upload_presigned_url(
+    async def get_upload_presigned_urls(
         self,
-        content_type: str,
-        title: str | None,
-        description: str | None,
+        files_metadata: list[FileMetadataDTO],
         user_id: UUID,
         idempotency_key: UUID,
-    ) -> tuple[UUID, AnyHttpUrl]:
-        """Получение presigned-url для загрузки файла напрямую в S3.
+    ) -> list[PresignedURLDTO]:
+        """Получение presigned-url для загрузки нескольких файлов напрямую в S3.
 
-        Принимает дополнительные данные о файле для сохранения записи о файле.
+        Принимает дополнительные данные о файлах для сохранения записи.
 
-        Генерирует уникальное имя файла, используя `uuid4`, генерирует presigned-url
-        для прямой загрузки в S3 хранилище, создаёт в базе данных новую запись о загружаемом файле.
+        Генерирует уникальные ключи объектов, генерирует presigned-url
+        для прямой загрузки в S3 хранилище, создаёт в базе данных новые записи о загружаемых файлах.
 
         Parameters
         ----------
-        content_type : str
-            MIME-тип отправляемого файла.
-        title : str | None
-            Наименование загружаемого файла.
-        description : str | None
-            Описание загружаемого файла.
+        files_metadata : list[FileMetadataDTO]
+            Список метаданных загружаемых файлов.
         user_id : UUID
-            UUID пользователя, загрузившего файл.
+            UUID пользователя, загружающего файлы.
         idempotency_key : UUID
             Ключ идемпотентности запроса.
 
         Returns
         -------
-        tuple[UUID, AnyHttpUrl]
-            Кортеж, состоящий из:
-            - UUID загружаемого файла;
-            - Presigned URL для прямой загрузки в S3.
+        list[PresignedURLDTO]
+            Список сгенерированных presigned URLs.
 
         Raises
         ------
         UnsupportedFileTypeException
-            Возникает в том случае, если тип переданного файла не поддерживается.
+            Возникает в том случае, если тип хотя бы одного из переданных файлов не поддерживается.
         IdempotencyException
             Возникает в том случае, если запрос с переданным ключом идемпотентности
             уже находится в процессе обработки.
@@ -289,45 +273,59 @@ class FilesService:
             idem_scope, user_id, idempotency_key
         )
         if not new:
-            id_, url = response.split(",", 1)  # type: ignore
-            return UUID(id_), AnyHttpUrl(url)
+            raws = json.loads(response)  # type: ignore
+            return [PresignedURLDTO.model_validate_json(raw) for raw in raws]
 
-        if content_type not in self._SUPPORTED_CONTENT_TYPES:
+        unsupported_types = [
+            m.content_type
+            for m in files_metadata
+            if m.content_type not in FilesService._SUPPORTED_CONTENT_TYPES
+        ]
+
+        if unsupported_types:
             raise UnsupportedFileTypeException(
                 detail=(
-                    f"File type '{content_type}' is not supported. "
-                    f"Supported types: {self._SUPPORTED_CONTENT_TYPES}."
+                    f"File types '{unsupported_types}' is not supported. "
+                    f"Supported types: {FilesService._SUPPORTED_CONTENT_TYPES}."
                 )
             )
 
-        object_key = f"uploads/{uuid4().hex}"
+        object_keys = [
+            FilesService._generate_object_key(user_id, idempotency_key)
+            for _ in range(len(files_metadata))
+        ]
 
-        file_id = self._files_repo.add_pending_file(
-            object_key=object_key,
-            content_type=content_type,
-            title=title,
-            description=description,
-            created_by=user_id,
+        file_ids = await self._files_repo.add_pending_files(
+            files_metadata, object_keys, user_id
         )
 
-        url = await self._s3_client.generate_presigned_url(
-            "put_object",
-            Params={
-                "Bucket": self._settings.MINIO_BUCKET_NAME,
-                "Key": object_key,
-            },
-            ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
-        )
+        tasks = [
+            self._s3_client.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": self._settings.MINIO_BUCKET_NAME,
+                    "Key": key,
+                },
+                ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
+            )
+            for key in object_keys
+        ]
+        urls = await asyncio.gather(*tasks)
+
+        result = [
+            PresignedURLDTO(file_id=id_, presigned_url=AnyHttpUrl(url))
+            for id_, url in zip(file_ids, urls, strict=True)
+        ]
 
         await self._redis_client.finalize_idempotency_key(
             scope=idem_scope,
             user_id=user_id,
             key=idempotency_key,
             ttl=FilesService._IDEMPOTENCY_KEY_TTL,
-            response=f"{file_id},{url}",
+            response=json.dumps([r.model_dump_json() for r in result]),
         )
 
-        return file_id, AnyHttpUrl(url)
+        return result
 
     async def confirm_upload(self, file_id: UUID, user_id: UUID) -> None:
         """Подтверждает успешную загрузку файла в объектное хранилище.
@@ -386,7 +384,7 @@ class FilesService:
 
     async def get_download_presigned_url(
         self, file_id: UUID, user_id: UUID
-    ) -> tuple[UUID, AnyHttpUrl]:
+    ) -> PresignedURLDTO:
         """Получение presigned-url для получения файла из приватного хранилища.
 
         Принимает UUID файла, ищет запись о файле в базе данных, проверяет права доступа
@@ -401,10 +399,8 @@ class FilesService:
 
         Returns
         -------
-        tuple[UUID, AnyHttpUrl]
-            Кортеж, состоящий из:
-            - UUID файла;
-            - Presigned URL для прямого скачивания.
+        PresignedURLDTO
+            Сгенерированная presigned URL.
 
         Raises
         ------
@@ -452,7 +448,10 @@ class FilesService:
             ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
         )
 
-        return file_id, AnyHttpUrl(url)
+        return PresignedURLDTO(
+            file_id=file_id,
+            presigned_url=AnyHttpUrl(url),
+        )
 
     async def update_file(
         self, file_id: UUID, title: str | None, description: str | None, user_id: UUID

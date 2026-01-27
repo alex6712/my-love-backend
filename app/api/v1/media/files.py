@@ -5,17 +5,21 @@ from fastapi import APIRouter, Body, Path, Query, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import FilesServiceDependency
-from app.core.dependencies.transport import (
-    IdempotencyKeyDependency,
-    UploadFileDependency,
-)
+from app.core.dependencies.transport import IdempotencyKeyDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
+from app.schemas.dto.file import FileMetadataDTO
 from app.schemas.v1.requests.confirm_upload import ConfirmUploadRequest
 from app.schemas.v1.requests.update_file import UpdateFileRequest
-from app.schemas.v1.requests.upload_file import UploadFileRequest
+from app.schemas.v1.requests.upload_file import (
+    UploadFileRequest,
+    UploadFilesBatchRequest,
+)
 from app.schemas.v1.responses.files import FilesResponse
 from app.schemas.v1.responses.standard import StandardResponse
-from app.schemas.v1.responses.urls import PresignedURLResponse
+from app.schemas.v1.responses.urls import (
+    PresignedURLResponse,
+    PresignedURLsBatchResponse,
+)
 
 router = APIRouter(
     prefix="/files",
@@ -80,63 +84,14 @@ async def get_files(
 
 
 @router.post(
-    "/upload/proxy",
-    response_model=StandardResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Загрузка медиа-файлов в приватное хранилище.",
-    response_description="Загрузка завершена успешно",
-    responses={401: AUTHORIZATION_ERROR_REF},
-)
-async def upload_proxy(
-    form_data: UploadFileDependency,
-    files_service: FilesServiceDependency,
-    payload: StrictAuthenticationDependency,
-    idempotency_key: IdempotencyKeyDependency,
-) -> StandardResponse:
-    """Загрузка медиа-файла в приватное хранилище через прокси.
-
-    Позволяет пользователю загрузить медиа-файл в приватное хранилище.
-    Необходимы права на выполнение операции загрузки, соответствующие данные о файле
-    и ключ идемпотентности.
-
-    Parameters
-    ----------
-    form_data : UploadFileRequestForm
-        Зависимость для получения данных из формы, содержащих информацию о загружаемом файле.
-    files_service : FilesService
-        Зависимость сервиса работы с файлами.
-    payload : Payload
-        Полезная нагрузка (payload) токена доступа.
-        Получена автоматически из зависимости на строгую аутентификацию.
-    idempotency_key : UUID
-        Ключ идемпотентности. Получен из заголовков запроса.
-
-    Returns
-    -------
-    StandardResponse
-        Успешный ответ о загрузке файла.
-        Возвращает сообщение об успешной загрузке файла и детальную информацию.
-    """
-    await files_service.upload_file(
-        form_data.file,
-        form_data.title,
-        form_data.description,
-        payload["sub"],
-        idempotency_key,
-    )
-
-    return StandardResponse(detail="File uploaded successfully.")
-
-
-@router.post(
-    "/upload/direct",
+    "/upload",
     response_model=PresignedURLResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение Presigned URL для загрузки медиа-файлов в приватное хранилище.",
+    summary="Получение Presigned URL для загрузки медиа-файла в приватное хранилище.",
     response_description="URL для прямой загрузки получена успешно",
     responses={401: AUTHORIZATION_ERROR_REF},
 )
-async def upload_direct(
+async def upload(
     body: Annotated[
         UploadFileRequest,
         Body(description="Схема получения метаданных загружаемого медиа-файла."),
@@ -145,7 +100,7 @@ async def upload_direct(
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLResponse:
-    """Получение presigned-url для загрузки медиа-файлов в приватное хранилище.
+    """Получение presigned-url для загрузки медиа-файла в приватное хранилище.
 
     Предоставляет подписанную ссылку для прямой загрузки файла в объектное
     хранилище.
@@ -169,18 +124,67 @@ async def upload_direct(
     PresignedURLResponse
         Успешный ответ о генерации presigned-url.
     """
-    file_id, presigned_url = await files_service.get_upload_presigned_url(
-        body.content_type,
-        body.title,
-        body.description,
+    url = await files_service.get_upload_presigned_url(
+        FileMetadataDTO.model_validate(body),
         payload["sub"],
         idempotency_key,
     )
 
     return PresignedURLResponse(
-        file_id=file_id,
-        presigned_url=presigned_url,
+        url=url,
         detail="Presigned URL generated successfully.",
+    )
+
+
+@router.post(
+    "/upload/batch",
+    response_model=PresignedURLsBatchResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Получение Presigned URL для загрузки пакета медиа-файлов в приватное хранилище.",
+    response_description="URLs для прямой загрузки получены успешно",
+    responses={401: AUTHORIZATION_ERROR_REF},
+)
+async def upload_batch(
+    body: Annotated[
+        UploadFilesBatchRequest,
+        Body(description="Схема получения метаданных загружаемых медиа-файлов."),
+    ],
+    files_service: FilesServiceDependency,
+    payload: StrictAuthenticationDependency,
+    idempotency_key: IdempotencyKeyDependency,
+) -> PresignedURLsBatchResponse:
+    """Получение presigned-url для загрузки пакета медиа-файлов в приватное хранилище.
+
+    Предоставляет подписанные ссылки для прямой загрузки нескольких файлов в объектное
+    хранилище.
+    Необходимы права на выполнение операции загрузки, соответствующие данные о файлах
+    и ключ идемпотентности.
+
+    Parameters
+    ----------
+    body : UploadFilesBatchRequest
+        Данные, полученные от клиента в теле запроса.
+    files_service : FilesService
+        Зависимость сервиса работы с файлами.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+    idempotency_key : UUID
+        Ключ идемпотентности. Получен из заголовков запроса.
+
+    Returns
+    -------
+    PresignedURLsBatchResponse
+        Успешный ответ о генерации presigned-url.
+    """
+    urls = await files_service.get_upload_presigned_urls(
+        [FileMetadataDTO.model_validate(m) for m in body],
+        payload["sub"],
+        idempotency_key,
+    )
+
+    return PresignedURLsBatchResponse(
+        urls=urls, detail="Presigned URLs generated successfully."
     )
 
 
@@ -227,14 +231,14 @@ async def upload_confirm(
 
 
 @router.get(
-    "/{file_id}/download/direct",
+    "/{file_id}/download",
     response_model=PresignedURLResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение Presigned URL для получения медиа-файлов из приватного хранилища.",
+    summary="Получение Presigned URL для получения медиа-файла из приватного хранилища.",
     response_description="URL для скачивания получена успешно",
     responses={401: AUTHORIZATION_ERROR_REF},
 )
-async def download_direct(
+async def download(
     file_id: Annotated[
         UUID,
         Path(description="UUID файла для скачивания на клиент."),
@@ -263,14 +267,13 @@ async def download_direct(
     PresignedURLResponse
         Успешный ответ о генерации presigned-url для скачивания.
     """
-    file_id, presigned_url = await files_service.get_download_presigned_url(
+    url = await files_service.get_download_presigned_url(
         file_id,
         payload["sub"],
     )
 
     return PresignedURLResponse(
-        file_id=file_id,
-        presigned_url=presigned_url,
+        url=url,
         detail="Presigned URL generated successfully.",
     )
 

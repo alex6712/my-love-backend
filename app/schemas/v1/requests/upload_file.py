@@ -26,3 +26,19 @@ class UploadFileRequest(BaseModel):
         description="Описание медиа файла.",
         examples=["Файл смерти: кто прочитал, тот..."],
     )
+
+
+class UploadFilesBatchRequest(BaseModel):
+    """Схема запроса на получение Presigned URL загрузки пакета файлов.
+
+    Attributes
+    ----------
+    files_metadata : list[UploadFileRequest]
+        Метаданные для каждого файла.
+    """
+
+    files_metadata: list[UploadFileRequest] = Field(
+        description="Метаданные для каждого файла.",
+        min_length=1,
+        max_length=50,
+    )
