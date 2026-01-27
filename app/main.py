@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.root import api_root_router
 from app.api.v1 import api_v1_router
 from app.config import get_settings
 from app.core.docs import (
@@ -144,6 +145,7 @@ my_love_backend.add_middleware(
     allow_headers=["*"],
 )
 
+my_love_backend.include_router(api_root_router)
 my_love_backend.include_router(api_v1_router)
 
 

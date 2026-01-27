@@ -46,6 +46,8 @@ class Settings(BaseSettings):
         Имя ответственного лица.
     ADMIN_EMAIL : EmailStr
         Email для связи с ответственным лицом.
+    ROBOTS_CONTENT : str
+        Текст файла robots.txt.
     BACKEND_CORS_ORIGINS : List[str]
         Список источников для CORS Middleware.
     CURRENT_API_PATH : str
@@ -101,6 +103,8 @@ class Settings(BaseSettings):
 
     ADMIN_NAME: str
     ADMIN_EMAIL: EmailStr
+
+    ROBOTS_CONTENT: str
 
     BACKEND_CORS_ORIGINS: list[str]
 
