@@ -7,7 +7,6 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePublicKey,
 )
 from pydantic import (
-    AnyHttpUrl,
     EmailStr,
     PostgresDsn,
     RedisDsn,
@@ -70,7 +69,7 @@ class Settings(BaseSettings):
         Номер базы данных Redis.
     REDIS_URL : RedisDsn
         URL Redis.
-    MINIO_HOST : AnyHttpUrl
+    MINIO_HOST : str
         Наименование хоста, на котором размещён сервер MinIO.
     MINIO_ROOT_USER : str
         MinIO Access key (root пользователь).
@@ -128,7 +127,7 @@ class Settings(BaseSettings):
 
     REDIS_URL: RedisDsn
 
-    MINIO_HOST: AnyHttpUrl
+    MINIO_HOST: str
     MINIO_ROOT_USER: str
     MINIO_ROOT_PASSWORD: str
     MINIO_BUCKET_NAME: str
