@@ -2,8 +2,8 @@ services:
   my-love-backend:
     container_name: my-love-backend
     build: .
-    env_file:
-      - .env
+    environment:
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS}
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -48,6 +48,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_SERVER_URL: ${MINIO_SERVER_URL}
     ports:
       - "127.0.0.1:9000:9000"
       - "9001:9001"
