@@ -233,3 +233,5 @@ AUTHORIZATION_ERROR_REF: dict[str, Any] = {
     "$ref": "#/components/responses/AuthorizationError",
 }
 """Ссылка на схему ошибки авторизации пользователя внутри OAS."""
+
+# TODO: Idempotency error для /files/upload

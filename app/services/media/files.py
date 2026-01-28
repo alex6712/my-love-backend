@@ -276,11 +276,11 @@ class FilesService:
             raws = json.loads(response)  # type: ignore
             return [PresignedURLDTO.model_validate_json(raw) for raw in raws]
 
-        unsupported_types = [
+        unsupported_types = {
             m.content_type
             for m in files_metadata
             if m.content_type not in FilesService._SUPPORTED_CONTENT_TYPES
-        ]
+        }
 
         if unsupported_types:
             raise UnsupportedFileTypeException(
