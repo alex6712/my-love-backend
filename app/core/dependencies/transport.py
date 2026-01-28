@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, Request
+from fastapi import Depends, Header
 
 from app.core.exceptions.base import (
     IdempotencyKeyNotPassedException,
@@ -9,11 +9,18 @@ from app.core.exceptions.base import (
 )
 
 
-async def get_idempotency_key(request: Request) -> UUID:
+async def get_idempotency_key(
+    idempotency_key: UUID = Header(
+        None,
+        alias="Idempotency-Key",
+        description="UUID ключ идемпотентности",
+        example="24a8660f-d467-438c-b13d-5738fd30893d",
+    ),
+) -> UUID:
     """Зависимость, которая извлекает и проверяет заголовок Idempotency-Key.
 
     Проверяет заголовок `Idempotency-Key` на существование, извлекает
-    из него строковое значение ключа идемпотентности, валидирует его
+    из него значение ключа идемпотентности, валидирует его
     в качестве UUID v4.
 
     Parameters
@@ -33,26 +40,17 @@ async def get_idempotency_key(request: Request) -> UUID:
     InvalidIdempotencyKeyFormatException
         Если предоставленный ключ не в формате UUIDv4.
     """
-    idempotency_key = request.headers.get("Idempotency-Key")
-
     if not idempotency_key:
         raise IdempotencyKeyNotPassedException(
             detail="Idempotency key not found in the 'Idempotency-Key' header.",
         )
 
-    invalid_format = InvalidIdempotencyKeyFormatException(
-        detail="Passed idempotency key is not UUIDv4.",
-    )
+    if idempotency_key.version != 4:
+        raise InvalidIdempotencyKeyFormatException(
+            detail="Passed idempotency key is not UUIDv4.",
+        )
 
-    try:
-        parsed_uuid = UUID(idempotency_key)
-    except ValueError:
-        raise invalid_format
-
-    if parsed_uuid.version != 4:
-        raise invalid_format
-
-    return parsed_uuid
+    return idempotency_key
 
 
 IdempotencyKeyDependency = Annotated[UUID, Depends(get_idempotency_key)]
