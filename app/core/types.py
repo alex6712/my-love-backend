@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-type Domain = Literal["application", "auth", "user", "couple", "media"]
+type Domain = Literal["application", "auth", "user", "couple", "media", "note"]
 """Допустимые домены/модули приложения для логирования и маршрутизации."""
 
 type CredentialsType = Literal["password", "token"]

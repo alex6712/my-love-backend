@@ -8,9 +8,9 @@ from app.core.dependencies.services import FilesServiceDependency
 from app.core.dependencies.transport import IdempotencyKeyDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.schemas.dto.file import FileMetadataDTO
-from app.schemas.v1.requests.confirm_upload import ConfirmUploadRequest
-from app.schemas.v1.requests.update_file import UpdateFileRequest
-from app.schemas.v1.requests.upload_file import (
+from app.schemas.v1.requests.files import (
+    ConfirmUploadRequest,
+    UpdateFileRequest,
     UploadFileRequest,
     UploadFilesBatchRequest,
 )
@@ -42,7 +42,6 @@ async def get_files(
         int,
         Query(
             ge=0,
-            le=100,
             description="Смещение от начала списка (количество пропускаемых файлов).",
         ),
     ] = 0,

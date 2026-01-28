@@ -6,9 +6,11 @@ from fastapi import APIRouter, Body, Path, Query, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import AlbumsServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
-from app.schemas.v1.requests.attach_files import AttachFilesRequest
-from app.schemas.v1.requests.create_album import CreateAlbumRequest
-from app.schemas.v1.requests.update_album import UpdateAlbumRequest
+from app.schemas.v1.requests.albums import (
+    AttachFilesRequest,
+    CreateAlbumRequest,
+    UpdateAlbumRequest,
+)
 from app.schemas.v1.responses.albums import AlbumResponse, AlbumsResponse
 from app.schemas.v1.responses.standard import StandardResponse
 

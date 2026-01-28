@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, Path, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import CouplesServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
-from app.schemas.v1.requests.create_couple import CreateCoupleRequest
+from app.schemas.v1.requests.couples import CreateCoupleRequest
 from app.schemas.v1.responses.couple import CoupleRequestsResponse
 from app.schemas.v1.responses.partner import PartnerResponse
 from app.schemas.v1.responses.standard import StandardResponse

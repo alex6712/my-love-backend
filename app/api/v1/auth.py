@@ -15,7 +15,7 @@ from app.core.docs import (
     REGISTER_ERROR_REF,
 )
 from app.core.rate_limiter import LOGIN_LIMIT, REFRESH_LIMIT, REGISTER_LIMIT, limiter
-from app.schemas.v1.requests.register import RegisterRequest
+from app.schemas.v1.requests.auth import RegisterRequest
 from app.schemas.v1.responses.standard import StandardResponse
 from app.schemas.v1.responses.tokens import TokensResponse
 
