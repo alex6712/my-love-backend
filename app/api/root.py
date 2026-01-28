@@ -21,6 +21,11 @@ async def robots_txt(settings: SettingsDependency) -> str:
     Возвращает ответ с типом контента text/plain и текстом
     файла robots.txt.
 
+    Parameters
+    ----------
+    settings : Settings
+        Настройки приложения, полученные через DI.
+
     Returns
     -------
     str
