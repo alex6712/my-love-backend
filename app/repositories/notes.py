@@ -137,9 +137,9 @@ class NotesRepository(RepositoryInterface):
         else:
             query = query.where(NoteModel.created_by == user_id)
 
-        albums = await self.session.scalars(query)
+        notes = await self.session.scalars(query)
 
-        return [NoteDTO.model_validate(album) for album in albums.all()]
+        return [NoteDTO.model_validate(note) for note in notes.all()]
 
     async def update_note_by_id(self, note_id: UUID, title: str, content: str) -> None:
         """Обновление атрибутов заметки в базе данных.
