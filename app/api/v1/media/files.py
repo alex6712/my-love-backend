@@ -175,7 +175,7 @@ async def upload_batch(
         Успешный ответ о генерации presigned-url.
     """
     urls = await files_service.get_upload_presigned_urls(
-        [FileMetadataDTO.model_validate(m) for m in body],
+        [FileMetadataDTO.model_validate(m) for m in body.files_metadata],
         payload["sub"],
         idempotency_key,
     )
