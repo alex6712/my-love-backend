@@ -15,6 +15,7 @@ from app.schemas.v1.responses.standard import StandardResponse
 router = APIRouter(
     prefix="/albums",
     tags=["media-albums"],
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 
 
@@ -24,7 +25,6 @@ router = APIRouter(
     status_code=status.HTTP_200_OK,
     summary="Получение списка всех доступных пользователю медиа альбомов.",
     response_description="Список всех доступных альбомов",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def get_albums(
     albums_service: AlbumsServiceDependency,
@@ -80,7 +80,6 @@ async def get_albums(
     status_code=status.HTTP_201_CREATED,
     summary="Создать новый медиа альбом.",
     response_description="Медиа-альбом создан успешно",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def post_albums(
     body: Annotated[
@@ -126,7 +125,6 @@ async def post_albums(
     status_code=status.HTTP_200_OK,
     summary="Поиск альбомов по переданному тексту.",
     response_description="Список альбомов с похожим названием или описанием",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def search_albums(
     search_query: Annotated[
@@ -187,7 +185,6 @@ async def search_albums(
     status_code=status.HTTP_200_OK,
     summary="Получение подробной информации о медиа-альбоме.",
     response_description="Информация о медиа-альбоме вместе с его элементами",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def get_album(
     album_id: Annotated[UUID, Path(description="UUID запрашиваемого альбома.")],
@@ -231,7 +228,6 @@ async def get_album(
     status_code=status.HTTP_200_OK,
     summary="Изменение атрибутов существующего медиа-альбома.",
     response_description="Данные успешно изменены",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def put_album(
     album_id: Annotated[UUID, Path(description="UUID медиа альбома к изменению.")],
@@ -282,7 +278,6 @@ async def put_album(
     status_code=status.HTTP_200_OK,
     summary="Удаление медиа альбома по его UUID.",
     response_description="Медиа-альбом удалён успешно",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def delete_album(
     album_id: Annotated[UUID, Path(description="UUID медиа альбома к удалению.")],
@@ -320,7 +315,6 @@ async def delete_album(
     status_code=status.HTTP_200_OK,
     summary="Привязка медиа-файлов к альбому.",
     response_description="Медиа-файлы добавлены в альбом",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def attach(
     album_id: Annotated[
@@ -365,7 +359,6 @@ async def attach(
     status_code=status.HTTP_200_OK,
     summary="Отвязка медиа-файлов от альбома.",
     response_description="Медиа-файлы удалены из альбома",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def detach(
     album_id: Annotated[

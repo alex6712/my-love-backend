@@ -24,6 +24,7 @@ from app.schemas.v1.responses.urls import (
 router = APIRouter(
     prefix="/files",
     tags=["media-files"],
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 
 
@@ -33,7 +34,6 @@ router = APIRouter(
     status_code=status.HTTP_200_OK,
     summary="Получение списка всех доступных пользователю медиа файлов.",
     response_description="Список всех доступных файлов",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def get_files(
     files_service: FilesServiceDependency,
@@ -89,7 +89,6 @@ async def get_files(
     status_code=status.HTTP_200_OK,
     summary="Получение Presigned URL для загрузки медиа-файла в приватное хранилище.",
     response_description="URL для прямой загрузки получена успешно",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def upload(
     body: Annotated[
@@ -142,7 +141,6 @@ async def upload(
     status_code=status.HTTP_200_OK,
     summary="Получение Presigned URL для загрузки пакета медиа-файлов в приватное хранилище.",
     response_description="URLs для прямой загрузки получены успешно",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def upload_batch(
     body: Annotated[
@@ -194,7 +192,6 @@ async def upload_batch(
     status_code=status.HTTP_200_OK,
     summary="Подтверждение окончания загрузки файла по Presigned URL.",
     response_description="Завершение загрузки подтверждено",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def upload_confirm(
     body: Annotated[
@@ -236,7 +233,6 @@ async def upload_confirm(
     status_code=status.HTTP_200_OK,
     summary="Получение Presigned URL для получения медиа-файла из приватного хранилища.",
     response_description="URL для скачивания получена успешно",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def download(
     file_id: Annotated[
@@ -284,7 +280,6 @@ async def download(
     status_code=status.HTTP_200_OK,
     summary="Изменение атрибутов существующего медиа-файла.",
     response_description="Данные успешно изменены",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def put_file(
     file_id: Annotated[UUID, Path(description="UUID медиа файла к изменению.")],
@@ -333,7 +328,6 @@ async def put_file(
     status_code=status.HTTP_200_OK,
     summary="Удаление медиа-файла из системы.",
     response_description="Файл удалён успешно",
-    responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def delete_file(
     file_id: Annotated[

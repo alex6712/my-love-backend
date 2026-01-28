@@ -11,6 +11,7 @@ from app.schemas.v1.responses.standard import StandardResponse
 router = APIRouter(
     prefix="/notes",
     tags=["notes"],
+    responses={401: AUTHORIZATION_ERROR_REF},
 )
 
 
@@ -20,7 +21,6 @@ router = APIRouter(
     status_code=status.HTTP_200_OK,
     summary="Получение пользовательских заметок.",
     response_description="Список пользовательских заметок",
-    responses={401: AUTHORIZATION_ERROR_REF},
     include_in_schema=False,
 )
 async def get_notes(
@@ -37,7 +37,6 @@ async def get_notes(
     status_code=status.HTTP_201_CREATED,
     summary="Создание пользовательской заметки.",
     response_description="Заметка создана успешно",
-    responses={401: AUTHORIZATION_ERROR_REF},
     include_in_schema=False,
 )
 async def post_notes(

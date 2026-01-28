@@ -1,6 +1,6 @@
 [project]
 name = "my-love-backend"
-version = "0.2.5"
+version = "0.4.1"
 description = "Романтичное приложение-подарок на 14 февраля от Лёши для Светы."
 readme = "README.md"
 requires-python = ">=3.14"
