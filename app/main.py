@@ -207,25 +207,39 @@ def custom_openapi() -> dict[str, Any]:
             if not (responses := method.get("responses", None)):
                 continue
 
-            if not responses.get("422", None):
+            if not (response := responses.get("422", None)):
                 continue
 
-            schema = ValidationErrorResponse.model_json_schema(
-                ref_template="#/components/schemas/{model}",
-            )
-            _ = schema.pop("$defs")
+            # кастомные (не автоматические) примеры пропускаем
+            if response.get("description", None) != "Validation Error":
+                continue
 
-            responses["422"] = {
-                "description": "Ошибка валидации",
-                "content": {"application/json": {"schema": schema}},
-            }
+            response.update(
+                {
+                    "description": "Ошибка валидации",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ValidationErrorResponse"
+                            }
+                        }
+                    },
+                }
+            )
 
     _ = openapi_schema["components"]["schemas"].pop("HTTPValidationError", None)
     _ = openapi_schema["components"]["schemas"].pop("ValidationError", None)
 
-    openapi_schema["components"]["schemas"]["ErrorDetails"] = (
-        validation_error_definition
+    response_schema = ValidationErrorResponse.model_json_schema(
+        ref_template="#/components/schemas/{model}",
     )
+    _ = response_schema.pop("$defs")
+
+    error_schema = validation_error_definition.copy()  # type: ignore
+    error_schema["title"] = "ErrorDetails"
+
+    openapi_schema["components"]["schemas"]["ValidationErrorResponse"] = response_schema
+    openapi_schema["components"]["schemas"]["ErrorDetails"] = error_schema
 
     my_love_backend.openapi_schema = openapi_schema
     return my_love_backend.openapi_schema
@@ -269,15 +283,22 @@ async def request_validation_error_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
-    """
-    Docstring for request_validation_error_handler
+    """Обрабатывает ошибки валидации данных RequestValidationError.
 
-    :param request: Description
-    :type request: Request
-    :param exc: Description
-    :type exc: RequestValidationError
-    :return: Description
-    :rtype: JSONResponse
+    Возвращает клиенту стандартизированный ответ с ошибкой 422
+    и подробным списком ошибок валидации.
+
+    Parameters
+    ----------
+    request : Request
+        Объект запроса с информацией о входящем HTTP-запросе.
+    exc : RateLimitExceeded
+        Исключение, вызвавшее ошибку 422.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 422, кодом VALIDATION_ERROR.
     """
     return JSONResponse(
         content=ValidationErrorResponse(
