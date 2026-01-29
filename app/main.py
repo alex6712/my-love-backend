@@ -4,8 +4,13 @@ from typing import Any, AsyncGenerator, cast
 
 from botocore.exceptions import ClientError
 from fastapi import FastAPI, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.utils import get_openapi
+from fastapi.openapi.utils import (
+    get_openapi,
+    validation_error_definition,  # type: ignore
+)
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -15,6 +20,7 @@ from app.api.v1 import api_v1_router
 from app.config import get_settings
 from app.core.docs import (
     AUTHORIZATION_ERROR_SCHEMA,
+    IDEMPOTENCY_CONFLICT_ERROR_SCHEMA,
     LOGIN_ERROR_SCHEMA,
     RATE_LIMIT_ERROR_SCHEMA,
     REGISTER_ERROR_SCHEMA,
@@ -30,8 +36,6 @@ from app.core.exceptions.auth import (
 from app.core.exceptions.base import (
     AlreadyExistsException,
     IdempotencyException,
-    IdempotencyKeyNotPassedException,
-    InvalidIdempotencyKeyFormatException,
     NotFoundException,
 )
 from app.core.exceptions.couple import CoupleNotSelfException
@@ -45,6 +49,7 @@ from app.infrastructure.postgresql import async_postgresql_engine
 from app.infrastructure.redis import redis_client
 from app.infrastructure.s3 import get_s3_client
 from app.schemas.v1.responses.standard import StandardResponse
+from app.schemas.v1.responses.validation_error import ValidationErrorResponse
 
 settings = get_settings()
 
@@ -191,10 +196,36 @@ def custom_openapi() -> dict[str, Any]:
 
     openapi_schema["components"]["responses"] = {
         "AuthorizationError": AUTHORIZATION_ERROR_SCHEMA,
+        "IdempotencyConflictError": IDEMPOTENCY_CONFLICT_ERROR_SCHEMA,
         "LoginError": LOGIN_ERROR_SCHEMA,
         "RateLimitError": RATE_LIMIT_ERROR_SCHEMA,
         "RegisterError": REGISTER_ERROR_SCHEMA,
     }
+
+    for path in openapi_schema["paths"].values():
+        for method in path.values():
+            if not (responses := method.get("responses", None)):
+                continue
+
+            if not responses.get("422", None):
+                continue
+
+            schema = ValidationErrorResponse.model_json_schema(
+                ref_template="#/components/schemas/{model}",
+            )
+            _ = schema.pop("$defs")
+
+            responses["422"] = {
+                "description": "Ошибка валидации",
+                "content": {"application/json": {"schema": schema}},
+            }
+
+    _ = openapi_schema["components"]["schemas"].pop("HTTPValidationError", None)
+    _ = openapi_schema["components"]["schemas"].pop("ValidationError", None)
+
+    openapi_schema["components"]["schemas"]["ErrorDetails"] = (
+        validation_error_definition
+    )
 
     my_love_backend.openapi_schema = openapi_schema
     return my_love_backend.openapi_schema
@@ -230,6 +261,30 @@ async def not_found_exception_handler(
             detail="Resource you're looking not exists or you're lack of rights.",
         ).model_dump(mode="json"),
         status_code=status.HTTP_404_NOT_FOUND,
+    )
+
+
+@my_love_backend.exception_handler(RequestValidationError)
+async def request_validation_error_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    """
+    Docstring for request_validation_error_handler
+
+    :param request: Description
+    :type request: Request
+    :param exc: Description
+    :type exc: RequestValidationError
+    :return: Description
+    :rtype: JSONResponse
+    """
+    return JSONResponse(
+        content=ValidationErrorResponse(
+            code=APICode.VALIDATION_ERROR,
+            detail=jsonable_encoder(exc.errors()),
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
     )
 
 
@@ -595,68 +650,6 @@ async def upload_not_completed_exception_handler(
             detail=exc.detail,
         ).model_dump(mode="json"),
         status_code=status.HTTP_404_NOT_FOUND,
-    )
-
-
-@my_love_backend.exception_handler(IdempotencyKeyNotPassedException)
-async def idempotency_key_not_passed_exception_handler(
-    request: Request,
-    exc: IdempotencyKeyNotPassedException,
-) -> JSONResponse:
-    """Обрабатывает исключения IdempotencyKeyNotPassedException.
-
-    Специализированный обработчик для случаев отсутствия ключа идемпотентности
-    в заголовках запроса.
-
-    Parameters
-    ----------
-    request : Request
-        Объект входящего HTTP-запроса (не используется).
-    exc : IdempotencyKeyNotPassedException
-        Экземпляр исключения для предоставления более детального сообщения об ошибке.
-
-    Returns
-    -------
-    JSONResponse
-        Ответ с указанием отсутствия заголовка `Idempotency-Key`.
-    """
-    return JSONResponse(
-        content=StandardResponse(
-            code=APICode.IDEMPOTENCY_KEY_NOT_PASSED,
-            detail=exc.detail,
-        ).model_dump(mode="json"),
-        status_code=status.HTTP_400_BAD_REQUEST,
-    )
-
-
-@my_love_backend.exception_handler(InvalidIdempotencyKeyFormatException)
-async def invalid_idempotency_key_format_exception_handler(
-    request: Request,
-    exc: InvalidIdempotencyKeyFormatException,
-) -> JSONResponse:
-    """Обрабатывает исключения InvalidIdempotencyKeyFormatException.
-
-    Специализированный обработчик для случаев, когда переданный ключ
-    идемпотентности имеет неверный формат.
-
-    Parameters
-    ----------
-    request : Request
-        Объект входящего HTTP-запроса (не используется).
-    exc : InvalidIdempotencyKeyFormatException
-        Экземпляр исключения для предоставления более детального сообщения об ошибке.
-
-    Returns
-    -------
-    JSONResponse
-        Ответ с указанием на неверный формат ключа идемпотентности.
-    """
-    return JSONResponse(
-        content=StandardResponse(
-            code=APICode.INVALID_IDEMPOTENCY_KEY,
-            detail=exc.detail,
-        ).model_dump(mode="json"),
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
     )
 
 

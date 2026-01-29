@@ -13,6 +13,8 @@ class APICode(StrEnum):
         Успех.
     RESOURCE_NOT_FOUND
         Ресурс не найден.
+    VALIDATION_ERROR
+        Неверные данные.
     INCORRECT_USERNAME_PASSWORD
         Неверное имя пользователя или пароль.
     TOKEN_NOT_PASSED
@@ -23,8 +25,6 @@ class APICode(StrEnum):
         Подпись токена просрочена.
     TOKEN_REVOKED
         Токен отозван.
-    IDEMPOTENCY_KEY_NOT_PASSED
-       Ключ идемпотентности не передан.
     INVALID_IDEMPOTENCY_KEY
         Неверный формат ключа идемпотентности.
     IDEMPOTENCY_CONFLICT
@@ -51,6 +51,9 @@ class APICode(StrEnum):
     RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
     """При попытке доступа к несуществующему ресурсу."""
 
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    """При ошибке валидации переданных клиентом данных."""
+
     INCORRECT_USERNAME_PASSWORD = "INCORRECT_USERNAME_PASSWORD"
     """Если по `username` не найден пользователь или `password` и хеш пароля в БД не совпадают."""
 
@@ -72,9 +75,6 @@ class APICode(StrEnum):
 
     TOKEN_REVOKED = "TOKEN_REVOKED"
     """Если переданный клиентом токен был отозван и находится в чёрном списке."""
-
-    IDEMPOTENCY_KEY_NOT_PASSED = "IDEMPOTENCY_KEY_NOT_PASSED"
-    """Ключ идемпотентности не был найден в заголовке `Idempotency-Key`."""
 
     INVALID_IDEMPOTENCY_KEY = "INVALID_IDEMPOTENCY_KEY"
     """Ключ идемпотентности не совпадает с ожидаемый форматом (UUIDv4)."""

@@ -80,47 +80,6 @@ class AlreadyExistsException(BaseApplicationException):
     pass
 
 
-class IdempotencyKeyNotPassedException(BaseApplicationException):
-    """Исключение, вызываемое при отсутствии ключа идемпотентности в заголовках запроса.
-
-    Parameters
-    ----------
-    detail : str | None
-        Детальное сообщение об ошибке для пользователя или логирования.
-    *args : Any
-        Стандартные аргументы исключения.
-
-    Notes
-    -----
-    Возникает в случае, когда клиент отправил запрос на специфический эндпоинт,
-    требующий ключ идемпотентности, однако не предоставил заголовок
-    `Idempotency-Key`.
-    """
-
-    def __init__(self, detail: str | None = None, *args: Any):
-        super().__init__(detail, *args, domain="application")
-
-
-class InvalidIdempotencyKeyFormatException(BaseApplicationException):
-    """Исключение, вызываемое при неверном типе ключа идемпотентности.
-
-    Parameters
-    ----------
-    detail : str | None
-        Детальное сообщение об ошибке для пользователя или логирования.
-    *args : Any
-        Стандартные аргументы исключения.
-
-    Notes
-    -----
-    Возникает в случае, когда клиент отправил запрос на специфический эндпоинт,
-    требующий ключ идемпотентности, однако предоставил ключ неверного формата.
-    """
-
-    def __init__(self, detail: str | None = None, *args: Any):
-        super().__init__(detail, *args, domain="application")
-
-
 class IdempotencyException(BaseApplicationException):
     """Исключение, вызываемое при конфликте обработки ключа идемпотентности.
 

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, Path, Query, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import FilesServiceDependency
 from app.core.dependencies.transport import IdempotencyKeyDependency
-from app.core.docs import AUTHORIZATION_ERROR_REF
+from app.core.docs import AUTHORIZATION_ERROR_REF, IDEMPOTENCY_CONFLICT_ERROR_REF
 from app.schemas.dto.file import FileMetadataDTO
 from app.schemas.v1.requests.files import (
     ConfirmUploadRequest,
@@ -88,6 +88,7 @@ async def get_files(
     status_code=status.HTTP_200_OK,
     summary="Получение Presigned URL для загрузки медиа-файла в приватное хранилище.",
     response_description="URL для прямой загрузки получена успешно",
+    responses={400: IDEMPOTENCY_CONFLICT_ERROR_REF},
 )
 async def upload(
     body: Annotated[
@@ -140,6 +141,7 @@ async def upload(
     status_code=status.HTTP_200_OK,
     summary="Получение Presigned URL для загрузки пакета медиа-файлов в приватное хранилище.",
     response_description="URLs для прямой загрузки получены успешно",
+    responses={400: IDEMPOTENCY_CONFLICT_ERROR_REF},
 )
 async def upload_batch(
     body: Annotated[

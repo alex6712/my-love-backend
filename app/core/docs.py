@@ -3,12 +3,11 @@ from typing import Any
 from app.core.enums import APICode
 
 RATE_LIMIT_ERROR_SCHEMA: dict[str, Any] = {
-    "description": "Достигнут лимит запросов",
-    "schema": {
-        "$ref": "#/components/schemas/StandardResponse",
-    },
     "content": {
         "application/json": {
+            "schema": {
+                "$ref": "#/components/schemas/StandardResponse",
+            },
             "example": {
                 "code": APICode.RATE_LIMIT_EXCEEDED,
                 "detail": "Too many requests. Please slow down.",
@@ -37,21 +36,22 @@ RATE_LIMIT_ERROR_SCHEMA: dict[str, Any] = {
 """OpenAPI пример ошибки превышения количества запросов в минуту."""
 
 RATE_LIMIT_ERROR_REF: dict[str, Any] = {
+    "description": "Достигнут лимит запросов",
     "$ref": "#/components/responses/RateLimitError",
 }
 """Ссылка на схему ошибки превышения количества запросов внутри OAS."""
 
 REGISTER_ERROR_SCHEMA: dict[str, Any] = {
-    "description": "Имя пользователя или пароль не прошли валидацию",
     "content": {
         "application/json": {
             "schema": {
-                "$ref": "#/components/schemas/ValidationError",
+                "$ref": "#/components/schemas/ValidationErrorResponse",
             },
             "examples": {
                 "notValidUsername": {
                     "description": "Имя пользователя имеет недопустимую длину или содержит неразрешённые символы",
                     "value": {
+                        "code": APICode.VALIDATION_ERROR,
                         "detail": [
                             {
                                 "type": "value_error",
@@ -60,12 +60,13 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
                                 "input": "notV@lidUsern'me",
                                 "ctx": {"error": {}},
                             }
-                        ]
+                        ],
                     },
                 },
                 "passwordMinLength": {
                     "description": "Пароль слишком короткий",
                     "value": {
+                        "code": APICode.VALIDATION_ERROR,
                         "detail": [
                             {
                                 "type": "value_error",
@@ -74,12 +75,13 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
                                 "input": "a",
                                 "ctx": {"error": {}},
                             }
-                        ]
+                        ],
                     },
                 },
                 "uppercaseLetters": {
                     "description": "Пароль должен содержать хотя бы одну латинскую букву в верхнем регистре",
                     "value": {
+                        "code": APICode.VALIDATION_ERROR,
                         "detail": [
                             {
                                 "type": "value_error",
@@ -88,12 +90,13 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
                                 "input": "aaaaaaaaaaaa",
                                 "ctx": {"error": {}},
                             }
-                        ]
+                        ],
                     },
                 },
                 "lowercaseLetters": {
                     "description": "Пароль должен содержать хотя бы одну латинскую букву в нижнем регистре",
                     "value": {
+                        "code": APICode.VALIDATION_ERROR,
                         "detail": [
                             {
                                 "type": "value_error",
@@ -102,12 +105,13 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
                                 "input": "AAAAAAAAAAAA",
                                 "ctx": {"error": {}},
                             }
-                        ]
+                        ],
                     },
                 },
                 "oneDigit": {
                     "description": "Пароль должен содержать хотя бы одну цифру",
                     "value": {
+                        "code": APICode.VALIDATION_ERROR,
                         "detail": [
                             {
                                 "type": "value_error",
@@ -116,12 +120,13 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
                                 "input": "AAAAAAaaaaaa",
                                 "ctx": {"error": {}},
                             }
-                        ]
+                        ],
                     },
                 },
                 "oneSpecialSymbol": {
                     "description": "Пароль должен содержать хотя бы один специальный символ",
                     "value": {
+                        "code": APICode.VALIDATION_ERROR,
                         "detail": [
                             {
                                 "type": "value_error",
@@ -130,12 +135,13 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
                                 "input": "Aa1Aa2Aa3Aa4",
                                 "ctx": {"error": {}},
                             }
-                        ]
+                        ],
                     },
                 },
                 "groupError": {
                     "description": "Ошибки одновременно обнаружены и в username, и в пароле",
                     "value": {
+                        "code": APICode.VALIDATION_ERROR,
                         "detail": [
                             {
                                 "type": "value_error",
@@ -151,7 +157,7 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
                                 "input": "not_secure_at_all",
                                 "ctx": {"error": {}},
                             },
-                        ]
+                        ],
                     },
                 },
             },
@@ -160,41 +166,39 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
 }
 """OpenAPI пример ошибки при вводе недопустимых значений значений username и password."""
 
-REGISTER_ERROR_REF: dict[str, Any] = {
+REGISTER_ERROR_REF = {
+    "description": "Имя пользователя или пароль не прошли валидацию",
     "$ref": "#/components/responses/RegisterError",
 }
 """Ссылка на схему ошибки ввода недопустимых значений значений username и password внутри OAS."""
 
 LOGIN_ERROR_SCHEMA: dict[str, Any] = {
-    "description": "Неверное имя пользователя или пароль",
-    "schema": {
-        "$ref": "#/components/schemas/StandardResponse",
-    },
     "content": {
         "application/json": {
+            "schema": {
+                "$ref": "#/components/schemas/StandardResponse",
+            },
             "example": {
-                "value": {
-                    "code": APICode.INCORRECT_USERNAME_PASSWORD,
-                    "detail": "Incorrect username or password.",
-                }
-            }
+                "code": APICode.INCORRECT_USERNAME_PASSWORD,
+                "detail": "Incorrect username or password.",
+            },
         }
     },
 }
 """OpenAPI пример ошибки при входе в систему."""
 
-LOGIN_ERROR_REF: dict[str, Any] = {
+LOGIN_ERROR_REF = {
+    "description": "Неверное имя пользователя или пароль",
     "$ref": "#/components/responses/LoginError",
 }
 """Ссылка на схему ошибки входа в систему внутри OAS."""
 
 AUTHORIZATION_ERROR_SCHEMA: dict[str, Any] = {
-    "description": "Ошибка при проверке JSON Web Token",
-    "schema": {
-        "$ref": "#/components/schemas/StandardResponse",
-    },
     "content": {
         "application/json": {
+            "schema": {
+                "$ref": "#/components/schemas/StandardResponse",
+            },
             "examples": {
                 "tokenNotPassed": {
                     "description": "Токен не передан",
@@ -217,7 +221,14 @@ AUTHORIZATION_ERROR_SCHEMA: dict[str, Any] = {
                         "detail": "Signature of passed token has expired.",
                     },
                 },
-            }
+                "tokenRevoked": {
+                    "description": "Токен доступа был отозван",
+                    "value": {
+                        "code": APICode.TOKEN_REVOKED,
+                        "detail": "Access token has been revoked.",
+                    },
+                },
+            },
         }
     },
     "headers": {
@@ -229,9 +240,29 @@ AUTHORIZATION_ERROR_SCHEMA: dict[str, Any] = {
 }
 """OpenAPI примеры ошибок авторизации пользователя."""
 
-AUTHORIZATION_ERROR_REF: dict[str, Any] = {
+AUTHORIZATION_ERROR_REF = {
+    "description": "Ошибка при проверке JSON Web Token",
     "$ref": "#/components/responses/AuthorizationError",
 }
 """Ссылка на схему ошибки авторизации пользователя внутри OAS."""
 
-# TODO: Idempotency error для /files/upload
+IDEMPOTENCY_CONFLICT_ERROR_SCHEMA: dict[str, Any] = {
+    "content": {
+        "application/json": {
+            "schema": {
+                "$ref": "#/components/schemas/StandardResponse",
+            },
+            "example": {
+                "code": APICode.IDEMPOTENCY_CONFLICT,
+                "detail": "Request already in progress.",
+            },
+        }
+    },
+}
+"""OpenAPI пример конфликта идемпотентности."""
+
+IDEMPOTENCY_CONFLICT_ERROR_REF = {
+    "description": "Конфликт идемпотентности",
+    "$ref": "#/components/responses/IdempotencyConflictError",
+}
+"""Ссылка на схему конфликта идемпотентности внутри OAS."""

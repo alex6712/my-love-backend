@@ -3,13 +3,14 @@ from pydantic import BaseModel, Field
 from app.core.enums import APICode
 
 
-class StandardResponse(BaseModel):
-    """Стандартная модель ответа сервера.
+class BaseResponse(BaseModel):
+    """Базовая модель ответа сервера.
 
-    Используется в качестве базовой модели ответа для любого запроса к этому приложению.
+    Используется в качестве базовой модели ответа для
+    любого запроса к этому приложению.
 
-    Это означает, что любой ответ с сервера будет содержать код ответа ``code``
-    и сообщение с сервера ``detail`` в теле ответа.
+    Это означает, что любой ответ с сервера будет содержать
+    код ответа ``code``в теле ответа.
 
     See Also
     --------
@@ -19,8 +20,6 @@ class StandardResponse(BaseModel):
     ----------
     code : int
         HTTP-код ответа сервера.
-    detail : str
-        Сообщение с сервера.
     """
 
     code: APICode = Field(
@@ -28,6 +27,23 @@ class StandardResponse(BaseModel):
         description="Статус ответа от сервера в виде API Enum",
         examples=[APICode.SUCCESS],
     )
+
+
+class StandardResponse(BaseResponse):
+    """Стандартная модель ответа сервера.
+
+    Используется в качестве стандартной модели ответа с сообщением
+    для любого запроса к этому приложению.
+
+    Это означает, что любой ответ с сервера будет содержать
+    сообщение с сервера ``detail`` в теле ответа.
+
+    Attributes
+    ----------
+    detail : str
+        Сообщение с сервера.
+    """
+
     detail: str = Field(
         default="Success!",
         description="Сообщение о выполненных на сервере действиях",
