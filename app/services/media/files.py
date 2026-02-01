@@ -226,11 +226,11 @@ class FilesService:
             Возникает в том случае, если запрос с переданным ключом идемпотентности
             уже находится в процессе обработки.
         """
-        return (
-            await self.get_upload_presigned_urls(
-                [file_metadata], user_id, idempotency_key
-            )
-        )[0]
+        result = await self.get_upload_presigned_urls(
+            [file_metadata], user_id, idempotency_key
+        )
+
+        return result[0]
 
     async def get_upload_presigned_urls(
         self,

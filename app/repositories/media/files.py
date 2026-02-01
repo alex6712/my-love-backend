@@ -75,7 +75,7 @@ class FilesRepository(RepositoryInterface):
             .returning(FileModel.id)
         )
 
-        return [file_id for file_id in file_ids.all()]
+        return list(file_ids)
 
     async def get_files_by_creator(
         self, offset: int, limit: int, user_id: UUID, partner_id: UUID | None = None
