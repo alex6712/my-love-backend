@@ -105,12 +105,19 @@ class NotesRepository(RepositoryInterface):
         return NoteDTO.model_validate(note) if note else None
 
     async def get_notes_by_creator(
-        self, offset: int, limit: int, user_id: UUID, partner_id: UUID | None = None
+        self,
+        note_type: NoteType | None,
+        offset: int,
+        limit: int,
+        user_id: UUID,
+        partner_id: UUID | None = None,
     ) -> list[NoteDTO]:
         """Возвращает список DTO пользовательских заметок по id их создателя.
 
         Parameters
         ----------
+        note_type : NoteType | None
+            Тип заметок для получения.
         offset : int
             Смещение от начала списка.
         limit : int
@@ -131,6 +138,9 @@ class NotesRepository(RepositoryInterface):
             .order_by(NoteModel.created_at)
             .slice(offset, offset + limit)
         )
+
+        if note_type:
+            query = query.where(NoteModel.type == note_type)
 
         if partner_id:
             query = query.where(NoteModel.created_by.in_([user_id, partner_id]))

@@ -58,7 +58,9 @@ class NotesService:
         """
         self._notes_repo.add_note(type, title, content, created_by)
 
-    async def get_notes(self, offset: int, limit: int, user_id: UUID) -> list[NoteDTO]:
+    async def get_notes(
+        self, note_type: NoteType | None, offset: int, limit: int, user_id: UUID
+    ) -> list[NoteDTO]:
         """Получение всех заметок по UUID создателя.
 
         Получает на вход UUID пользователя, ищет UUID партнёра,
@@ -67,6 +69,8 @@ class NotesService:
 
         Parameters
         ----------
+        note_type : NoteType | None
+            Тип заметок для получения.
         offset : int
             Смещение от начала списка (количество пропускаемых заметок).
         limit : int
@@ -82,7 +86,7 @@ class NotesService:
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 
         return await self._notes_repo.get_notes_by_creator(
-            offset, limit, user_id, partner_id
+            note_type, offset, limit, user_id, partner_id
         )
 
     async def update_note(

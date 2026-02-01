@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body, Path, Query, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import NotesServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
+from app.core.enums import NoteType
 from app.schemas.v1.requests.notes import CreateNoteRequest, UpdateNoteRequest
 from app.schemas.v1.responses.notes import NotesResponse
 from app.schemas.v1.responses.standard import StandardResponse
@@ -27,6 +28,9 @@ router = APIRouter(
 async def get_notes(
     notes_service: NotesServiceDependency,
     payload: StrictAuthenticationDependency,
+    note_type: Annotated[
+        NoteType | None, Query(alias="t", description="Тип заметок для получения.")
+    ] = None,
     offset: Annotated[
         int,
         Query(
@@ -55,6 +59,8 @@ async def get_notes(
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    note_type : NoteType | None
+        Тип заметок для получения.
     offset : int, optional
         Смещение от начала списка (количество пропускаемых заметок).
     limit : int, optional
@@ -66,7 +72,7 @@ async def get_notes(
         Объект ответа, содержащий список доступных пользователю заметок
         в пределах заданной пагинации и общее количество найденных заметок.
     """
-    notes = await notes_service.get_notes(offset, limit, payload["sub"])
+    notes = await notes_service.get_notes(note_type, offset, limit, payload["sub"])
 
     return NotesResponse(notes=notes, detail=f"Found {len(notes)} note entries.")
 
