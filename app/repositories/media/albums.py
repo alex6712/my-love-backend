@@ -112,7 +112,7 @@ class AlbumsRepository(RepositoryInterface):
 
     async def get_albums_by_creator(
         self, offset: int, limit: int, user_id: UUID, partner_id: UUID | None = None
-    ) -> list[AlbumDTO]:
+    ) -> tuple[list[AlbumDTO], int]:
         """Возвращает список DTO медиа альбомов по id их создателя.
 
         Parameters
@@ -128,8 +128,8 @@ class AlbumsRepository(RepositoryInterface):
 
         Returns
         -------
-        list[AlbumDTO]
-            Список DTO альбомов доступных пользователю.
+        tuple[list[AlbumDTO], int]
+            Кортеж из списка DTO альбомов и общего количества.
         """
         query = (
             select(AlbumModel)
@@ -143,9 +143,14 @@ class AlbumsRepository(RepositoryInterface):
         else:
             query = query.where(AlbumModel.created_by == user_id)
 
-        albums = await self.session.scalars(query)
+        count_query = select(func.count()).select_from(query.subquery())
 
-        return [AlbumDTO.model_validate(album) for album in albums.all()]
+        albums, total = await asyncio.gather(
+            self.session.scalars(query),
+            self.session.scalar(count_query),
+        )
+
+        return [AlbumDTO.model_validate(album) for album in albums.all()], total or 0
 
     async def search_albums_by_trigram(
         self,
@@ -154,7 +159,7 @@ class AlbumsRepository(RepositoryInterface):
         limit: int,
         user_id: UUID,
         partner_id: UUID | None = None,
-    ) -> list[AlbumDTO]:
+    ) -> tuple[list[AlbumDTO], int]:
         """Производит поиск альбомов по переданному запросу.
 
         Используется гибридный подход с поиском по полному вхождению (ILIKE)
@@ -178,8 +183,8 @@ class AlbumsRepository(RepositoryInterface):
 
         Returns
         -------
-        list[AlbumDTO]
-            Список найденных альбомов.
+        tuple[list[AlbumDTO], int]
+            Кортеж из списка найденных альбомов и общего количества.
         """
         await self.session.execute(
             text("SELECT set_limit(:threshold)"),
@@ -229,9 +234,14 @@ class AlbumsRepository(RepositoryInterface):
         else:
             query = query.where(AlbumModel.created_by == user_id)
 
-        albums = await self.session.scalars(query)
+        count_query = select(func.count()).select_from(query.subquery())
 
-        return [AlbumDTO.model_validate(album) for album in albums.all()]
+        albums, total = await asyncio.gather(
+            self.session.scalars(query),
+            self.session.scalar(count_query),
+        )
+
+        return [AlbumDTO.model_validate(album) for album in albums.all()], total or 0
 
     async def get_album_with_items_by_id(
         self,

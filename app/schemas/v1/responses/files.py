@@ -14,11 +14,13 @@ class FilesResponse(StandardResponse):
     ----------
     files : list[AlbumDTO]
         Список всех файлов, подходящих под фильтры.
+    total : int
+        Общее количество файлов, доступных пользователю.
     """
 
     files: list[FileDTO] = Field(
         description="Список всех файлов, подходящих под фильтры.",
     )
-    # total_count: int = Field(
-    #     description="Общее количество файлов, доступных пользователю.",
-    # )
+    total: int = Field(
+        description="Общее количество файлов, доступных пользователю.",
+    )

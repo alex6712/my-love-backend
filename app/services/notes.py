@@ -60,7 +60,7 @@ class NotesService:
 
     async def get_notes(
         self, note_type: NoteType | None, offset: int, limit: int, user_id: UUID
-    ) -> list[NoteDTO]:
+    ) -> tuple[list[NoteDTO], int]:
         """Получение всех заметок по UUID создателя.
 
         Получает на вход UUID пользователя, ищет UUID партнёра,
@@ -80,8 +80,8 @@ class NotesService:
 
         Returns
         -------
-        list[NoteDTO]
-            Список заметок, доступных пользователю.
+        tuple[list[NoteDTO], int]
+            Кортеж из списка заметок и общего количества.
         """
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 

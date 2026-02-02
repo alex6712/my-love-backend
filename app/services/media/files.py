@@ -164,7 +164,9 @@ class FilesService:
 
         return created, response
 
-    async def get_files(self, offset: int, limit: int, user_id: UUID) -> list[FileDTO]:
+    async def get_files(
+        self, offset: int, limit: int, user_id: UUID
+    ) -> tuple[list[FileDTO], int]:
         """Получение всех файлов по UUID создателя.
 
         Получает на вход UUID пользователя, ищет UUID партнёра,
@@ -182,8 +184,8 @@ class FilesService:
 
         Returns
         -------
-        list[AlbumDTO]
-            Список файлов, доступных пользователю.
+        tuple[list[FileDTO], int]
+            Кортеж из списка файлов и общего количества.
         """
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 

@@ -77,9 +77,11 @@ async def get_files(
         Объект ответа, содержащий список доступных пользователю медиа файлов
         в пределах заданной пагинации и общее количество найденных файлов.
     """
-    files = await files_service.get_files(offset, limit, payload["sub"])
+    files, total = await files_service.get_files(offset, limit, payload["sub"])
 
-    return FilesResponse(files=files, detail=f"Found {len(files)} file entries.")
+    return FilesResponse(
+        files=files, total=total, detail=f"Found {total} file entries."
+    )
 
 
 @router.post(

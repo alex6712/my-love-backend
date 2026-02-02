@@ -72,9 +72,13 @@ async def get_notes(
         Объект ответа, содержащий список доступных пользователю заметок
         в пределах заданной пагинации и общее количество найденных заметок.
     """
-    notes = await notes_service.get_notes(note_type, offset, limit, payload["sub"])
+    notes, total = await notes_service.get_notes(
+        note_type, offset, limit, payload["sub"]
+    )
 
-    return NotesResponse(notes=notes, detail=f"Found {len(notes)} note entries.")
+    return NotesResponse(
+        notes=notes, total=total, detail=f"Found {total} note entries."
+    )
 
 
 @router.post(

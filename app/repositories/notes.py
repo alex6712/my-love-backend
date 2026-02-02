@@ -1,6 +1,7 @@
 from uuid import UUID
+import asyncio
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -111,7 +112,7 @@ class NotesRepository(RepositoryInterface):
         limit: int,
         user_id: UUID,
         partner_id: UUID | None = None,
-    ) -> list[NoteDTO]:
+    ) -> tuple[list[NoteDTO], int]:
         """Возвращает список DTO пользовательских заметок по id их создателя.
 
         Parameters
@@ -129,8 +130,8 @@ class NotesRepository(RepositoryInterface):
 
         Returns
         -------
-        list[NoteDTO]
-            Список DTO заметок доступных пользователю.
+        tuple[list[NoteDTO], int]
+            Кортеж из списка DTO заметок и общего количества.
         """
         query = (
             select(NoteModel)
@@ -147,9 +148,14 @@ class NotesRepository(RepositoryInterface):
         else:
             query = query.where(NoteModel.created_by == user_id)
 
-        notes = await self.session.scalars(query)
+        count_query = select(func.count()).select_from(query.subquery())
 
-        return [NoteDTO.model_validate(note) for note in notes.all()]
+        notes, total = await asyncio.gather(
+            self.session.scalars(query),
+            self.session.scalar(count_query),
+        )
+
+        return [NoteDTO.model_validate(note) for note in notes.all()], total or 0
 
     async def update_note_by_id(self, note_id: UUID, title: str, content: str) -> None:
         """Обновление атрибутов заметки в базе данных.

@@ -14,8 +14,13 @@ class NotesResponse(StandardResponse):
     ----------
     notes : list[NoteDTO]
         Список всех заметок, подходящих под фильтры.
+    total : int
+        Общее количество заметок, доступных пользователю.
     """
 
     notes: list[NoteDTO] = Field(
         description="Список всех заметок, подходящих под фильтры.",
+    )
+    total: int = Field(
+        description="Общее количество заметок, доступных пользователю.",
     )

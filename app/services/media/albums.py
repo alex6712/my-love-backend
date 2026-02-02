@@ -82,7 +82,7 @@ class AlbumsService:
 
     async def get_albums(
         self, offset: int, limit: int, user_id: UUID
-    ) -> list[AlbumDTO]:
+    ) -> tuple[list[AlbumDTO], int]:
         """Получение всех альбомов по UUID создателя.
 
         Получает на вход UUID пользователя, ищет UUID партнёра,
@@ -100,8 +100,8 @@ class AlbumsService:
 
         Returns
         -------
-        list[AlbumDTO]
-            Список альбомов, доступных пользователю.
+        tuple[list[AlbumDTO], int]
+            Кортеж из списка альбомов и общего количества.
         """
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 
@@ -111,7 +111,7 @@ class AlbumsService:
 
     async def search_albums(
         self, search_query: str, threshold: float, limit: int, user_id: UUID
-    ) -> list[AlbumDTO]:
+    ) -> tuple[list[AlbumDTO], int]:
         """Поиск альбомов по переданному запросу.
 
         Получает на вход поисковой запрос, параметры поиска и UUID пользователя,
@@ -131,8 +131,8 @@ class AlbumsService:
 
         Returns
         -------
-        list[AlbumDTO]
-            Список найденных альбомов.
+        tuple[list[AlbumDTO], int]
+            Кортеж из списка найденных альбомов и общего количества.
         """
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 

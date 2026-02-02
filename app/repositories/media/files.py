@@ -1,6 +1,7 @@
 from uuid import UUID
+import asyncio
 
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -79,7 +80,7 @@ class FilesRepository(RepositoryInterface):
 
     async def get_files_by_creator(
         self, offset: int, limit: int, user_id: UUID, partner_id: UUID | None = None
-    ) -> list[FileDTO]:
+    ) -> tuple[list[FileDTO], int]:
         """Возвращает список DTO медиа файлов по id их создателя.
 
         Parameters
@@ -95,8 +96,8 @@ class FilesRepository(RepositoryInterface):
 
         Returns
         -------
-        list[AlbumDTO]
-            Список DTO файлов доступных пользователю.
+        tuple[list[FileDTO], int]
+            Кортеж из списка DTO файлов и общего количества.
         """
         query = (
             select(FileModel)
@@ -110,9 +111,14 @@ class FilesRepository(RepositoryInterface):
         else:
             query = query.where(FileModel.created_by == user_id)
 
-        files = await self.session.scalars(query)
+        count_query = select(func.count()).select_from(query.subquery())
 
-        return [FileDTO.model_validate(file) for file in files.all()]
+        files, total = await asyncio.gather(
+            self.session.scalars(query),
+            self.session.scalar(count_query),
+        )
+
+        return [FileDTO.model_validate(file) for file in files.all()], total or 0
 
     async def get_files_by_ids(
         self,

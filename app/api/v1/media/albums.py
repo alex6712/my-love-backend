@@ -70,9 +70,11 @@ async def get_albums(
         Объект ответа, содержащий список доступных пользователю медиа альбомов
         в пределах заданной пагинации и общее количество найденных альбомов.
     """
-    albums = await albums_service.get_albums(offset, limit, payload["sub"])
+    albums, total = await albums_service.get_albums(offset, limit, payload["sub"])
 
-    return AlbumsResponse(albums=albums, detail=f"Found {len(albums)} album entries.")
+    return AlbumsResponse(
+        albums=albums, total=total, detail=f"Found {total} album entries."
+    )
 
 
 @router.post(
@@ -173,11 +175,13 @@ async def search_albums(
     AlbumsResponse
         Объект ответа, содержащий список найденных альбомов.
     """
-    albums = await albums_service.search_albums(
+    albums, total = await albums_service.search_albums(
         search_query, threshold, limit, payload["sub"]
     )
 
-    return AlbumsResponse(albums=albums, detail=f"Found {len(albums)} album entries.")
+    return AlbumsResponse(
+        albums=albums, total=total, detail=f"Found {total} album entries."
+    )
 
 
 @router.get(
