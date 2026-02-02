@@ -324,7 +324,7 @@ class AlbumsService:
             album_id, files_uuids
         )
 
-        self._albums_repo.attach_files_to_album(
+        await self._albums_repo.attach_files_to_album(
             album_id, list(received_files_uuids - attached_files_uuids)
         )
 

@@ -1,7 +1,7 @@
 import asyncio
 from uuid import UUID
 
-from sqlalchemy import and_, case, delete, func, or_, select, text, update
+from sqlalchemy import and_, case, delete, func, insert, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -392,7 +392,9 @@ class AlbumsRepository(RepositoryInterface):
 
         return set(result.all())
 
-    def attach_files_to_album(self, album_id: UUID, files_uuids: list[UUID]) -> None:
+    async def attach_files_to_album(
+        self, album_id: UUID, files_uuids: list[UUID]
+    ) -> None:
         """Прикрепляет медиа-файлы к альбому.
 
         Parameters
@@ -402,13 +404,17 @@ class AlbumsRepository(RepositoryInterface):
         files_uuids : list[UUID]
             Список UUID медиа-файлов для прикрепления.
         """
-        new_items = [
-            AlbumItemsModel(album_id=album_id, file_id=file_id)
-            for file_id in files_uuids
-        ]
-
-        if new_items:
-            self.session.add_all(new_items)
+        await self.session.execute(
+            insert(AlbumItemsModel).values(
+                [
+                    {
+                        "album_id": album_id,
+                        "file_id": file_id,
+                    }
+                    for file_id in files_uuids
+                ]
+            )
+        )
 
     async def detach_files_from_album(
         self, album_id: UUID, files_uuids: list[UUID]
