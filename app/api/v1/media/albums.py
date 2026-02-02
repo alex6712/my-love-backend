@@ -35,7 +35,6 @@ async def get_albums(
         int,
         Query(
             ge=0,
-            le=100,
             description="Смещение от начала списка (количество пропускаемых альбомов).",
         ),
     ] = 0,
@@ -192,6 +191,21 @@ async def get_album(
     album_id: Annotated[UUID, Path(description="UUID запрашиваемого альбома.")],
     albums_service: AlbumsServiceDependency,
     payload: StrictAuthenticationDependency,
+    offset: Annotated[
+        int,
+        Query(
+            ge=0,
+            description="Смещение от начала списка (количество пропускаемых элементов).",
+        ),
+    ] = 0,
+    limit: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=100,
+            description="Количество возвращаемых элементов.",
+        ),
+    ] = 20,
 ) -> AlbumResponse:
     """Получение подробной информации о медиа-альбоме.
 
@@ -211,16 +225,21 @@ async def get_album(
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    offset : int, optional
+        Смещение от начала списка (количество пропускаемых элементов).
+    limit : int, optional
+        Количество возвращаемых элементов.
 
     Returns
     -------
     AlbumResponse
         Подробная информация о конкретном медиа-альбоме.
     """
-    album = await albums_service.get_album(album_id, payload["sub"])
+    album = await albums_service.get_album(album_id, offset, limit, payload["sub"])
 
     return AlbumResponse(
-        album=album, detail=f"Found album with {len(album.items)} files."
+        album=album,
+        detail=f"Found album with {album.total} files (showing {len(album.items)}).",
     )
 
 

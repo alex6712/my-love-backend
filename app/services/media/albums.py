@@ -140,7 +140,9 @@ class AlbumsService:
             search_query, threshold, limit, user_id, partner_id
         )
 
-    async def get_album(self, album_id: UUID, user_id: UUID) -> AlbumWithItemsDTO:
+    async def get_album(
+        self, album_id: UUID, offset: int, limit: int, user_id: UUID
+    ) -> AlbumWithItemsDTO:
         """Получение подробной информации об альбоме по его UUID.
 
         Получает на вход UUID медиа-альбома и UUID текущего пользователя,
@@ -151,6 +153,10 @@ class AlbumsService:
         ----------
         album_id : UUID
             UUID медиа-альбома к получению.
+        offset : int
+            Смещение для пагинации.
+        limit : int | None
+            Лимит количества элементов.
         user_id : UUID
             UUID текущего пользователя.
 
@@ -168,7 +174,7 @@ class AlbumsService:
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 
         album = await self._albums_repo.get_album_with_items_by_id(
-            album_id, user_id, partner_id
+            album_id, offset, limit, user_id, partner_id
         )
 
         if album is None:

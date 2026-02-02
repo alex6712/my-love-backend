@@ -1,3 +1,4 @@
+import asyncio
 from uuid import UUID
 
 from sqlalchemy import and_, case, delete, func, or_, select, text, update
@@ -233,7 +234,12 @@ class AlbumsRepository(RepositoryInterface):
         return [AlbumDTO.model_validate(album) for album in albums.all()]
 
     async def get_album_with_items_by_id(
-        self, album_id: UUID, user_id: UUID, partner_id: UUID | None = None
+        self,
+        album_id: UUID,
+        offset: int,
+        limit: int,
+        user_id: UUID,
+        partner_id: UUID | None = None,
     ) -> AlbumWithItemsDTO | None:
         """Возвращает DTO медиа альбома по его id с элементами.
 
@@ -241,6 +247,10 @@ class AlbumsRepository(RepositoryInterface):
         ----------
         album_id : UUID
             UUID альбома.
+        offset : int
+            Смещение для пагинации.
+        limit : int | None
+            Лимит количества элементов.
         user_id : UUID
             UUID текущего пользователя.
         partner_id : UUID | None, optional
@@ -251,23 +261,48 @@ class AlbumsRepository(RepositoryInterface):
         AlbumWithItemsDTO | None
             DTO альбома с файлами или None, если альбом не найден.
         """
-        query = (
+        album_query = (
             select(AlbumModel)
-            .options(
-                selectinload(AlbumModel.creator),
-                selectinload(AlbumModel.items).selectinload(FileModel.creator),
-            )
+            .options(selectinload(AlbumModel.creator))
             .where(AlbumModel.id == album_id)
         )
 
         if partner_id:
-            query = query.where(AlbumModel.created_by.in_([user_id, partner_id]))
+            album_query = album_query.where(
+                AlbumModel.created_by.in_([user_id, partner_id])
+            )
         else:
-            query = query.where(AlbumModel.created_by == user_id)
+            album_query = album_query.where(AlbumModel.created_by == user_id)
 
-        album = await self.session.scalar(query)
+        items_query = (
+            select(FileModel)
+            .join(AlbumItemsModel, AlbumItemsModel.file_id == FileModel.id)
+            .where(AlbumItemsModel.album_id == album_id)
+            .options(selectinload(FileModel.creator))
+            .order_by(AlbumItemsModel.created_at)
+            .slice(offset, offset + limit)
+        )
 
-        return AlbumWithItemsDTO.model_validate(album) if album else None
+        count_query = (
+            select(func.count())
+            .select_from(AlbumItemsModel)
+            .where(AlbumItemsModel.album_id == album_id)
+        )
+
+        album, items, total = await asyncio.gather(
+            self.session.scalar(album_query),
+            self.session.scalars(items_query),
+            self.session.scalar(count_query),
+        )
+
+        if not album:
+            return None
+
+        album_dto = AlbumDTO.model_validate(album)
+
+        return AlbumWithItemsDTO.model_validate(
+            {**album_dto.model_dump(), "items": items.all(), "total": total or 0}
+        )
 
     async def update_album_by_id(
         self,

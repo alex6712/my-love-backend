@@ -39,6 +39,9 @@ class AlbumWithItemsDTO(AlbumDTO):
     ----------
     items : list[FileDTO]
         Все добавленные в альбом медиа-файлы.
+    total : int
+        Общее количество элементов в альбоме.
     """
 
     items: list[FileDTO]
+    total: int
