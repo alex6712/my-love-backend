@@ -140,6 +140,13 @@ async def search_albums(
         float,
         Query(ge=0.0, le=1.0, description="Порог сходства для поиска по триграммам."),
     ] = 0.15,
+    offset: Annotated[
+        int,
+        Query(
+            ge=0,
+            description="Смещение от начала списка (количество пропускаемых альбомов).",
+        ),
+    ] = 0,
     limit: Annotated[
         int,
         Query(
@@ -167,6 +174,8 @@ async def search_albums(
         Получена автоматически из зависимости на строгую аутентификацию.
     threshold : float, optional
         Порог сходства для поиска по триграммам.
+    offset : int, optional
+        Смещение от начала списка (количество пропускаемых альбомов).
     limit : int, optional
         Количество возвращаемых альбомов.
 
@@ -176,7 +185,7 @@ async def search_albums(
         Объект ответа, содержащий список найденных альбомов.
     """
     albums, total = await albums_service.search_albums(
-        search_query, threshold, limit, payload["sub"]
+        search_query, threshold, offset, limit, payload["sub"]
     )
 
     return AlbumsResponse(

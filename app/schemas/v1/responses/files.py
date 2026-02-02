@@ -1,10 +1,10 @@
 from pydantic import Field
 
 from app.schemas.dto.file import FileDTO
-from app.schemas.v1.responses.standard import StandardResponse
+from app.schemas.v1.responses.standard import PaginationResponse
 
 
-class FilesResponse(StandardResponse):
+class FilesResponse(PaginationResponse):
     """Модель ответа сервера с вложенным списком файлов.
 
     Используется в качестве ответа с сервера на запрос о получении
@@ -14,13 +14,8 @@ class FilesResponse(StandardResponse):
     ----------
     files : list[AlbumDTO]
         Список всех файлов, подходящих под фильтры.
-    total : int
-        Общее количество файлов, доступных пользователю.
     """
 
     files: list[FileDTO] = Field(
         description="Список всех файлов, подходящих под фильтры.",
-    )
-    total: int = Field(
-        description="Общее количество файлов, доступных пользователю.",
     )

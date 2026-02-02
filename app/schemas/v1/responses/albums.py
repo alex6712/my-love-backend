@@ -1,7 +1,7 @@
 from pydantic import Field
 
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
-from app.schemas.v1.responses.standard import StandardResponse
+from app.schemas.v1.responses.standard import PaginationResponse, StandardResponse
 
 
 class AlbumResponse(StandardResponse):
@@ -25,7 +25,7 @@ class AlbumResponse(StandardResponse):
     )
 
 
-class AlbumsResponse(StandardResponse):
+class AlbumsResponse(PaginationResponse):
     """Модель ответа сервера с вложенным списком альбомов.
 
     Используется в качестве ответа с сервера на запрос о получении
@@ -35,13 +35,8 @@ class AlbumsResponse(StandardResponse):
     ----------
     albums : list[AlbumDTO]
         Список всех альбомов, подходящих под фильтры.
-    total : int
-        Общее количество альбомов, доступных пользователю.
     """
 
     albums: list[AlbumDTO] = Field(
         description="Список всех альбомов, подходящих под фильтры.",
-    )
-    total: int = Field(
-        description="Общее количество альбомов, доступных пользователю.",
     )

@@ -156,6 +156,7 @@ class AlbumsRepository(RepositoryInterface):
         self,
         search_query: str,
         threshold: float,
+        offset: int,
         limit: int,
         user_id: UUID,
         partner_id: UUID | None = None,
@@ -174,6 +175,8 @@ class AlbumsRepository(RepositoryInterface):
             Поисковый запрос, по которому производится поиск.
         threshold : float
             Порог сходства для поиска по триграммам.
+        offset : int
+            Смещение от начала списка (количество пропускаемых альбомов).
         limit : int
             Максимальное количество, которое необходимо вернуть.
         user_id : UUID
@@ -226,7 +229,7 @@ class AlbumsRepository(RepositoryInterface):
                 ).desc(),
                 AlbumModel.created_at,
             )
-            .limit(limit)
+            .slice(offset, offset + limit)
         )
 
         if partner_id:

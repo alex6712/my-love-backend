@@ -1,10 +1,10 @@
 from pydantic import Field
 
 from app.schemas.dto.note import NoteDTO
-from app.schemas.v1.responses.standard import StandardResponse
+from app.schemas.v1.responses.standard import PaginationResponse
 
 
-class NotesResponse(StandardResponse):
+class NotesResponse(PaginationResponse):
     """Модель ответа сервера с вложенным списком заметок.
 
     Используется в качестве ответа с сервера на запрос о получении
@@ -14,13 +14,8 @@ class NotesResponse(StandardResponse):
     ----------
     notes : list[NoteDTO]
         Список всех заметок, подходящих под фильтры.
-    total : int
-        Общее количество заметок, доступных пользователю.
     """
 
     notes: list[NoteDTO] = Field(
         description="Список всех заметок, подходящих под фильтры.",
-    )
-    total: int = Field(
-        description="Общее количество заметок, доступных пользователю.",
     )

@@ -110,7 +110,12 @@ class AlbumsService:
         )
 
     async def search_albums(
-        self, search_query: str, threshold: float, limit: int, user_id: UUID
+        self,
+        search_query: str,
+        threshold: float,
+        offset: int,
+        limit: int,
+        user_id: UUID,
     ) -> tuple[list[AlbumDTO], int]:
         """Поиск альбомов по переданному запросу.
 
@@ -124,6 +129,8 @@ class AlbumsService:
             Поисковый запрос, по которому производится поиск.
         threshold : float
             Порог сходства для поиска по триграммам.
+        offset : int
+            Смещение от начала списка (количество пропускаемых альбомов).
         limit : int
             Максимальное количество, которое необходимо вернуть.
         user_id : UUID
@@ -137,7 +144,7 @@ class AlbumsService:
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 
         return await self._albums_repo.search_albums_by_trigram(
-            search_query, threshold, limit, user_id, partner_id
+            search_query, threshold, offset, limit, user_id, partner_id
         )
 
     async def get_album(
