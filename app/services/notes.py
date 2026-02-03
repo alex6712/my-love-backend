@@ -90,21 +90,22 @@ class NotesService:
         )
 
     async def update_note(
-        self, note_id: UUID, title: str, content: str, user_id: UUID
+        self, note_id: UUID, title: str | None, content: str | None, user_id: UUID
     ) -> None:
-        """Обновление атрибутов заметки по его UUID.
+        """Частичное обновление атрибутов заметки по его UUID.
 
         Получает идентификатор партнера текущего пользователя и передает данные
         в репозиторий для обновления заметки с учетом прав доступа.
+        Обновляет только те поля, которые переданы (не равны None).
 
         Parameters
         ----------
         note_id : UUID
             UUID заметки к изменению.
-        title : str
-            Новое значение заголовка пользовательской заметки.
-        content : str
-            Новое значение содержимого пользовательской заметки.
+        title : str | None
+            Новый заголовок заметки. Если None — текущее значение не изменяется.
+        content : str | None
+            Новое содержание заметки. Если None — текущее значение не изменяется.
         user_id : UUID
             UUID пользователя, инициирующего изменение заметки.
         """
@@ -116,6 +117,11 @@ class NotesService:
             raise NoteNotFoundException(
                 detail=f"Note with id={note_id} not found, or you're not this note's creator.",
             )
+
+        if title is None:
+            title = note.title
+        if content is None:
+            content = note.content
 
         await self._notes_repo.update_note_by_id(note_id, title, content)
 

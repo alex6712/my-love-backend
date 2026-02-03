@@ -1,5 +1,5 @@
-from uuid import UUID
 import asyncio
+from uuid import UUID
 
 from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,8 @@ class FilesRepository(RepositoryInterface):
         Добавляет в базу данных новые записи о загружаемых медиа-файлах.
     get_files_by_creator(offset, limit, user_id, partner_id)
         Получение списка файлов по создателю.
+    get_file_by_id(file_id, user_id, partner_id)
+        Получает медиа-файл по его UUID.
     get_files_by_ids(files_ids, user_id, partner_id)
         Получает медиа-файлы по списку UUID.
     mark_file_uploaded(file_id)
@@ -79,7 +81,11 @@ class FilesRepository(RepositoryInterface):
         return list(file_ids)
 
     async def get_files_by_creator(
-        self, offset: int, limit: int, user_id: UUID, partner_id: UUID | None = None
+        self,
+        offset: int,
+        limit: int,
+        user_id: UUID,
+        partner_id: UUID | None = None,
     ) -> tuple[list[FileDTO], int]:
         """Возвращает список DTO медиа файлов по id их создателя.
 
@@ -119,6 +125,35 @@ class FilesRepository(RepositoryInterface):
         )
 
         return [FileDTO.model_validate(file) for file in files.all()], total or 0
+
+    async def get_file_by_id(
+        self,
+        file_id: UUID,
+        user_id: UUID,
+        partner_id: UUID | None = None,
+    ) -> FileDTO | None:
+        """Получает медиа-файл по его UUID.
+
+        Возвращает DTO медиа-файла с указанным UUID
+        и создателем (текущей пользователь или его партнёр).
+
+        Parameters
+        ----------
+        file_id : UUID
+            UUID медиа-файла.
+        user_id : UUID | None
+            UUID пользователя, чей файл ищется.
+        partner_id : UUID | None, optional
+            Если указано, ищет также среди файлов партнёра.
+
+        Returns
+        -------
+        FileDTO
+            DTO найденного медиа-файла.
+        """
+        files = await self.get_files_by_ids([file_id], user_id, partner_id)
+
+        return files[0] if len(files) == 1 else None
 
     async def get_files_by_ids(
         self,

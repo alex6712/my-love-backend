@@ -10,7 +10,7 @@ from app.core.docs import AUTHORIZATION_ERROR_REF, IDEMPOTENCY_CONFLICT_ERROR_RE
 from app.schemas.dto.file import FileMetadataDTO
 from app.schemas.v1.requests.files import (
     ConfirmUploadRequest,
-    UpdateFileRequest,
+    PatchFileRequest,
     UploadFileRequest,
     UploadFilesBatchRequest,
 )
@@ -277,33 +277,36 @@ async def download(
     )
 
 
-@router.put(
+@router.patch(
     "/{file_id}",
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
-    summary="Изменение атрибутов существующего медиа-файла.",
+    summary="Частичное изменение атрибутов существующего медиа-файла.",
     response_description="Данные успешно изменены",
 )
-async def put_file(
+async def patch_file(
     file_id: Annotated[UUID, Path(description="UUID медиа файла к изменению.")],
     body: Annotated[
-        UpdateFileRequest,
-        Body(description="Схема предоставления обновлённых атрибутов файла"),
+        PatchFileRequest,
+        Body(description="Схема частичного обновления атрибутов файла"),
     ],
     files_service: FilesServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
-    """Изменение медиа файла по его UUID.
+    """Частичное изменение медиа файла по его UUID.
 
     Проверяет права владения текущего пользователя над файлом с
-    переданным UUID, изменяет его атрибуты при достатке прав.
+    переданным UUID, изменяет только переданные атрибуты при достатке прав.
+    Все поля в теле запроса опциональны — передаются только те атрибуты,
+    которые необходимо изменить.
 
     Parameters
     ----------
     file_id : UUID
         UUID файла к изменению.
-    body : UpdateFileRequest
+    body : PatchFileRequest
         Данные, полученные от клиента в теле запроса.
+        Содержит только те поля, которые нужно обновить.
     files_service : FilesServiceDependency
         Зависимость сервиса работы с файлами.
     payload : Payload

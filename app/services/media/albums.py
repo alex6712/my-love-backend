@@ -195,29 +195,30 @@ class AlbumsService:
     async def update_album(
         self,
         album_id: UUID,
-        title: str,
+        title: str | None,
         description: str | None,
         cover_url: str | None,
-        is_private: bool,
+        is_private: bool | None,
         user_id: UUID,
     ) -> None:
-        """Обновление атрибутов медиа-альбома по его UUID.
+        """Частичное обновление атрибутов медиа-альбома по его UUID.
 
         Получает идентификатор партнера текущего пользователя и передает данные
         в репозиторий для обновления альбома с учетом прав доступа.
+        Обновляет только те поля, которые переданы (не равны None).
 
         Parameters
         ----------
         album_id : UUID
             UUID альбома к изменению.
-        title : str
-            Новый заголовок альбома.
+        title : str | None
+            Новый заголовок альбома. Если None — текущее значение не изменяется.
         description : str | None
-            Новое описание альбома или None для сохранения текущего значения.
+            Новое описание альбома. Если None — текущее значение не изменяется.
         cover_url : str | None
-            Новая ссылка на обложку альбома или None для сброса обложки.
-        is_private : bool
-            Новый статус приватности альбома.
+            Новая ссылка на обложку альбома. Если None — текущее значение не изменяется.
+        is_private : bool | None
+            Новый статус приватности альбома. Если None — текущее значение не изменяется.
         user_id : UUID
             UUID пользователя, инициирующего изменение альбома.
         """
@@ -230,6 +231,15 @@ class AlbumsService:
                 media_type="album",
                 detail=f"Album with id={album_id} not found, or you're not this album's creator.",
             )
+
+        if title is None:
+            title = album.title
+        if description is None:
+            description = album.description
+        if cover_url is None:
+            cover_url = album.cover_url
+        if is_private is None:
+            is_private = album.is_private
 
         await self._albums_repo.update_album_by_id(
             album_id, title, description, cover_url, is_private

@@ -7,7 +7,7 @@ from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import NotesServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.core.enums import NoteType
-from app.schemas.v1.requests.notes import CreateNoteRequest, UpdateNoteRequest
+from app.schemas.v1.requests.notes import CreateNoteRequest, PatchNoteRequest
 from app.schemas.v1.responses.notes import NotesResponse
 from app.schemas.v1.responses.standard import StandardResponse
 
@@ -120,32 +120,35 @@ async def post_notes(
     return StandardResponse(detail="New note created successful.")
 
 
-@router.put(
+@router.patch(
     "/{note_id}",
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
-    summary="Изменение пользовательской заметки.",
+    summary="Частичное изменение пользовательской заметки.",
     response_description="Заметка успешно изменено",
 )
-async def put_notes(
+async def patch_notes(
     note_id: Annotated[UUID, Path(description="UUID изменяемой заметки.")],
     body: Annotated[
-        UpdateNoteRequest, Body(description="Схема получения данных о заметке.")
+        PatchNoteRequest, Body(description="Схема частичного обновления заметки.")
     ],
     notes_service: NotesServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
-    """Изменение пользовательской заметки.
+    """Частичное изменение пользовательской заметки.
 
     Проверяет права владения текущего пользователя над заметкой с
-    переданным UUID, изменяет её атрибуты при достатке прав.
+    переданным UUID, изменяет только переданные атрибуты при достатке прав.
+    Все поля в теле запроса опциональны — передаются только те атрибуты,
+    которые необходимо изменить.
 
     Parameters
     ----------
     note_id : UUID
         UUID заметки к изменению.
-    body : UpdateNoteRequest
-        Схема получения данных о заметке.
+    body : PatchNoteRequest
+        Схема частичного обновления данных о заметке.
+        Содержит только те поля, которые нужно обновить.
     notes_service : NotesService
         Зависимость сервиса работы с пользовательскими заметками.
     payload : Payload

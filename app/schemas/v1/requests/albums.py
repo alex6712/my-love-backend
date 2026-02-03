@@ -44,17 +44,51 @@ class CreateAlbumRequest(BaseModel):
     )
 
 
-class UpdateAlbumRequest(CreateAlbumRequest):
-    """Схема запроса на редактирование медиа-альбома.
+class PatchAlbumRequest(BaseModel):
+    """Схема запроса на частичное редактирование медиа-альбома.
 
-    Используется в качестве представления данных для обновления
-    полей альбома. Наследуется от `CreateAlbumRequest`, т.к. имеет
-    те же поля, но отличается семантически.
+    Используется в качестве представления данных для частичного
+    обновления полей альбома. Все поля опциональны — передаются
+    только те атрибуты, которые необходимо изменить.
 
-    See Also
-    --------
-    app.schemas.v1.requests.albums.CreateAlbumRequest
+    Attributes
+    ----------
+    title : str | None
+        Наименование альбома. Если передано None, текущее
+        значение не изменяется.
+    description : str | None
+        Описание альбома. Если передано None, текущее
+        значение не изменяется.
+    cover_url : str | None
+        URL обложки альбома. Если передано None, текущее
+        значение не изменяется.
+    is_private : bool | None
+        Видимость альбома (True - личный или False - публичный).
+        Если передано None, текущее значение не изменяется.
     """
+
+    title: str | None = Field(
+        default=None,
+        description="Наименование медиа альбома",
+        examples=["Поездка в Париж 2004"],
+    )
+    description: str | None = Field(
+        default=None,
+        description="Описание медиа альбома",
+        examples=["Альбом с романтичными видами Города Любви!"],
+    )
+    cover_url: str | None = Field(
+        default=None,
+        description="Ссылка на обложку медиа альбома",
+        examples=[
+            "https://camo.githubusercontent.com/78a574a2925825ac33911b5a8bad6176bea158260c4581a72129bfa8d2ce87f3/68747470733a2f2f7777772e6963656769662e636f6d2f77702d636f6e74656e742f75706c6f6164732f323032332f30312f6963656769662d3136322e676966"
+        ],
+    )
+    is_private: bool | None = Field(
+        default=None,
+        description="Видимость альбома (True - личный или False - публичный)",
+        examples=[True, False],
+    )
 
 
 class AttachFilesRequest(BaseModel):

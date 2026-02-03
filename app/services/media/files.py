@@ -474,13 +474,18 @@ class FilesService:
         user_id : UUID
             UUID пользователя, инициирующего изменение файла.
         """
-        files = await self._files_repo.get_files_by_ids([file_id], user_id)
+        file = await self._files_repo.get_file_by_id(file_id, user_id)
 
-        if len(files) != 1:
+        if file is None:
             raise MediaNotFoundException(
                 media_type="file",
                 detail=f"File with id={file_id} not found, or you're not this file's creator.",
             )
+
+        if title is None:
+            title = file.title
+        if description is None:
+            description = file.description
 
         await self._files_repo.update_file_by_id(file_id, title, description)
 

@@ -9,7 +9,7 @@ from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.schemas.v1.requests.albums import (
     AttachFilesRequest,
     CreateAlbumRequest,
-    UpdateAlbumRequest,
+    PatchAlbumRequest,
 )
 from app.schemas.v1.responses.albums import AlbumResponse, AlbumsResponse
 from app.schemas.v1.responses.standard import StandardResponse
@@ -256,33 +256,36 @@ async def get_album(
     )
 
 
-@router.put(
+@router.patch(
     "/{album_id}",
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
-    summary="Изменение атрибутов существующего медиа-альбома.",
+    summary="Частичное изменение атрибутов существующего медиа-альбома.",
     response_description="Данные успешно изменены",
 )
-async def put_album(
+async def patch_album(
     album_id: Annotated[UUID, Path(description="UUID медиа альбома к изменению.")],
     body: Annotated[
-        UpdateAlbumRequest,
-        Body(description="Схема предоставления обновлённых атрибутов альбома"),
+        PatchAlbumRequest,
+        Body(description="Схема частичного обновления атрибутов альбома"),
     ],
     albums_service: AlbumsServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
-    """Изменение медиа альбома по его UUID.
+    """Частичное изменение медиа альбома по его UUID.
 
     Проверяет права владения текущего пользователя над альбомом с
-    переданным UUID, изменяет его атрибуты при достатке прав.
+    переданным UUID, изменяет только переданные атрибуты при достатке прав.
+    Все поля в теле запроса опциональны — передаются только те атрибуты,
+    которые необходимо изменить.
 
     Parameters
     ----------
     album_id : UUID
         UUID альбома к изменению.
-    body : UpdateAlbumRequest
+    body : PatchAlbumRequest
         Данные, полученные от клиента в теле запроса.
+        Содержит только те поля, которые нужно обновить.
     albums_service : AlbumsServiceDependency
         Зависимость сервиса работы с альбомами.
     payload : Payload

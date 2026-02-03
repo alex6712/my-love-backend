@@ -46,17 +46,33 @@ class UploadFilesBatchRequest(BaseModel):
     )
 
 
-class UpdateFileRequest(UploadFileRequest):
-    """Схема запроса на редактирование медиа-файла.
+class PatchFileRequest(BaseModel):
+    """Схема запроса на частичное редактирование медиа-файла.
 
-    Используется в качестве представления данных для обновления
-    полей файла. Наследуется от `UploadFileRequest`, т.к. имеет
-    те же поля, но отличается семантически.
+    Используется в качестве представления данных для частичного
+    обновления полей файла. Все поля опциональны — передаются
+    только те атрибуты, которые необходимо изменить.
 
-    See Also
-    --------
-    app.schemas.v1.requests.files.UploadFileRequest
+    Attributes
+    ----------
+    title : str | None
+        Наименование медиа файла. Если передано None, текущее
+        значение не изменяется.
+    description : str | None
+        Описание медиа файла. Если передано None, текущее
+        значение не изменяется.
     """
+
+    title: str | None = Field(
+        default=None,
+        description="Наименование медиа файла",
+        examples=["яскотятами"],
+    )
+    description: str | None = Field(
+        default=None,
+        description="Описание медиа файла",
+        examples=["Файл смерти: кто прочитал, тот..."],
+    )
 
 
 class ConfirmUploadRequest(BaseModel):
