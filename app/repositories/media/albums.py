@@ -190,21 +190,17 @@ class AlbumsRepository(SharedResourceRepository):
 
         ilike_pattern = f"%{search_query}%"
 
+        ilikes = [
+            AlbumModel.title.ilike(ilike_pattern),
+            AlbumModel.description.ilike(ilike_pattern),
+        ]
+
         query = (
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
             .order_by(
                 # полные вхождения в списке идут выше
-                case(
-                    (
-                        or_(
-                            AlbumModel.title.ilike(ilike_pattern),
-                            AlbumModel.description.ilike(ilike_pattern),
-                        ),
-                        1,
-                    ),
-                    else_=0,
-                ).desc(),
+                case((or_(*ilikes), 1.0), else_=0.0).desc(),
                 func.greatest(
                     func.coalesce(func.similarity(AlbumModel.title, search_query), 0.0),
                     func.coalesce(
@@ -220,8 +216,7 @@ class AlbumsRepository(SharedResourceRepository):
         where_clauses.extend(
             [
                 # поиск полного вхождения
-                AlbumModel.title.ilike(ilike_pattern),
-                AlbumModel.description.ilike(ilike_pattern),
+                *ilikes,
                 # поиск по триграммам
                 AlbumModel.title.op("%")(search_query),
                 AlbumModel.description.op("%")(search_query),
