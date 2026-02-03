@@ -213,14 +213,14 @@ class AlbumsRepository(SharedResourceRepository):
         )
 
         where_clauses = [self._build_shared_clause(AlbumModel, user_id, partner_id)]
-        where_clauses.extend(
-            [
+        where_clauses.append(
+            or_(
                 # поиск полного вхождения
                 *ilikes,
                 # поиск по триграммам
                 AlbumModel.title.op("%")(search_query),
                 AlbumModel.description.op("%")(search_query),
-            ]
+            )
         )
 
         query = query.where(*where_clauses)
