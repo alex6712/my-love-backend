@@ -200,7 +200,7 @@ class AlbumsRepository(SharedResourceRepository):
             .options(selectinload(AlbumModel.creator))
             .order_by(
                 # полные вхождения в списке идут выше
-                case((or_(*ilikes), 1), else_=0).desc(),
+                case((or_(*ilikes), 1.0), else_=0.0).desc(),
                 func.greatest(
                     func.coalesce(func.similarity(AlbumModel.title, search_query), 0.0),
                     func.coalesce(
@@ -212,7 +212,7 @@ class AlbumsRepository(SharedResourceRepository):
             .slice(offset, offset + limit)
         )
 
-        where_clause = and_(
+        where_clauses = [
             self._build_shared_clause(AlbumModel, user_id, partner_id),
             or_(
                 # поиск полного вхождения
@@ -221,10 +221,10 @@ class AlbumsRepository(SharedResourceRepository):
                 AlbumModel.title.op("%")(search_query),
                 AlbumModel.description.op("%")(search_query),
             ),
-        )
+        ]
 
-        query = query.where(where_clause)
-        count_query = self._build_count_query(AlbumModel, where_clause)
+        query = query.where(*where_clauses)
+        count_query = self._build_count_query(AlbumModel, *where_clauses)
 
         albums, total = await asyncio.gather(
             self.session.scalars(query),
