@@ -293,7 +293,7 @@ class FilesService:
             )
 
         object_keys = [
-            FilesService._generate_object_key(user_id, idempotency_key)
+            self._generate_object_key(user_id, idempotency_key)
             for _ in range(len(files_metadata))
         ]
 

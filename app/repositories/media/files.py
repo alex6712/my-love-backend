@@ -1,17 +1,17 @@
 import asyncio
 from uuid import UUID
 
-from sqlalchemy import delete, func, insert, select, update
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import FileStatus
 from app.models.file import FileModel
-from app.repositories.interface import RepositoryInterface
+from app.repositories.interface import SharedResourceRepository
 from app.schemas.dto.file import FileDTO, FileMetadataDTO
 
 
-class FilesRepository(RepositoryInterface):
+class FilesRepository(SharedResourceRepository):
     """Репозиторий медиа-файлов.
 
     Реализация паттерна Репозиторий для работы с медиа-файлами.
@@ -112,12 +112,10 @@ class FilesRepository(RepositoryInterface):
             .slice(offset, offset + limit)
         )
 
-        if partner_id:
-            query = query.where(FileModel.created_by.in_([user_id, partner_id]))
-        else:
-            query = query.where(FileModel.created_by == user_id)
+        where_clause = self._build_shared_clause(FileModel, user_id, partner_id)
 
-        count_query = select(func.count()).select_from(query.subquery())
+        query = query.where(where_clause)
+        count_query = self._build_count_query(FileModel, where_clause)
 
         files, total = await asyncio.gather(
             self.session.scalars(query),
@@ -183,19 +181,15 @@ class FilesRepository(RepositoryInterface):
         if not files_ids:
             return []
 
-        query = (
+        files = await self.session.scalars(
             select(FileModel)
             .options(selectinload(FileModel.creator))
-            .where(FileModel.id.in_(files_ids))
+            .where(
+                FileModel.id.in_(files_ids),
+                self._build_shared_clause(FileModel, user_id, partner_id),
+            )
             .order_by(FileModel.created_at)
         )
-
-        if partner_id:
-            query = query.where(FileModel.created_by.in_([user_id, partner_id]))
-        else:
-            query = query.where(FileModel.created_by == user_id)
-
-        files = await self.session.scalars(query)
 
         return [FileDTO.model_validate(file) for file in files.all()]
 

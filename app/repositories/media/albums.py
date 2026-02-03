@@ -8,11 +8,11 @@ from sqlalchemy.orm import selectinload
 from app.models.album import AlbumModel
 from app.models.album_items import AlbumItemsModel
 from app.models.file import FileModel
-from app.repositories.interface import RepositoryInterface
+from app.repositories.interface import SharedResourceRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 
 
-class AlbumsRepository(RepositoryInterface):
+class AlbumsRepository(SharedResourceRepository):
     """Репозиторий медиа-альбомов.
 
     Реализация паттерна Репозиторий для работы с медиа-альбомами.
@@ -95,18 +95,14 @@ class AlbumsRepository(RepositoryInterface):
         AlbumDTO | None
             DTO записи альбома или None, если альбом не найден.
         """
-        query = (
+        album = await self.session.scalar(
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
-            .where(AlbumModel.id == album_id)
+            .where(
+                AlbumModel.id == album_id,
+                self._build_shared_clause(AlbumModel, user_id, partner_id),
+            )
         )
-
-        if partner_id:
-            query = query.where(AlbumModel.created_by.in_([user_id, partner_id]))
-        else:
-            query = query.where(AlbumModel.created_by == user_id)
-
-        album = await self.session.scalar(query)
 
         return AlbumDTO.model_validate(album) if album else None
 
@@ -138,12 +134,10 @@ class AlbumsRepository(RepositoryInterface):
             .slice(offset, offset + limit)
         )
 
-        if partner_id:
-            query = query.where(AlbumModel.created_by.in_([user_id, partner_id]))
-        else:
-            query = query.where(AlbumModel.created_by == user_id)
+        where_clause = self._build_shared_clause(AlbumModel, user_id, partner_id)
 
-        count_query = select(func.count()).select_from(query.subquery())
+        query = query.where(where_clause)
+        count_query = self._build_count_query(AlbumModel, where_clause)
 
         albums, total = await asyncio.gather(
             self.session.scalars(query),
@@ -199,16 +193,6 @@ class AlbumsRepository(RepositoryInterface):
         query = (
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
-            .filter(
-                or_(
-                    # поиск полного вхождения
-                    AlbumModel.title.ilike(ilike_pattern),
-                    AlbumModel.description.ilike(ilike_pattern),
-                    # поиск по триграммам
-                    AlbumModel.title.op("%")(search_query),
-                    AlbumModel.description.op("%")(search_query),
-                )
-            )
             .order_by(
                 # полные вхождения в списке идут выше
                 case(
@@ -232,12 +216,20 @@ class AlbumsRepository(RepositoryInterface):
             .slice(offset, offset + limit)
         )
 
-        if partner_id:
-            query = query.where(AlbumModel.created_by.in_([user_id, partner_id]))
-        else:
-            query = query.where(AlbumModel.created_by == user_id)
+        where_clauses = [self._build_shared_clause(AlbumModel, user_id, partner_id)]
+        where_clauses.extend(
+            [
+                # поиск полного вхождения
+                AlbumModel.title.ilike(ilike_pattern),
+                AlbumModel.description.ilike(ilike_pattern),
+                # поиск по триграммам
+                AlbumModel.title.op("%")(search_query),
+                AlbumModel.description.op("%")(search_query),
+            ]
+        )
 
-        count_query = select(func.count()).select_from(query.subquery())
+        query = query.where(*where_clauses)
+        count_query = self._build_count_query(AlbumModel, *where_clauses)
 
         albums, total = await asyncio.gather(
             self.session.scalars(query),
@@ -277,30 +269,24 @@ class AlbumsRepository(RepositoryInterface):
         album_query = (
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
-            .where(AlbumModel.id == album_id)
+            .where(
+                AlbumModel.id == album_id,
+                self._build_shared_clause(AlbumModel, user_id, partner_id),
+            )
         )
 
-        if partner_id:
-            album_query = album_query.where(
-                AlbumModel.created_by.in_([user_id, partner_id])
-            )
-        else:
-            album_query = album_query.where(AlbumModel.created_by == user_id)
+        where_clause = AlbumItemsModel.album_id == album_id
 
         items_query = (
             select(FileModel)
             .join(AlbumItemsModel, AlbumItemsModel.file_id == FileModel.id)
-            .where(AlbumItemsModel.album_id == album_id)
+            .where(where_clause)
             .options(selectinload(FileModel.creator))
             .order_by(AlbumItemsModel.created_at)
             .slice(offset, offset + limit)
         )
 
-        count_query = (
-            select(func.count())
-            .select_from(AlbumItemsModel)
-            .where(AlbumItemsModel.album_id == album_id)
-        )
+        count_query = self._build_count_query(AlbumItemsModel, where_clause)
 
         album, items, total = await asyncio.gather(
             self.session.scalar(album_query),

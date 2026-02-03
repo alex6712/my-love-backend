@@ -186,7 +186,7 @@ class RedisClient:
         bool
             Текущее состояние ключа идемпотентности.
         """
-        redis_key = RedisClient._idempotency_key(scope, user_id, key)
+        redis_key = self._idempotency_key(scope, user_id, key)
 
         created = await self.client.hsetnx(  # type: ignore
             redis_key,
@@ -222,7 +222,7 @@ class RedisClient:
         IdempotencyKeyDTO
             Текущий статус идемпотентности по ключу.
         """
-        redis_key = RedisClient._idempotency_key(scope, user_id, key)
+        redis_key = self._idempotency_key(scope, user_id, key)
 
         data: dict[str, str] = await self.client.hgetall(redis_key)  # type: ignore
 
@@ -254,7 +254,7 @@ class RedisClient:
         response : str | None
             Текст ответа от сервера.
         """
-        redis_key = RedisClient._idempotency_key(scope, user_id, key)
+        redis_key = self._idempotency_key(scope, user_id, key)
 
         if response is None:
             response = ""

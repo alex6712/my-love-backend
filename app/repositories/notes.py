@@ -1,17 +1,17 @@
-from uuid import UUID
 import asyncio
+from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import NoteType
 from app.models.note import NoteModel
-from app.repositories.interface import RepositoryInterface
+from app.repositories.interface import SharedResourceRepository
 from app.schemas.dto.note import NoteDTO
 
 
-class NotesRepository(RepositoryInterface):
+class NotesRepository(SharedResourceRepository):
     """Репозиторий пользовательских заметок.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
@@ -90,18 +90,14 @@ class NotesRepository(RepositoryInterface):
         NoteDTO | None
             DTO записи заметки или None, если заметка не найден.
         """
-        query = (
+        note = await self.session.scalar(
             select(NoteModel)
             .options(selectinload(NoteModel.creator))
-            .where(NoteModel.id == note_id)
+            .where(
+                NoteModel.id == note_id,
+                self._build_shared_clause(NoteModel, user_id, partner_id),
+            )
         )
-
-        if partner_id:
-            query = query.where(NoteModel.created_by.in_([user_id, partner_id]))
-        else:
-            query = query.where(NoteModel.created_by == user_id)
-
-        note = await self.session.scalar(query)
 
         return NoteDTO.model_validate(note) if note else None
 
@@ -140,15 +136,12 @@ class NotesRepository(RepositoryInterface):
             .slice(offset, offset + limit)
         )
 
+        where_clauses = [self._build_shared_clause(NoteModel, user_id, partner_id)]
         if note_type:
-            query = query.where(NoteModel.type == note_type)
+            where_clauses.append(NoteModel.type == note_type)
 
-        if partner_id:
-            query = query.where(NoteModel.created_by.in_([user_id, partner_id]))
-        else:
-            query = query.where(NoteModel.created_by == user_id)
-
-        count_query = select(func.count()).select_from(query.subquery())
+        query = query.where(*where_clauses)
+        count_query = self._build_count_query(NoteModel, *where_clauses)
 
         notes, total = await asyncio.gather(
             self.session.scalars(query),
