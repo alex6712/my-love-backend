@@ -10,27 +10,26 @@ on:
       - master
 
 jobs:
-  test-my-love-backend:
+  test:
     name: Test My Love Backend
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.13.5'
+          python-version: "3.14"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v7
         with:
-          version: "latest"
+          version: latest
 
       - name: Install dependencies with uv
-        run: |
-          uv sync --all-extras --dev
+        run: uv sync --all-extras --dev
 
       - name: Set up .env file
         run: |
@@ -43,11 +42,10 @@ jobs:
           ./scripts/gen_keys.sh
 
       - name: Run tests
-        run: |
-          uv run pytest app/tests
+        run: uv run pytest ./app/tests
 
-  deploy-my-love-backend:
-    needs: test-my-love-backend
+  deploy:
+    needs: test
     if: github.ref == 'refs/heads/master'
 
     name: Deploy My Love Backend
@@ -55,10 +53,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
@@ -70,7 +68,7 @@ jobs:
       - name: Copy project to server
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ~/my-love-backend"
-  
+
           rsync -az --delete ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/my-love-backend
 
       - name: Deploy with Docker Compose

@@ -1,5 +1,7 @@
+# syntax=docker/dockerfile:1.4
+
 # Stage 1: Билдер для установки зависимостей
-FROM python:3.14-slim AS builder
+FROM python:3.14-slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -14,11 +16,12 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Основной образ
-FROM python:3.14-slim
+FROM python:3.14-slim-bookworm
 
 WORKDIR /app
 
@@ -44,5 +47,8 @@ ENV PYTHONUNBUFFERED=1
 ENV TZ=Europe/Moscow
 
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["fastapi", "run", "app/main.py", "--proxy-headers"]

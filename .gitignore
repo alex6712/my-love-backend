@@ -210,3 +210,12 @@ __marimo__/
 keys/
 *.pem
 *.pem.enc
+
+# Ansible
+ansible/inventory/*.yml
+!ansible/inventory/production.yml.example
+*.retry
+.ansible_vault/
+ansible/.vault_pass
+*.key
+!.j2
