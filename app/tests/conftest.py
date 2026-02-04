@@ -45,7 +45,7 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
 
     async with AsyncClient(
         transport=ASGITransport(app=my_love_backend),
-        base_url=f"http://0.0.0.0:8000/{settings.CURRENT_API_PATH}",
+        base_url="http://0.0.0.0:8000",
     ) as client:
         yield client
 

@@ -11,33 +11,6 @@ api_root_router = APIRouter(
 
 
 @api_root_router.get(
-    "/robots.txt",
-    response_class=PlainTextResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Получение файла robots.txt для ботов.",
-    response_description="Файл robots.txt для API",
-    include_in_schema=False,
-)
-async def robots_txt(settings: SettingsDependency) -> str:
-    """Получение файла robots.txt для ботов.
-
-    Возвращает ответ с типом контента text/plain и текстом
-    файла robots.txt.
-
-    Parameters
-    ----------
-    settings : Settings
-        Настройки приложения, полученные через DI.
-
-    Returns
-    -------
-    str
-        Текст файла robots.txt.
-    """
-    return settings.ROBOTS_CONTENT
-
-
-@api_root_router.get(
     "/health",
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
@@ -93,3 +66,30 @@ async def app_info(settings: SettingsDependency) -> AppInfoResponse:
         admin_name=settings.ADMIN_NAME,
         admin_email=settings.ADMIN_EMAIL,
     )
+
+
+@api_root_router.get(
+    "/robots.txt",
+    response_class=PlainTextResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Получение файла robots.txt для ботов.",
+    response_description="Файл robots.txt для API",
+    include_in_schema=False,
+)
+async def robots_txt(settings: SettingsDependency) -> str:
+    """Получение файла robots.txt для ботов.
+
+    Возвращает ответ с типом контента text/plain и текстом
+    файла robots.txt.
+
+    Parameters
+    ----------
+    settings : Settings
+        Настройки приложения, полученные через DI.
+
+    Returns
+    -------
+    str
+        Текст файла robots.txt.
+    """
+    return settings.ROBOTS_CONTENT
