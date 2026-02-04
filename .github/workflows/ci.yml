@@ -79,8 +79,9 @@ jobs:
 
       - name: Generate inventory file
         run: |
-          touch inventory/production.yml
-          echo '${{ secrets.ANSIBLE_INVENTORY }}' > inventory/production.yml
+          mkdir -p ./inventory
+          touch ./inventory/production.yml
+          echo '${{ secrets.ANSIBLE_INVENTORY }}' > ./inventory/production.yml
 
       - name: Install Ansible
         run: pip install ansible
