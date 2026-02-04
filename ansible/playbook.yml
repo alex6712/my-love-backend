@@ -1,0 +1,44 @@
+---
+- name: System preparation
+  hosts: production
+  become: true
+  tasks:
+    - name: Create deploy user
+      user:
+        name: deploy
+        shell: /bin/bash
+        groups: docker, sudo
+        append: yes
+        create_home: yes
+
+    - name: Allow sudo without password for deploy user
+      lineinfile:
+        path: /etc/sudoers.d/deploy
+        line: "deploy ALL=(ALL) NOPASSWD: ALL"
+        create: yes
+        mode: '0440'
+        validate: 'visudo -cf %s'
+
+- name: Install Docker and configure daemon
+  hosts: production
+  become: true
+  roles:
+    - docker
+
+- name: Install and configure Nginx
+  hosts: production
+  become: true
+  roles:
+    - nginx
+
+- name: Obtain SSL certificates
+  hosts: production
+  become: true
+  roles:
+    - certbot
+
+- name: Deploy application
+  hosts: production
+  become: true
+  roles:
+    - app

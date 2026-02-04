@@ -304,7 +304,7 @@ async def authenticated_client(
     """HTTP-клиент с авторизованным пользователем."""
     async with AsyncClient(
         transport=ASGITransport(app=app_with_mocks),
-        base_url=f"http://0.0.0.0:8000/{settings.CURRENT_API_PATH}",
+        base_url="http://0.0.0.0:8000",
         headers=auth_headers,
     ) as client:
         yield client

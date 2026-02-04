@@ -1,0 +1,54 @@
+---
+- name: Check if certificates already exist
+  stat:
+    path: "{{ ssl_cert_path }}/{{ domain_api }}/fullchain.pem"
+  register: nginx_certbot_conf
+
+- name: Install Certbot
+  apt:
+    name: "{{ certbot_packages }}"
+    state: present
+    update_cache: yes
+
+- name: Ensure Certbot cron job exists
+  cron:
+    name: certbot-renew
+    job: "/usr/bin/certbot renew --quiet"
+    day: "*/7"
+    hour: "3"
+    minute: "0"
+    user: root
+
+- name: Stop Nginx temporarily for certbot
+  service:
+    name: nginx
+    state: stopped
+  when: not nginx_certbot_conf.stat.exists
+
+- name: Obtain SSL certificate for API domain
+  certbot:
+    certname: "{{ domain_api }}"
+    domains: "{{ domain_api }}"
+    email: "{{ admin_email }}"
+    authenticator: webroot
+    webroot_path: /var/www/certbot
+    agree_tos: yes
+    noninteractive: yes
+  when: not nginx_certbot_conf.stat.exists
+
+- name: Obtain SSL certificate for Storage domain
+  certbot:
+    certname: "{{ domain_storage }}"
+    domains: "{{ domain_storage }}"
+    email: "{{ admin_email }}"
+    authenticator: webroot
+    webroot_path: /var/www/certbot
+    agree_tos: yes
+    noninteractive: yes
+  when: not nginx_certbot_conf.stat.exists
+
+- name: Start Nginx
+  service:
+    name: nginx
+    state: started
+  when: not nginx_certbot_conf.stat.exists

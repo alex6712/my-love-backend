@@ -55,33 +55,44 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}
-
       - name: Set up .env file
         run: |
           touch .env
           echo '${{ secrets.ENV_FILE }}' > .env
 
-      - name: Copy project to server
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Create .env file on server
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ~/my-love-backend"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /var/www/my-love-backend"
 
-          rsync -az --delete ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/my-love-backend
+          rsync -az --delete ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/var/www/my-love-backend
 
-      - name: Deploy with Docker Compose
+      - name: Create SSH key file
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << EOF
-            cd ~/my-love-backend
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
 
-            chmod +x ./scripts/gen_keys.sh
-            ./scripts/gen_keys.sh
-            
-            docker compose --env-file .env down --remove-orphans
-            docker compose --env-file .env build --pull
-            docker compose --env-file .env up -d --wait
+      - name: Generate inventory file
+        run: |
+          touch ./inventory/production.yml
+          echo '${{ secrets.ANSIBLE_INVENTORY }}' > ./inventory/production.yml
 
-            docker exec my-love-backend alembic upgrade head
-          EOF
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Install Ansible collections
+        run: ansible-galaxy install -r ansible/requirements.yml
+
+      - name: Run Ansible Playbook
+        run: |
+          cd ansible
+          ansible-playbook playbook.yml --inventory inventory/production.yml --diff
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/deploy_key inventory/production.yml
