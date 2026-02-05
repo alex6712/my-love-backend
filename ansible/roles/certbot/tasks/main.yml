@@ -26,7 +26,7 @@
   when: not nginx_certbot_conf.stat.exists
 
 - name: Obtain SSL certificate for API domain
-  certbot:
+  community.crypto.certbot:
     certname: "{{ domain_api }}"
     domains: "{{ domain_api }}"
     email: "{{ admin_email }}"
@@ -37,7 +37,7 @@
   when: not nginx_certbot_conf.stat.exists
 
 - name: Obtain SSL certificate for Storage domain
-  certbot:
+  community.crypto.certbot:
     certname: "{{ domain_storage }}"
     domains: "{{ domain_storage }}"
     email: "{{ admin_email }}"
