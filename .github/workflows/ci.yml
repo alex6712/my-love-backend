@@ -27,6 +27,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           version: latest
+          enable-cache: true
 
       - name: Install dependencies with uv
         run: uv sync --all-extras --dev
@@ -55,6 +56,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: latest
+          enable-cache: true
+
+      - name: Install Ansible
+        run: uvx ansible
+
+      - name: Install Ansible collections
+        run: ansible-galaxy install -r ansible/requirements.yml
+
       - name: Set up .env file
         run: |
           touch .env
@@ -82,16 +100,10 @@ jobs:
           touch ./ansible/inventory/production.yml
           echo '${{ secrets.ANSIBLE_INVENTORY }}' > ./ansible/inventory/production.yml
 
-      - name: Install Ansible
-        run: pip install ansible
-
-      - name: Install Ansible collections
-        run: ansible-galaxy install -r ansible/requirements.yml
-
       - name: Run Ansible Playbook
         run: |
           cd ansible
-          ansible-playbook playbook.yml --inventory ./ansible/inventory/production.yml --diff
+          ansible-playbook playbook.yml --inventory ./inventory/production.yml --diff
 
       - name: Cleanup
         if: always()
