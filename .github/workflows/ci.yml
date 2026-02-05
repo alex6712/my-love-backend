@@ -70,9 +70,6 @@ jobs:
       - name: Install Ansible
         run: uv add ansible
 
-      - name: Install Ansible collections
-        run: ansible-galaxy install -r ansible/requirements.yml
-
       - name: Set up .env file
         run: |
           touch .env
@@ -99,6 +96,11 @@ jobs:
         run: |
           touch ./ansible/inventory/production.yml
           echo '${{ secrets.ANSIBLE_INVENTORY }}' > ./ansible/inventory/production.yml
+
+      - name: Install Ansible collections
+        run: |
+          cd ansible
+          ansible-galaxy install -r requirements.yml
 
       - name: Run Ansible Playbook
         run: |
