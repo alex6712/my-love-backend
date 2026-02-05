@@ -68,7 +68,7 @@ jobs:
           enable-cache: true
 
       - name: Install Ansible
-        run: uvx ansible
+        run: uv add ansible
 
       - name: Install Ansible collections
         run: ansible-galaxy install -r ansible/requirements.yml
