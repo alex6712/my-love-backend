@@ -416,7 +416,6 @@ class FilesService:
 
         return result[0]
 
-
     async def get_download_presigned_urls(
         self, files_uuids: list[UUID], user_id: UUID
     ) -> list[PresignedURLDTO]:
@@ -447,7 +446,9 @@ class FilesService:
         """
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 
-        files = await self._files_repo.get_files_by_ids(files_uuids, user_id, partner_id)
+        files = await self._files_repo.get_files_by_ids(
+            files_uuids, user_id, partner_id
+        )
 
         if len(files) != len(files_uuids):
             missing = set(files_uuids) - {file.id for file in files}

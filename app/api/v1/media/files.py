@@ -10,10 +10,10 @@ from app.core.docs import AUTHORIZATION_ERROR_REF, IDEMPOTENCY_CONFLICT_ERROR_RE
 from app.schemas.dto.file import FileMetadataDTO
 from app.schemas.v1.requests.files import (
     ConfirmUploadRequest,
+    DownloadFilesBatchRequest,
     PatchFileRequest,
     UploadFileRequest,
     UploadFilesBatchRequest,
-    DownloadFilesBatchRequest,
 )
 from app.schemas.v1.responses.files import FilesResponse
 from app.schemas.v1.responses.standard import StandardResponse
