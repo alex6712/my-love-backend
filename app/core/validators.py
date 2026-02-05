@@ -129,7 +129,7 @@ def validate_username(value: str) -> str:
             "letters (a-z, A-Z), numbers (0-9), underscores (_), and hyphens (-)."
         )
 
-    return value.lower()
+    return value
 
 
 ValidatedPassword = Annotated[str, AfterValidator(validate_password_strength)]

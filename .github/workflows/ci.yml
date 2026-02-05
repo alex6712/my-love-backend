@@ -56,53 +56,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.1
         with:
-          python-version: "3.14"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          version: latest
-          enable-cache: true
-
-      - name: Install Ansible
-        run: uv add ansible
+          ssh-private-key: ${{ secrets.SSH_KEY }}
 
       - name: Set up .env file
         run: |
           touch .env
           echo '${{ secrets.ENV_FILE }}' > .env
 
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}
-
-      - name: Create .env file on server
+      - name: Copy project to server
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /var/www/my-love-backend"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ~/my-love-backend"
 
-          rsync -az --delete ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/var/www/my-love-backend
+          rsync -az --delete ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/my-love-backend
 
-      - name: Create SSH key file
+      - name: Deploy with Docker Compose
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << EOF
+            cd ~/my-love-backend
 
-      - name: Generate inventory file
-        run: |
-          touch ./ansible/inventory/production.yml
-          echo '${{ secrets.ANSIBLE_INVENTORY }}' > ./ansible/inventory/production.yml
+            chmod +x ./scripts/gen_keys.sh
+            ./scripts/gen_keys.sh
 
-      - name: Install Ansible collections
-        run: uv run ansible-galaxy collection install -r ./ansible/requirements.yml
+            docker compose --env-file .env down --remove-orphans
+            docker compose --env-file .env build --pull
+            docker compose --env-file .env up -d --wait
 
-      - name: Run Ansible Playbook
-        run: uv run ansible-playbook ./ansible/playbook.yml --inventory ./ansible/inventory/production.yml --diff
-
-      - name: Cleanup
-        if: always()
-        run: rm -f ~/.ssh/deploy_key ./ansible/inventory/production.yml
+            docker exec my-love-backend alembic upgrade head
+          EOF
