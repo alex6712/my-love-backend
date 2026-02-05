@@ -13,6 +13,7 @@ from app.schemas.v1.requests.files import (
     PatchFileRequest,
     UploadFileRequest,
     UploadFilesBatchRequest,
+    DownloadFilesBatchRequest,
 )
 from app.schemas.v1.responses.files import FilesResponse
 from app.schemas.v1.responses.standard import StandardResponse
@@ -274,6 +275,53 @@ async def download(
     return PresignedURLResponse(
         url=url,
         detail="Presigned URL generated successfully.",
+    )
+
+
+@router.get(
+    "/download/batch",
+    response_model=PresignedURLsBatchResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Получение Presigned URL для получения пакета медиа-файлов из приватного хранилища.",
+    response_description="URLs для скачивания получены успешно",
+)
+async def download_batch(
+    body: Annotated[
+        DownloadFilesBatchRequest,
+        Body(description="Схема получения UUID файлов для скачивания на клиент."),
+    ],
+    files_service: FilesServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> PresignedURLsBatchResponse:
+    """Получение presigned-url для скачивания пакета медиа-файлов в приватное хранилище.
+
+    Предоставляет подписанные ссылки для прямого скачивания нескольких файлов из объектного
+    хранилища на клиент.
+    Необходимы права на выполнение операции скачивания.
+
+    Parameters
+    ----------
+    body : DownloadFilesBatchRequest
+        Данные, полученные от клиента в теле запроса.
+    files_service : FilesService
+        Зависимость сервиса работы с файлами.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    PresignedURLsBatchResponse
+        Успешный ответ о генерации presigned-urls для скачивания.
+    """
+    urls = await files_service.get_download_presigned_urls(
+        body.files_uuids,
+        payload["sub"],
+    )
+
+    return PresignedURLsBatchResponse(
+        urls=urls,
+        detail="Presigned URLs generated successfully.",
     )
 
 

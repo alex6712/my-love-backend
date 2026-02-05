@@ -88,3 +88,23 @@ class ConfirmUploadRequest(BaseModel):
         description="UUID загруженного файла.",
         examples=["ccdc1e34-8772-4537-bdba-5e45c4be5d7c"],
     )
+
+
+class DownloadFilesBatchRequest(BaseModel):
+    """Схема запроса на получение Presigned URLs скачивания пакета файлов.
+
+    Attributes
+    ----------
+    files_uuids : list[UUID]
+        Список UUID медиа-файлов для скачивания.
+    """
+
+    files_uuids: list[UUID] = Field(
+        description="Список UUID медиа-файлов, которые необходимо скачать на клиент.",
+        examples=[
+            [
+                "681cbf12-fe3f-41f4-92f1-c8cb33dfe47e",
+                "f466bb69-bf31-4125-a29a-35166033e4ef",
+            ]
+        ],
+    )

@@ -412,48 +412,86 @@ class FilesService:
             Возникает в случае, если файл находится в статусе загрузки (PENDING),
             загрузка не удалась (FAILED) или файл был удалён (DELETED).
         """
+        result = await self.get_download_presigned_urls([file_id], user_id)
+
+        return result[0]
+
+
+    async def get_download_presigned_urls(
+        self, files_uuids: list[UUID], user_id: UUID
+    ) -> list[PresignedURLDTO]:
+        """Получение presigned-url для скачивания нескольких файлов напрямую из S3.
+
+        Принимает UUID файлов, ищет записи о файлах в базе данных, проверяет права доступа
+        пользователя к файлам и возвращает Presigned URLs.
+
+        Parameters
+        ----------
+        files_uuids : list[UUID]
+            Список метаданных загружаемых файлов.
+        user_id : UUID
+            UUID пользователя, загружающего файлы.
+
+        Returns
+        -------
+        list[PresignedURLDTO]
+            Список сгенерированных presigned URLs.
+
+        Raises
+        ------
+        MediaNotFoundException
+            Файл с переданным UUID не найден или пользователь не имеет прав на его просмотр.
+        UploadNotCompletedException
+            Возникает в случае, если файл находится в статусе загрузки (PENDING),
+            загрузка не удалась (FAILED) или файл был удалён (DELETED).
+        """
         partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
 
-        files = await self._files_repo.get_files_by_ids([file_id], user_id, partner_id)
+        files = await self._files_repo.get_files_by_ids(files_uuids, user_id, partner_id)
 
-        if len(files) != 1:
+        if len(files) != len(files_uuids):
+            missing = set(files_uuids) - {file.id for file in files}
+
             raise MediaNotFoundException(
                 media_type="file",
-                detail=f"File with id={file_id} not found, or you're not this file's creator.",
+                detail=f"Files with id in {missing} not found, or you're not this files' creator.",
             )
 
-        file = files[0]
+        for file in files:
+            match file.status:
+                case FileStatus.PENDING:
+                    raise UploadNotCompletedException(
+                        detail=f"File with id={file.id} is now uploading.",
+                    )
+                case FileStatus.FAILED:
+                    raise UploadNotCompletedException(
+                        detail=f"There were an error while uploading file with id={file.id}. File not accessible.",
+                    )
+                case FileStatus.DELETED:
+                    raise MediaNotFoundException(
+                        media_type="file",
+                        detail=f"File with id={file.id} has been deleted.",
+                    )
+                case FileStatus.UPLOADED:
+                    continue
 
-        match file.status:
-            case FileStatus.PENDING:
-                raise UploadNotCompletedException(
-                    detail=f"File with id={file_id} is now uploading.",
-                )
-            case FileStatus.FAILED:
-                raise UploadNotCompletedException(
-                    detail=f"There were an error while uploading file with id={file_id}. File not accessible.",
-                )
-            case FileStatus.DELETED:
-                raise MediaNotFoundException(
-                    media_type="file",
-                    detail=f"File with id={file_id} has been deleted.",
-                )
-            case FileStatus.UPLOADED:
-                pass
+        tasks = [
+            self._s3_client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": self._settings.MINIO_BUCKET_NAME,
+                    "Key": file.object_key,
+                },
+                ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
+            )
+            for file in files
+        ]
+        urls = await asyncio.gather(*tasks)
 
-        url = await self._s3_client.generate_presigned_url(
-            "get_object",
-            Params={
-                "Bucket": self._settings.MINIO_BUCKET_NAME,
-                "Key": file.object_key,
-            },
-            ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
-        )
-
-        return PresignedURLDTO(
-            file_id=file_id,
-            presigned_url=AnyHttpUrl(url),
-        )
+        return [
+            PresignedURLDTO(file_id=id_, presigned_url=AnyHttpUrl(url))
+            for id_, url in zip(files_uuids, urls, strict=True)
+        ]
 
     async def update_file(
         self, file_id: UUID, title: str | None, description: str | None, user_id: UUID
