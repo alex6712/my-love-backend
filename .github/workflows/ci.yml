@@ -98,14 +98,10 @@ jobs:
           echo '${{ secrets.ANSIBLE_INVENTORY }}' > ./ansible/inventory/production.yml
 
       - name: Install Ansible collections
-        run: |
-          cd ansible
-          ansible-galaxy collection install -r requirements.yml
+        run: uv run ansible-galaxy collection install -r ./ansible/requirements.yml
 
       - name: Run Ansible Playbook
-        run: |
-          cd ansible
-          ansible-playbook playbook.yml --inventory ./inventory/production.yml --diff
+        run: uv run ansible-playbook ./ansible/playbook.yml --inventory ./ansible/inventory/production.yml --diff
 
       - name: Cleanup
         if: always()
