@@ -1,6 +1,6 @@
 from pydantic import Field
 
-from app.schemas.dto.couples import CoupleRequestDTO
+from app.schemas.dto.couple import CoupleRequestDTO
 from app.schemas.v1.responses.standard import StandardResponse
 
 

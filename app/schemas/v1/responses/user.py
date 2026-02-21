@@ -1,6 +1,6 @@
 from pydantic import Field
 
-from app.schemas.dto.users import UserDTO
+from app.schemas.dto.user import UserDTO
 from app.schemas.v1.responses.standard import StandardResponse
 
 

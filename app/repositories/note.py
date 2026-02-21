@@ -11,7 +11,7 @@ from app.repositories.interface import SharedResourceRepository
 from app.schemas.dto.note import NoteDTO
 
 
-class NotesRepository(SharedResourceRepository):
+class NoteRepository(SharedResourceRepository):
     """Репозиторий пользовательских заметок.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).

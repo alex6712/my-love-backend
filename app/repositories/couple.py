@@ -7,11 +7,11 @@ from sqlalchemy.orm import selectinload
 from app.core.enums import CoupleRequestStatus
 from app.models.couple import CoupleRequestModel
 from app.repositories.interface import RepositoryInterface
-from app.schemas.dto.couples import CoupleRequestDTO
-from app.schemas.dto.users import PartnerDTO
+from app.schemas.dto.couple import CoupleRequestDTO
+from app.schemas.dto.user import PartnerDTO
 
 
-class CouplesRepository(RepositoryInterface):
+class CoupleRepository(RepositoryInterface):
     """Репозиторий пар между пользователями.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).

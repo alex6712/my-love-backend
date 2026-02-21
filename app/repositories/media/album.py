@@ -12,7 +12,7 @@ from app.repositories.interface import SharedResourceRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 
 
-class AlbumsRepository(SharedResourceRepository):
+class AlbumRepository(SharedResourceRepository):
     """Репозиторий медиа-альбомов.
 
     Реализация паттерна Репозиторий для работы с медиа-альбомами.

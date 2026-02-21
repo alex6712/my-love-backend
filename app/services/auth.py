@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from jose import ExpiredSignatureError, JWTError
 
+from app.config import Settings
 from app.core.exceptions.auth import (
     IncorrectUsernameOrPasswordException,
     InvalidTokenException,
@@ -12,7 +13,7 @@ from app.core.exceptions.auth import (
 )
 from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.core.security import (
-    create_jwt_pair,
+    create_jwt,
     hash_,
     jwt_decode,
     verify,
@@ -20,8 +21,8 @@ from app.core.security import (
 from app.core.types import Payload, Tokens, TokenType
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
-from app.repositories.users import UsersRepository
-from app.schemas.dto.users import UserWithCredentialsDTO
+from app.repositories.user import UserRepository
+from app.repositories.user_session import UserSessionRepository
 
 
 class AuthService:
@@ -38,6 +39,8 @@ class AuthService:
         Клиент для работы с Redis.
     _user_repo : UserRepository
         Репозиторий для операций с пользователями в БД.
+    _user_session_repo : UserSessionRepository
+        Репозиторий для операций с сессиями пользователей.
 
     Methods
     -------
@@ -57,12 +60,16 @@ class AuthService:
         Генерирует новую пару JWT.
     """
 
-    def __init__(self, unit_of_work: UnitOfWork, redis_client: RedisClient):
+    def __init__(
+        self, unit_of_work: UnitOfWork, redis_client: RedisClient, settings: Settings
+    ):
         super().__init__()
 
         self._redis_client = redis_client
+        self._settings = settings
 
-        self._users_repo = unit_of_work.get_repository(UsersRepository)
+        self._user_repo = unit_of_work.get_repository(UserRepository)
+        self._user_session_repo = unit_of_work.get_repository(UserSessionRepository)
 
     async def register(self, username: str, password: str) -> None:
         """Регистрирует пользователя в системе.
@@ -79,12 +86,12 @@ class AuthService:
         UsernameAlreadyExistsException
            Пользователь с переданным username уже существует.
         """
-        if await self._users_repo.user_exists_by_username(username):
+        if await self._user_repo.user_exists_by_username(username):
             raise UsernameAlreadyExistsException(
                 detail=f"User with username={username} already exists."
             )
 
-        self._users_repo.add_user(username, hash_(password))
+        self._user_repo.add_user(username, hash_(password))
 
     async def login(self, username: str, password: str) -> Tokens:
         """Аутентифицирует пользователя и возвращает JWT.
@@ -112,7 +119,7 @@ class AuthService:
         IncorrectUsernameOrPasswordException
             Не найден пользователь или несовпадение пароля и его хеша в БД.
         """
-        user = await self._users_repo.get_user_by_username(username)
+        user = await self._user_repo.get_user_by_username(username)
 
         credentials_exception = IncorrectUsernameOrPasswordException(
             detail="Incorrect username or password."
@@ -124,7 +131,29 @@ class AuthService:
         if not verify(password, user.password_hash):
             raise credentials_exception
 
-        return await self._get_new_jwt_pair(user)
+        current_time = datetime.now(timezone.utc)
+        expires_at = current_time + timedelta(
+            days=self._settings.REFRESH_TOKEN_LIFETIME_DAYS
+        )
+
+        refresh_token = create_jwt(str(user.id), current_time, exp=expires_at)
+
+        session_id = await self._user_session_repo.add_user_session(
+            user.id, hash_(refresh_token), expires_at, current_time
+        )
+
+        return {
+            "access": create_jwt(
+                # перевод UUID в строку, т.к. этот объект не сериализуется
+                str(user.id),
+                current_time,
+                expires_delta=timedelta(
+                    minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES
+                ),
+                session_id=str(session_id),
+            ),
+            "refresh": refresh_token,
+        }
 
     async def refresh(self, refresh_token: str | None) -> Tokens:
         """Обновляет пару токенов по валидному refresh-токену.
@@ -159,7 +188,7 @@ class AuthService:
 
         payload = self._validate_token(refresh_token, "refresh")
 
-        user = await self._users_repo.get_user_by_id(payload["sub"])
+        user = await self._user_repo.get_user_by_id(payload["sub"])
 
         if user is None:
             raise InvalidTokenException(
@@ -167,18 +196,40 @@ class AuthService:
                 token_type="refresh",
             )
 
-        credentials_exception = InvalidTokenException(
-            detail="The passed refresh token and the hash from the database do not match.",
-            token_type="refresh",
+        user_session = (
+            await self._user_session_repo.get_user_session_by_refresh_token_hash(
+                hash_(refresh_token)
+            )
         )
 
-        if user.refresh_token_hash is None:
-            raise credentials_exception
+        if user_session is None or not user_session.is_active:
+            raise InvalidTokenException(
+                detail="There's no active session which token hash equals passed one's hash.",
+                token_type="refresh",
+            )
 
-        if not verify(refresh_token, user.refresh_token_hash):
-            raise credentials_exception
+        current_time = datetime.now(timezone.utc)
+        expires_at = current_time + timedelta(
+            days=self._settings.REFRESH_TOKEN_LIFETIME_DAYS
+        )
 
-        return await self._get_new_jwt_pair(user)
+        tokens: Tokens = {
+            "access": create_jwt(
+                str(user.id),
+                current_time,
+                expires_delta=timedelta(
+                    minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES
+                ),
+                session_id=str(user_session.id),
+            ),
+            "refresh": create_jwt(str(user.id), current_time, exp=expires_at),
+        }
+
+        await self._user_session_repo.update_user_session_by_id(
+            user_session.id, hash_(tokens["refresh"]), expires_at, current_time
+        )
+
+        return tokens
 
     async def logout(self, access_token: str | None) -> None:
         """Выполняет выход пользователя из системы путем инвалидации JWT.
@@ -201,21 +252,26 @@ class AuthService:
         """
         payload = await self.validate_access_token(access_token)
 
-        exp_timestamp = payload.get("exp")
-
-        if exp_timestamp is None:
+        if not all(payload.get(claim) for claim in ("exp", "session_id")):
             raise InvalidTokenException(
                 detail="The passed token is damaged or poorly signed.",
                 token_type="access",
             )
 
+        exp_timestamp = payload.get("exp")
+
         current_time = datetime.now(timezone.utc).timestamp()
-        ttl = int(exp_timestamp - current_time)
+        ttl = int(exp_timestamp - current_time)  # type: ignore
 
         if ttl > 0:
             await self._redis_client.revoke_token(token=access_token, ttl=ttl)  # type: ignore
 
-        await self._users_repo.update_refresh_token_hash(payload["sub"], None)
+        user_session = await self._user_session_repo.get_user_session_by_id(
+            UUID(payload.get("session_id"))
+        )
+
+        if user_session is not None:
+            await self._user_session_repo.delete_user_session_by_id(user_session.id)
 
     async def validate_access_token(self, access_token: str | None) -> Payload:
         """Проверяет валидность access-токена.
@@ -280,7 +336,7 @@ class AuthService:
         try:
             payload = jwt_decode(token)
 
-            if not all(payload.get(name) for name in ("sub", "iat", "exp", "jti")):
+            if not all(payload.get(claim) for claim in ("sub", "iat", "exp", "jti")):
                 raise damaged
         except ExpiredSignatureError:
             raise TokenSignatureExpiredException(
@@ -290,37 +346,7 @@ class AuthService:
         except JWTError:
             raise damaged
 
-        # перевод обратно из строки в объект UUID (см. _get_new_jwt_pair)
+        # перевод обратно из строки в объект UUID
         payload["sub"] = UUID(payload["sub"])
 
         return payload
-
-    async def _get_new_jwt_pair(self, user: UserWithCredentialsDTO) -> Tokens:
-        """Генерирует новую пару JWT и обновляет данные в БД ("приватный" метод).
-
-        Parameters
-        ----------
-        user : UserDTO
-            Объект пользователя.
-
-        Returns
-        -------
-        Tokens
-            Сгенерированная пара токенов.
-
-        Notes
-        -----
-        Обязательное поле в payload: {"sub": user_id}
-        """
-        tokens = create_jwt_pair(
-            {
-                # перевод UUID в строку, т.к. этот объект не сериализуется
-                "sub": str(user.id),
-            }
-        )
-
-        await self._users_repo.update_refresh_token_hash(
-            user.id, hash_(tokens["refresh"])
-        )
-
-        return tokens

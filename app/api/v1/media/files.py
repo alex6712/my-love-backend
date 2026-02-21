@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Path, Query, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
-from app.core.dependencies.services import FilesServiceDependency
+from app.core.dependencies.services import FileServiceDependency
 from app.core.dependencies.transport import IdempotencyKeyDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF, IDEMPOTENCY_CONFLICT_ERROR_REF
 from app.schemas.dto.file import FileMetadataDTO
@@ -37,7 +37,7 @@ router = APIRouter(
     response_description="Список всех доступных файлов",
 )
 async def get_files(
-    files_service: FilesServiceDependency,
+    file_service: FileServiceDependency,
     payload: StrictAuthenticationDependency,
     offset: Annotated[
         int,
@@ -62,7 +62,7 @@ async def get_files(
 
     Parameters
     ----------
-    files_service : AlbumsService
+    file_service : AlbumService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -78,7 +78,7 @@ async def get_files(
         Объект ответа, содержащий список доступных пользователю медиа файлов
         в пределах заданной пагинации и общее количество найденных файлов.
     """
-    files, total = await files_service.get_files(offset, limit, payload["sub"])
+    files, total = await file_service.get_files(offset, limit, payload["sub"])
 
     return FilesResponse(
         files=files, total=total, detail=f"Found {total} file entries."
@@ -98,7 +98,7 @@ async def upload(
         UploadFileRequest,
         Body(description="Схема получения метаданных загружаемого медиа-файла."),
     ],
-    files_service: FilesServiceDependency,
+    file_service: FileServiceDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLResponse:
@@ -113,7 +113,7 @@ async def upload(
     ----------
     body : UploadFileRequest
         Данные, полученные от клиента в теле запроса.
-    files_service : FilesService
+    file_service : FileService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -126,7 +126,7 @@ async def upload(
     PresignedURLResponse
         Успешный ответ о генерации presigned-url.
     """
-    url = await files_service.get_upload_presigned_url(
+    url = await file_service.get_upload_presigned_url(
         FileMetadataDTO.model_validate(body),
         payload["sub"],
         idempotency_key,
@@ -151,7 +151,7 @@ async def upload_batch(
         UploadFilesBatchRequest,
         Body(description="Схема получения метаданных загружаемых медиа-файлов."),
     ],
-    files_service: FilesServiceDependency,
+    file_service: FileServiceDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLsBatchResponse:
@@ -166,7 +166,7 @@ async def upload_batch(
     ----------
     body : UploadFilesBatchRequest
         Данные, полученные от клиента в теле запроса.
-    files_service : FilesService
+    file_service : FileService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -179,7 +179,7 @@ async def upload_batch(
     PresignedURLsBatchResponse
         Успешный ответ о генерации presigned-url.
     """
-    urls = await files_service.get_upload_presigned_urls(
+    urls = await file_service.get_upload_presigned_urls(
         [FileMetadataDTO.model_validate(m) for m in body.files_metadata],
         payload["sub"],
         idempotency_key,
@@ -202,7 +202,7 @@ async def upload_confirm(
         ConfirmUploadRequest,
         Body(description="Схема получения UUID медиа-файла для подтверждения загрузки"),
     ],
-    files_service: FilesServiceDependency,
+    file_service: FileServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Подтверждение окончания загрузки файла по Presigned URL.
@@ -215,7 +215,7 @@ async def upload_confirm(
     ----------
     body : ConfirmUploadRequest
         Данные, полученные от клиента в теле запроса.
-    files_service : FilesService
+    file_service : FileService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -226,7 +226,7 @@ async def upload_confirm(
     StandardResponse
         Успешный ответ о регистрации загруженного файла.
     """
-    await files_service.confirm_upload(body.file_id, payload["sub"])
+    await file_service.confirm_upload(body.file_id, payload["sub"])
 
     return StandardResponse(detail="Upload confirmation is successful.")
 
@@ -243,7 +243,7 @@ async def download(
         UUID,
         Path(description="UUID файла для скачивания на клиент."),
     ],
-    files_service: FilesServiceDependency,
+    file_service: FileServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> PresignedURLResponse:
     """Получение presigned-url для скачивания медиа-файла из приватного хранилища.
@@ -256,7 +256,7 @@ async def download(
     ----------
     file_id : UUID
         UUID файла для скачивания на клиент.
-    files_service : FilesService
+    file_service : FileService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -267,7 +267,7 @@ async def download(
     PresignedURLResponse
         Успешный ответ о генерации presigned-url для скачивания.
     """
-    url = await files_service.get_download_presigned_url(
+    url = await file_service.get_download_presigned_url(
         file_id,
         payload["sub"],
     )
@@ -290,7 +290,7 @@ async def download_batch(
         DownloadFilesBatchRequest,
         Body(description="Схема получения UUID файлов для скачивания на клиент."),
     ],
-    files_service: FilesServiceDependency,
+    file_service: FileServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> PresignedURLsBatchResponse:
     """Получение presigned-url для скачивания пакета медиа-файлов в приватное хранилище.
@@ -303,7 +303,7 @@ async def download_batch(
     ----------
     body : DownloadFilesBatchRequest
         Данные, полученные от клиента в теле запроса.
-    files_service : FilesService
+    file_service : FileService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -314,7 +314,7 @@ async def download_batch(
     PresignedURLsBatchResponse
         Успешный ответ о генерации presigned-urls для скачивания.
     """
-    urls = await files_service.get_download_presigned_urls(
+    urls = await file_service.get_download_presigned_urls(
         body.files_uuids,
         payload["sub"],
     )
@@ -338,7 +338,7 @@ async def patch_file(
         PatchFileRequest,
         Body(description="Схема частичного обновления атрибутов файла"),
     ],
-    files_service: FilesServiceDependency,
+    file_service: FileServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Частичное изменение медиа файла по его UUID.
@@ -355,7 +355,7 @@ async def patch_file(
     body : PatchFileRequest
         Данные, полученные от клиента в теле запроса.
         Содержит только те поля, которые нужно обновить.
-    files_service : FilesServiceDependency
+    file_service : FileServiceDependency
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -366,7 +366,7 @@ async def patch_file(
     StandardResponse
         Ответ о результате изменения медиа файла.
     """
-    await files_service.update_file(
+    await file_service.update_file(
         file_id,
         body.title,
         body.description,
@@ -388,7 +388,7 @@ async def delete_file(
         UUID,
         Path(description="UUID файла для удаления."),
     ],
-    files_service: FilesServiceDependency,
+    file_service: FileServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Удаление медиа-файла по его UUID.
@@ -400,7 +400,7 @@ async def delete_file(
     ----------
     file_id : UUID
         UUID файла для удаления.
-    files_service : FilesService
+    file_service : FileService
         Зависимость сервиса работы с файлами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -411,6 +411,6 @@ async def delete_file(
     StandardResponse
         Успешный ответ об удалении медиа-файла.
     """
-    await files_service.delete_file(file_id, payload["sub"])
+    await file_service.delete_file(file_id, payload["sub"])
 
     return StandardResponse(detail="File deleted successfully.")

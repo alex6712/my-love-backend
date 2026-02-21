@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Path, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
-from app.core.dependencies.services import CouplesServiceDependency
+from app.core.dependencies.services import CoupleServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.schemas.v1.requests.couples import CreateCoupleRequest
 from app.schemas.v1.responses.couple import CoupleRequestsResponse
@@ -26,7 +26,7 @@ router = APIRouter(
     response_description="Информация о партнёре текущего пользователя",
 )
 async def get_partner(
-    couples_service: CouplesServiceDependency,
+    couple_service: CoupleServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> PartnerResponse:
     """Запрос на получение информации о партнёре пользователя.
@@ -36,9 +36,9 @@ async def get_partner(
 
     Parameters
     ----------
-    couples_service : CouplesServiceDependency
+    couple_service : CoupleService
         Зависимость сервиса пар пользователей.
-    payload : StrictAuthenticationDependency
+    payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
 
@@ -47,7 +47,7 @@ async def get_partner(
     PartnerResponse
         Ответ с вложенным DTO партнёра.
     """
-    partner = await couples_service.get_partner(payload["sub"])
+    partner = await couple_service.get_partner(payload["sub"])
 
     return PartnerResponse(
         partner=partner,
@@ -69,7 +69,7 @@ async def create_couple_request(
         CreateCoupleRequest,
         Body(description="Схема запроса на создание приглашения в пару."),
     ],
-    couples_service: CouplesServiceDependency,
+    couple_service: CoupleServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Запрос на регистрацию новой пары между пользователями.
@@ -81,9 +81,9 @@ async def create_couple_request(
     ----------
     body : CreateCoupleRequest
         Данные, полученные от клиента в теле запроса.
-    couples_service : CouplesServiceDependency
+    couple_service : CoupleService
         Зависимость сервиса пар пользователей.
-    payload : StrictAuthenticationDependency
+    payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
 
@@ -92,7 +92,7 @@ async def create_couple_request(
     StandardResponse
         Ответ, подтверждающий успешную регистрацию приглашения в пару.
     """
-    await couples_service.create_couple_request(payload["sub"], body.partner_username)
+    await couple_service.create_couple_request(payload["sub"], body.partner_username)
 
     return StandardResponse(detail="Couple request created successfully.")
 
@@ -108,7 +108,7 @@ async def accept_couple_request(
     couple_id: Annotated[
         UUID, Path(description="UUID принимаемого приглашения в пару.")
     ],
-    couples_service: CouplesServiceDependency,
+    couple_service: CoupleServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Подтверждение регистрации новой пары между пользователями.
@@ -120,9 +120,9 @@ async def accept_couple_request(
     ----------
     couple_id : UUID
         UUID запроса на создание пары.
-    couples_service : CouplesServiceDependency
+    couple_service : CoupleService
         Зависимость сервиса пар пользователей.
-    payload : StrictAuthenticationDependency
+    payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
 
@@ -131,7 +131,7 @@ async def accept_couple_request(
     StandardResponse
         Отчёт об успешном создании новой пары.
     """
-    await couples_service.accept_couple_request(couple_id, payload["sub"])
+    await couple_service.accept_couple_request(couple_id, payload["sub"])
 
     return StandardResponse(detail="Couple register successfully.")
 
@@ -147,7 +147,7 @@ async def decline_couple_request(
     couple_id: Annotated[
         UUID, Path(description="UUID отклоняемого приглашения в пару.")
     ],
-    couples_service: CouplesServiceDependency,
+    couple_service: CoupleServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Отклонение регистрации новой пары между пользователями.
@@ -159,9 +159,9 @@ async def decline_couple_request(
     ----------
     couple_id : UUID
         UUID запроса на создание пары.
-    couples_service : CouplesServiceDependency
+    couple_service : CoupleService
         Зависимость сервиса пар пользователей.
-    payload : StrictAuthenticationDependency
+    payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
 
@@ -170,7 +170,7 @@ async def decline_couple_request(
     StandardResponse
         Отчёт об успешном отклонении запроса.
     """
-    await couples_service.decline_couple_request(couple_id, payload["sub"])
+    await couple_service.decline_couple_request(couple_id, payload["sub"])
 
     return StandardResponse(detail="Couple register declined.")
 
@@ -183,7 +183,7 @@ async def decline_couple_request(
     response_description="Список текущих приглашений в пару",
 )
 async def get_couple_requests(
-    couples_service: CouplesServiceDependency,
+    couple_service: CoupleServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> CoupleRequestsResponse:
     """Получение списка текущих приглашений.
@@ -194,9 +194,9 @@ async def get_couple_requests(
 
     Parameters
     ----------
-    couples_service : CouplesServiceDependency
+    couple_service : CoupleService
         Зависимость сервиса пар пользователей.
-    payload : StrictAuthenticationDependency
+    payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
 
@@ -205,7 +205,7 @@ async def get_couple_requests(
     CoupleRequestsResponse
         Список всех запросов на создание пары текущего пользователя.
     """
-    requests = await couples_service.get_couple_requests(payload["sub"])
+    requests = await couple_service.get_couple_requests(payload["sub"])
 
     detail = "Couple requests not found."
     if len(requests) > 0:

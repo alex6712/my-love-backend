@@ -1,11 +1,11 @@
 from uuid import UUID
 
 from app.infrastructure.postgresql import UnitOfWork
-from app.repositories.users import UsersRepository
-from app.schemas.dto.users import UserDTO
+from app.repositories.user import UserRepository
+from app.schemas.dto.user import UserDTO
 
 
-class UsersService:
+class UserService:
     """Сервис работы с пользователями.
 
     Реализует бизнес-логику для менеджмента пользователей
@@ -25,7 +25,7 @@ class UsersService:
     def __init__(self, unit_of_work: UnitOfWork):
         super().__init__()
 
-        self._user_repo = unit_of_work.get_repository(UsersRepository)
+        self._user_repo = unit_of_work.get_repository(UserRepository)
 
     async def get_me(self, user_id: UUID) -> UserDTO:
         """Получение информации о пользователе.

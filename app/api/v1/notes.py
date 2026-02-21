@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Path, Query, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
-from app.core.dependencies.services import NotesServiceDependency
+from app.core.dependencies.services import NoteServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.core.enums import NoteType
 from app.schemas.v1.requests.notes import CreateNoteRequest, PatchNoteRequest
@@ -26,7 +26,7 @@ router = APIRouter(
     response_description="Список пользовательских заметок",
 )
 async def get_notes(
-    notes_service: NotesServiceDependency,
+    note_service: NoteServiceDependency,
     payload: StrictAuthenticationDependency,
     note_type: Annotated[
         NoteType | None, Query(alias="t", description="Тип заметок для получения.")
@@ -54,7 +54,7 @@ async def get_notes(
 
     Parameters
     ----------
-    notes_service : NotesService
+    note_service : NoteService
         Зависимость сервиса работы с пользовательскими заметками.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -72,7 +72,7 @@ async def get_notes(
         Объект ответа, содержащий список доступных пользователю заметок
         в пределах заданной пагинации и общее количество найденных заметок.
     """
-    notes, total = await notes_service.get_notes(
+    notes, total = await note_service.get_notes(
         note_type, offset, limit, payload["sub"]
     )
 
@@ -92,7 +92,7 @@ async def post_notes(
     body: Annotated[
         CreateNoteRequest, Body(description="Схема получения данных о заметке.")
     ],
-    notes_service: NotesServiceDependency,
+    note_service: NoteServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Создание пользовательской заметки.
@@ -104,7 +104,7 @@ async def post_notes(
     ----------
     body : CreateNoteRequest
         Схема получения данных о заметке.
-    notes_service : NotesService
+    note_service : NoteService
         Зависимость сервиса работы с пользовательскими заметками.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -115,7 +115,7 @@ async def post_notes(
     StandardResponse
         Успешный ответ о создании новой заметки.
     """
-    notes_service.create_note(body.type, body.title, body.content, payload["sub"])
+    note_service.create_note(body.type, body.title, body.content, payload["sub"])
 
     return StandardResponse(detail="New note created successful.")
 
@@ -132,7 +132,7 @@ async def patch_notes(
     body: Annotated[
         PatchNoteRequest, Body(description="Схема частичного обновления заметки.")
     ],
-    notes_service: NotesServiceDependency,
+    note_service: NoteServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Частичное изменение пользовательской заметки.
@@ -149,7 +149,7 @@ async def patch_notes(
     body : PatchNoteRequest
         Схема частичного обновления данных о заметке.
         Содержит только те поля, которые нужно обновить.
-    notes_service : NotesService
+    note_service : NoteService
         Зависимость сервиса работы с пользовательскими заметками.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -160,7 +160,7 @@ async def patch_notes(
     StandardResponse
         Успешный ответ о результате изменения заметки.
     """
-    await notes_service.update_note(note_id, body.title, body.content, payload["sub"])
+    await note_service.update_note(note_id, body.title, body.content, payload["sub"])
 
     return StandardResponse(detail="Note content updated successful.")
 
@@ -174,7 +174,7 @@ async def patch_notes(
 )
 async def delete_notes(
     note_id: Annotated[UUID, Path(description="UUID изменяемой заметки.")],
-    notes_service: NotesServiceDependency,
+    note_service: NoteServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Удаление пользовательской заметки.
@@ -186,7 +186,7 @@ async def delete_notes(
     ----------
     note_id : UUID
         UUID заметки к удалению.
-    notes_service : NotesService
+    note_service : NoteService
         Зависимость сервиса работы с пользовательскими заметками.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -197,6 +197,6 @@ async def delete_notes(
     StandardResponse
         Успешный ответ об удалении заметки.
     """
-    await notes_service.delete_note(note_id, payload["sub"])
+    await note_service.delete_note(note_id, payload["sub"])
 
     return StandardResponse(detail="Note deleted successful.")

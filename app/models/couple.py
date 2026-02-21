@@ -24,12 +24,14 @@ class CoupleRequestModel(BaseModel):
     initiator_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
         primary_key=True,
         comment="UUID пользователя-инициатора",
     )
     recipient_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
         primary_key=True,
         comment="UUID пользователя-реципиента",
     )

@@ -2,12 +2,12 @@ from uuid import UUID
 
 from app.core.exceptions.media import MediaNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
-from app.repositories.couples import CouplesRepository
-from app.repositories.media import AlbumsRepository, FilesRepository
+from app.repositories.couple import CoupleRepository
+from app.repositories.media import AlbumRepository, FileRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
 
 
-class AlbumsService:
+class AlbumService:
     """Сервис работы с медиа-альбомами.
 
     Реализует бизнес-логику для:
@@ -17,10 +17,12 @@ class AlbumsService:
 
     Attributes
     ----------
-    _albums_repo : AlbumsRepository
+    _album_repo : AlbumRepository
         Репозиторий для операций с альбомами в базе данных.
-    _files_repo : FilesRepository
+    _file_repo : FileRepository
         Репозиторий для операций с файлами в базе данных.
+    _couple_repo : CoupleRepository
+        Репозиторий для операций с парами пользователей в БД.
 
     Methods
     -------
@@ -45,9 +47,9 @@ class AlbumsService:
     def __init__(self, unit_of_work: UnitOfWork):
         super().__init__()
 
-        self._albums_repo = unit_of_work.get_repository(AlbumsRepository)
-        self._files_repo = unit_of_work.get_repository(FilesRepository)
-        self._couples_repo = unit_of_work.get_repository(CouplesRepository)
+        self._album_repo = unit_of_work.get_repository(AlbumRepository)
+        self._file_repo = unit_of_work.get_repository(FileRepository)
+        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
 
     def create_album(
         self,
@@ -76,7 +78,7 @@ class AlbumsService:
         created_by : UUID
             UUID пользователя, создавшего альбом.
         """
-        self._albums_repo.add_album(
+        self._album_repo.add_album(
             title, description, cover_url, is_private, created_by
         )
 
@@ -103,9 +105,9 @@ class AlbumsService:
         tuple[list[AlbumDTO], int]
             Кортеж из списка альбомов и общего количества.
         """
-        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
-        return await self._albums_repo.get_albums_by_creator(
+        return await self._album_repo.get_albums_by_creator(
             offset, limit, user_id, partner_id
         )
 
@@ -141,9 +143,9 @@ class AlbumsService:
         tuple[list[AlbumDTO], int]
             Кортеж из списка найденных альбомов и общего количества.
         """
-        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
-        return await self._albums_repo.search_albums_by_trigram(
+        return await self._album_repo.search_albums_by_trigram(
             search_query, threshold, offset, limit, user_id, partner_id
         )
 
@@ -178,9 +180,9 @@ class AlbumsService:
             В случае если альбом по переданному UUID не существует или
             текущий пользователь не имеет прав на просмотр этого альбома.
         """
-        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
-        album = await self._albums_repo.get_album_with_items_by_id(
+        album = await self._album_repo.get_album_with_items_by_id(
             album_id, offset, limit, user_id, partner_id
         )
 
@@ -222,9 +224,9 @@ class AlbumsService:
         user_id : UUID
             UUID пользователя, инициирующего изменение альбома.
         """
-        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
-        album = await self._albums_repo.get_album_by_id(album_id, user_id, partner_id)
+        album = await self._album_repo.get_album_by_id(album_id, user_id, partner_id)
 
         if album is None:
             raise MediaNotFoundException(
@@ -241,7 +243,7 @@ class AlbumsService:
         if is_private is None:
             is_private = album.is_private
 
-        await self._albums_repo.update_album_by_id(
+        await self._album_repo.update_album_by_id(
             album_id, title, description, cover_url, is_private
         )
 
@@ -265,7 +267,7 @@ class AlbumsService:
             Возникает в случае, если альбом с переданным UUID не существует
             или текущий пользователь не является создателем альбома.
         """
-        album = await self._albums_repo.get_album_by_id(album_id, user_id)
+        album = await self._album_repo.get_album_by_id(album_id, user_id)
 
         if album is None:
             raise MediaNotFoundException(
@@ -273,7 +275,7 @@ class AlbumsService:
                 detail=f"Album with id={album_id} not found, or you're not this album's creator.",
             )
 
-        await self._albums_repo.delete_album_by_id(album_id)
+        await self._album_repo.delete_album_by_id(album_id)
 
     async def attach(
         self, album_id: UUID, files_uuids: list[UUID], user_id: UUID
@@ -300,9 +302,9 @@ class AlbumsService:
         MediaNotFoundException
             Если альбом не существует или не все медиа-файлы найдены.
         """
-        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
-        album = await self._albums_repo.get_album_by_id(album_id, user_id, partner_id)
+        album = await self._album_repo.get_album_by_id(album_id, user_id, partner_id)
 
         if album is None:
             raise MediaNotFoundException(
@@ -315,7 +317,7 @@ class AlbumsService:
 
         received_files_uuids = set(files_uuids)
 
-        files = await self._files_repo.get_files_by_ids(files_uuids, user_id)
+        files = await self._file_repo.get_files_by_ids(files_uuids, user_id)
         found_files_uuids = {file.id for file in files}
 
         if received_files_uuids != found_files_uuids:
@@ -330,11 +332,11 @@ class AlbumsService:
                 ),
             )
 
-        attached_files_uuids = await self._albums_repo.get_existing_album_items(
+        attached_files_uuids = await self._album_repo.get_existing_album_items(
             album_id, files_uuids
         )
 
-        await self._albums_repo.attach_files_to_album(
+        await self._album_repo.attach_files_to_album(
             album_id, list(received_files_uuids - attached_files_uuids)
         )
 
@@ -363,9 +365,9 @@ class AlbumsService:
         MediaNotFoundException
             Если альбом не существует или не все медиа-файлы найдены.
         """
-        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
-        album = await self._albums_repo.get_album_by_id(album_id, user_id, partner_id)
+        album = await self._album_repo.get_album_by_id(album_id, user_id, partner_id)
 
         if album is None:
             raise MediaNotFoundException(
@@ -377,7 +379,7 @@ class AlbumsService:
             return
 
         received_files_uuids = set(files_uuids)
-        attached_files_uuids = await self._albums_repo.get_existing_album_items(
+        attached_files_uuids = await self._album_repo.get_existing_album_items(
             album_id, files_uuids
         )
 
@@ -393,6 +395,6 @@ class AlbumsService:
                 ),
             )
 
-        await self._albums_repo.detach_files_from_album(
+        await self._album_repo.detach_files_from_album(
             album_id, list(received_files_uuids)
         )

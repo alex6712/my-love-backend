@@ -2,7 +2,7 @@ from typing import Any
 
 from app.core.enums import FileStatus
 from app.schemas.dto.base import BaseDTO, BaseSQLModelDTO
-from app.schemas.dto.users import CreatorDTO
+from app.schemas.dto.user import CreatorDTO
 
 
 class FileMetadataDTO(BaseDTO):

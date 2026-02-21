@@ -26,11 +26,13 @@ class AlbumItemsModel(BaseModel):
     album_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("albums.id", ondelete="CASCADE"),
+        nullable=False,
         comment="UUID медиа альбома",
     )
     file_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("files.id", ondelete="CASCADE"),
+        nullable=False,
         comment="UUID медиа файла",
     )
 

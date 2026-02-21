@@ -3,12 +3,12 @@ from uuid import UUID
 from app.core.enums import NoteType
 from app.core.exceptions.note import NoteNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
-from app.repositories.couples import CouplesRepository
-from app.repositories.notes import NotesRepository
+from app.repositories.couple import CoupleRepository
+from app.repositories.note import NoteRepository
 from app.schemas.dto.note import NoteDTO
 
 
-class NotesService:
+class NoteService:
     """Сервис работы с пользовательскими заметками.
 
     Реализует бизнес-логику для менеджмента пользовательских заметок.
@@ -17,8 +17,10 @@ class NotesService:
 
     Attributes
     ----------
-    _notes_repo : NotesRepository
+    _note_repo : NoteRepository
         Репозиторий для операций с заметками в БД.
+    _couple_repo : CoupleRepository
+        Репозиторий для операций с парами пользователей в БД.
 
     Methods
     -------
@@ -35,8 +37,8 @@ class NotesService:
     def __init__(self, unit_of_work: UnitOfWork):
         super().__init__()
 
-        self._notes_repo = unit_of_work.get_repository(NotesRepository)
-        self._couples_repo = unit_of_work.get_repository(CouplesRepository)
+        self._note_repo = unit_of_work.get_repository(NoteRepository)
+        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
 
     def create_note(
         self, type: NoteType, title: str, content: str, created_by: UUID
@@ -56,7 +58,7 @@ class NotesService:
         created_by : UUID
             UUID пользователя, создающего заметку.
         """
-        self._notes_repo.add_note(type, title, content, created_by)
+        self._note_repo.add_note(type, title, content, created_by)
 
     async def get_notes(
         self, note_type: NoteType | None, offset: int, limit: int, user_id: UUID
@@ -83,9 +85,9 @@ class NotesService:
         tuple[list[NoteDTO], int]
             Кортеж из списка заметок и общего количества.
         """
-        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
-        return await self._notes_repo.get_notes_by_creator(
+        return await self._note_repo.get_notes_by_creator(
             note_type, offset, limit, user_id, partner_id
         )
 
@@ -109,9 +111,9 @@ class NotesService:
         user_id : UUID
             UUID пользователя, инициирующего изменение заметки.
         """
-        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
-        note = await self._notes_repo.get_note_by_id(note_id, user_id, partner_id)
+        note = await self._note_repo.get_note_by_id(note_id, user_id, partner_id)
 
         if note is None:
             raise NoteNotFoundException(
@@ -123,7 +125,7 @@ class NotesService:
         if content is None:
             content = note.content
 
-        await self._notes_repo.update_note_by_id(note_id, title, content)
+        await self._note_repo.update_note_by_id(note_id, title, content)
 
     async def delete_note(self, note_id: UUID, user_id: UUID) -> None:
         """Удаление заметки по его UUID.
@@ -145,11 +147,11 @@ class NotesService:
             Возникает в случае, если заметка с переданным UUID не существует
             или текущий пользователь не является создателем заметки.
         """
-        note = await self._notes_repo.get_note_by_id(note_id, user_id)
+        note = await self._note_repo.get_note_by_id(note_id, user_id)
 
         if note is None:
             raise NoteNotFoundException(
                 detail=f"Note with id={note_id} not found, or you're not this note's creator.",
             )
 
-        await self._notes_repo.delete_note_by_id(note_id)
+        await self._note_repo.delete_note_by_id(note_id)

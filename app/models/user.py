@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.models.couple import CoupleRequestModel
     from app.models.file import FileModel
     from app.models.note import NoteModel
+    from app.models.user_session import UserSessionModel
 
 
 class UserModel(BaseModel):
@@ -28,12 +29,6 @@ class UserModel(BaseModel):
         nullable=False,
         comment="Хеш пароля (Argon2id через Passlib)",
     )
-    refresh_token_hash: Mapped[str | None] = mapped_column(
-        String(128),
-        nullable=True,
-        index=True,
-        comment="Хеш токена обновления (Argon2id)",
-    )
     avatar_url: Mapped[str] = mapped_column(
         String(512),
         nullable=True,
@@ -47,6 +42,12 @@ class UserModel(BaseModel):
         comment="Статус пользователя (активный или заблокирован)",
     )
 
+    sessions: Mapped[list["UserSessionModel"]] = relationship(
+        "UserSessionModel",
+        back_populates="user",
+        viewonly=True,
+        lazy="select",
+    )
     couples_as_initiator: Mapped[list["CoupleRequestModel"]] = relationship(
         "CoupleRequestModel",
         foreign_keys="CoupleRequestModel.initiator_id",
@@ -77,23 +78,6 @@ class UserModel(BaseModel):
         viewonly=True,
         lazy="select",
     )
-
-    async def get_partner(self) -> "UserModel | None":
-        if await self.awaitable_attrs.couples_as_initiator:
-            couple: CoupleRequestModel = (
-                await self.awaitable_attrs.couples_as_initiator
-            )[0]
-
-            return await couple.awaitable_attrs.initiator
-
-        if await self.awaitable_attrs.couples_as_recipient:
-            couple: CoupleRequestModel = (
-                await self.awaitable_attrs.couples_as_recipient
-            )[0]
-
-            return await couple.awaitable_attrs.recipient
-
-        return None
 
     def __repr__(self, **_) -> str:
         attrs: dict[str, Any] = {

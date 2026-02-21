@@ -2,7 +2,7 @@ from datetime import datetime
 
 from app.core.enums import CoupleRequestStatus
 from app.schemas.dto.base import BaseSQLModelDTO
-from app.schemas.dto.users import PartnerDTO
+from app.schemas.dto.user import PartnerDTO
 
 
 class CoupleRequestDTO(BaseSQLModelDTO):

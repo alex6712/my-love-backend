@@ -1,6 +1,7 @@
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+from typing import Any
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -8,7 +9,7 @@ from jose import jwt
 from passlib.context import CryptContext
 
 from app.config import get_settings
-from app.core.types import Payload, Tokens
+from app.core.types import Payload
 
 settings = get_settings()
 
@@ -53,71 +54,69 @@ def jwt_decode(token: str) -> Payload:
     )
 
 
-def create_jwt(payload: Payload, expires_delta: timedelta) -> str:
-    """Создает JWT.
+def create_jwt(
+    sub: str,
+    iat: datetime,
+    *,
+    exp: datetime | None = None,
+    jti: str = str(uuid.uuid4()),
+    iss: str = "my-love-backend",
+    expires_delta: timedelta | None = None,
+    **claims: Any,
+) -> str:
+    """Создаёт и возвращает подписанный JWT.
 
-    В качестве ввода он получает информацию для кодирования и время жизни токена.
+    Формирует payload из переданных аргументов и кодирует его.
+    Значение `exp` должно быть задано одним из трёх способов -
+    иначе выбрасывается `RuntimeError`.
 
     Parameters
     ----------
-    payload : Payload
-        Словарь с данными.
-    expires_delta : timedelta
-        Время жизни токена.
+    sub : str
+        Субъект токена (`sub` claim), как правило - идентификатор пользователя.
+    iat : datetime
+        Время выпуска токена (`iat` claim).
+    exp : datetime | None, optional
+        Точное время истечения токена (`exp` claim).
+        Имеет приоритет над `expires_delta`.
+    jti : str, optional
+        Уникальный идентификатор токена (`jti` claim).
+        По умолчанию генерируется автоматически через `uuid.uuid4()`.
+    iss : str, optional
+        Издатель токена (`iss` claim). По умолчанию `"my-love-backend"`.
+    expires_delta : timedelta | None, optional
+        Время жизни токена относительно `iat`.
+        Если передан вместе с `exp`, то `expires_delta` перезапишет `exp`.
+    **claims : Any
+        Дополнительные произвольные claims, которые будут добавлены в payload.
+        Также может содержать `exp` как fallback, если остальные способы не переданы.
 
     Returns
     -------
     str
-        JSON Web Token.
-    """
-    to_encode = payload.copy()
+        Подписанный JSON Web Token.
 
-    now = datetime.now(timezone.utc)
-    to_encode.update(
-        {
-            "iat": now,
-            "exp": now + expires_delta,
-            "jti": str(uuid.uuid4()),
-            "iss": "my-love-backend",
-        }
-    )
+    Raises
+    ------
+    RuntimeError
+        Если ни один из источников для `exp` не передан:
+        ни `exp`, ни `expires_delta`, ни `exp` внутри `**claims`.
+    """
+    if not exp and not expires_delta and not claims.get("exp"):
+        raise RuntimeError(
+            "There's no source to set the 'exp' value from!\n"
+            "You can pass it via 'exp' argument directly, via"
+            "'expires_delta' argument for calculate from 'iat'"
+            "and via the kwargs."
+        )
+
+    to_encode: Payload = {"sub": sub, "iat": iat, "exp": exp, "jti": jti, "iss": iss}
+    to_encode.update(claims)
+
+    if expires_delta:
+        to_encode.update({"exp": iat + expires_delta})
 
     return _jwt_encode(to_encode)
-
-
-def create_jwt_pair(
-    at_payload: Payload,
-    rt_payload: Payload | None = None,
-    at_expires_delta: timedelta = timedelta(
-        minutes=settings.ACCESS_TOKEN_LIFETIME_MINUTES,
-    ),
-    rt_expires_delta: timedelta = timedelta(days=settings.REFRESH_TOKEN_LIFETIME_DAYS),
-) -> Tokens:
-    """Создает пару JWT, состоящую из токена доступа и токена обновления.
-
-    Parameters
-    ----------
-    at_payload : Payload
-        Информация, которая должна быть закодирована в токене доступа.
-    rt_payload : Payload | None
-        Информация, которая должна быть закодирована в токене обновления.
-    at_expires_delta : timedelta
-        Время жизни токена доступа.
-    rt_expires_delta : timedelta
-        Время жизни токена обновления.
-
-    Returns
-    -------
-    Tokens
-        Пара JWT (токен доступа + токен обновления).
-    """
-    if rt_payload is None:
-        rt_payload = at_payload
-
-    return {
-        "access": create_jwt(at_payload, at_expires_delta),
-        "refresh": create_jwt(rt_payload, rt_expires_delta),
-    }
 
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
@@ -128,7 +127,7 @@ def hash_(
     scheme: str | None = None,
     category: str | None = None,
 ) -> str:
-    """Прокси для метода ``CriptContext.hash()``.
+    """Прокси для метода `CriptContext.hash()`.
 
     Получает параметры, необходимые для выполнения хеширования, и возвращает результат.
 
@@ -160,7 +159,7 @@ def verify(
     scheme: str | None = None,
     category: str | None = None,
 ) -> bool:
-    """Прокси для метода ``CriptContext.verify()``.
+    """Прокси для метода `CriptContext.verify()`.
 
     Проверяет переданный секрет на соответствие хешу.
 
@@ -183,7 +182,7 @@ def verify(
     Returns
     -------
     bool
-        ``True``, если хеш секрета соответствует переданному секрету, в ином случае ``False``.
+        `True`, если хеш секрета соответствует переданному секрету, в ином случае `False`.
     """
     return pwd_context.verify(secret, hashed, scheme, category)
 

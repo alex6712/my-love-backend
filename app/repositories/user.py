@@ -5,10 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import UserModel
 from app.repositories.interface import RepositoryInterface
-from app.schemas.dto.users import UserWithCredentialsDTO
+from app.schemas.dto.user import UserWithCredentialsDTO
 
 
-class UsersRepository(RepositoryInterface):
+class UserRepository(RepositoryInterface):
     """Репозиторий пользователя.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).

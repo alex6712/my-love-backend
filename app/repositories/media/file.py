@@ -11,7 +11,7 @@ from app.repositories.interface import SharedResourceRepository
 from app.schemas.dto.file import FileDTO, FileMetadataDTO
 
 
-class FilesRepository(SharedResourceRepository):
+class FileRepository(SharedResourceRepository):
     """Репозиторий медиа-файлов.
 
     Реализация паттерна Репозиторий для работы с медиа-файлами.

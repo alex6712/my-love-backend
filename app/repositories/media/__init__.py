@@ -1,4 +1,4 @@
-from app.repositories.media.albums import AlbumsRepository
-from app.repositories.media.files import FilesRepository
+from app.repositories.media.album import AlbumRepository
+from app.repositories.media.file import FileRepository
 
-__all__ = ["AlbumsRepository", "FilesRepository"]
+__all__ = ["AlbumRepository", "FileRepository"]

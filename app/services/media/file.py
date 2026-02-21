@@ -16,8 +16,8 @@ from app.core.exceptions.media import (
 )
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
-from app.repositories.couples import CouplesRepository
-from app.repositories.media import FilesRepository
+from app.repositories.couple import CoupleRepository
+from app.repositories.media import FileRepository
 from app.schemas.dto.file import FileDTO, FileMetadataDTO
 from app.schemas.dto.presigned_url import PresignedURLDTO
 
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from types_aiobotocore_s3 import S3Client
 
 
-class FilesService:
+class FileService:
     """Сервис работы с медиа-файлами.
 
     Реализует бизнес-логику для:
@@ -41,7 +41,9 @@ class FilesService:
         Асинхронный клиент для операций с файлами в S3 хранилище.
     _settings : Settings
         Настройки приложения.
-    _files_repo : FilesRepository
+    _couple_repo : CoupleRepository
+        Репозиторий для операций с парами пользователей в БД.
+    _file_repo : FileRepository
         Репозиторий для операций с файлами в БД.
 
     Methods
@@ -86,8 +88,8 @@ class FilesService:
         self._s3_client = s3_client
         self._settings = settings
 
-        self._couples_repo = unit_of_work.get_repository(CouplesRepository)
-        self._files_repo = unit_of_work.get_repository(FilesRepository)
+        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
+        self._file_repo = unit_of_work.get_repository(FileRepository)
 
     @staticmethod
     def _generate_object_key(user_id: UUID, batch_id: UUID) -> str:
@@ -149,7 +151,7 @@ class FilesService:
         response: str | None = None
 
         created = await self._redis_client.acquire_idempotency_key(
-            idem_scope, user_id, idempotency_key, FilesService._IDEMPOTENCY_KEY_TTL
+            idem_scope, user_id, idempotency_key, self._IDEMPOTENCY_KEY_TTL
         )
 
         if not created:
@@ -187,9 +189,9 @@ class FilesService:
         tuple[list[FileDTO], int]
             Кортеж из списка файлов и общего количества.
         """
-        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
-        return await self._files_repo.get_files_by_creator(
+        return await self._file_repo.get_files_by_creator(
             offset, limit, user_id, partner_id
         )
 
@@ -281,14 +283,14 @@ class FilesService:
         unsupported_types = {
             m.content_type
             for m in files_metadata
-            if m.content_type not in FilesService._SUPPORTED_CONTENT_TYPES
+            if m.content_type not in self._SUPPORTED_CONTENT_TYPES
         }
 
         if unsupported_types:
             raise UnsupportedFileTypeException(
                 detail=(
                     f"File types '{unsupported_types}' is not supported. "
-                    f"Supported types: {FilesService._SUPPORTED_CONTENT_TYPES}."
+                    f"Supported types: {self._SUPPORTED_CONTENT_TYPES}."
                 )
             )
 
@@ -297,7 +299,7 @@ class FilesService:
             for _ in range(len(files_metadata))
         ]
 
-        file_ids = await self._files_repo.add_pending_files(
+        file_ids = await self._file_repo.add_pending_files(
             files_metadata, object_keys, user_id
         )
 
@@ -323,7 +325,7 @@ class FilesService:
             scope=idem_scope,
             user_id=user_id,
             key=idempotency_key,
-            ttl=FilesService._IDEMPOTENCY_KEY_TTL,
+            ttl=self._IDEMPOTENCY_KEY_TTL,
             response=json.dumps([r.model_dump_json() for r in result]),
         )
 
@@ -354,7 +356,7 @@ class FilesService:
             Если файл не найден в объектном хранилище, то есть
             загрузка не была завершена или файл был удалён.
         """
-        files = await self._files_repo.get_files_by_ids([file_id], user_id)
+        files = await self._file_repo.get_files_by_ids([file_id], user_id)
 
         if len(files) != 1:
             raise MediaNotFoundException(
@@ -382,7 +384,7 @@ class FilesService:
                 detail=f"File with id={file_id} has not been found in object storage yet.",
             )
 
-        await self._files_repo.mark_file_uploaded(file.id)
+        await self._file_repo.mark_file_uploaded(file.id)
 
     async def get_download_presigned_url(
         self, file_id: UUID, user_id: UUID
@@ -444,11 +446,9 @@ class FilesService:
             Возникает в случае, если файл находится в статусе загрузки (PENDING),
             загрузка не удалась (FAILED) или файл был удалён (DELETED).
         """
-        partner_id = await self._couples_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
-        files = await self._files_repo.get_files_by_ids(
-            files_uuids, user_id, partner_id
-        )
+        files = await self._file_repo.get_files_by_ids(files_uuids, user_id, partner_id)
 
         if len(files) != len(files_uuids):
             missing = set(files_uuids) - {file.id for file in files}
@@ -513,7 +513,7 @@ class FilesService:
         user_id : UUID
             UUID пользователя, инициирующего изменение файла.
         """
-        file = await self._files_repo.get_file_by_id(file_id, user_id)
+        file = await self._file_repo.get_file_by_id(file_id, user_id)
 
         if file is None:
             raise MediaNotFoundException(
@@ -526,7 +526,7 @@ class FilesService:
         if description is None:
             description = file.description
 
-        await self._files_repo.update_file_by_id(file_id, title, description)
+        await self._file_repo.update_file_by_id(file_id, title, description)
 
     async def delete_file(self, file_id: UUID, user_id: UUID) -> None:
         """Удаление файла по его UUID.
@@ -548,7 +548,7 @@ class FilesService:
             Возникает в случае, если файл с переданным UUID не существует
             или текущий пользователь не является создателем файла.
         """
-        files = await self._files_repo.get_files_by_ids([file_id], user_id)
+        files = await self._file_repo.get_files_by_ids([file_id], user_id)
 
         if len(files) != 1:
             raise MediaNotFoundException(
@@ -564,4 +564,4 @@ class FilesService:
         except ClientError:
             pass
 
-        await self._files_repo.delete_file_by_id(file_id)
+        await self._file_repo.delete_file_by_id(file_id)

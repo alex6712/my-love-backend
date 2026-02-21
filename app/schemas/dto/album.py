@@ -1,6 +1,6 @@
 from app.schemas.dto.base import BaseSQLModelDTO
 from app.schemas.dto.file import FileDTO
-from app.schemas.dto.users import CreatorDTO
+from app.schemas.dto.user import CreatorDTO
 
 
 class AlbumDTO(BaseSQLModelDTO):

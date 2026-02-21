@@ -13,15 +13,16 @@ class BaseModel(AsyncAttrs, DeclarativeBase):
 
     id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        server_default=text("gen_random_uuid()"),
+        nullable=False,
         primary_key=True,
+        server_default=text("gen_random_uuid()"),
         comment="Уникальный идентификатор записи",
     )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=text("TIMEZONE('UTC', NOW())"),
         nullable=False,
+        server_default=text("TIMEZONE('UTC', NOW())"),
         comment="Дата и время создания записи",
     )
 

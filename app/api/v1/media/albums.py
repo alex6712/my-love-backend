@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Path, Query, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
-from app.core.dependencies.services import AlbumsServiceDependency
+from app.core.dependencies.services import AlbumServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.schemas.v1.requests.albums import (
     AttachFilesRequest,
@@ -29,7 +29,7 @@ router = APIRouter(
     response_description="Список всех доступных альбомов",
 )
 async def get_albums(
-    albums_service: AlbumsServiceDependency,
+    album_service: AlbumServiceDependency,
     payload: StrictAuthenticationDependency,
     offset: Annotated[
         int,
@@ -54,7 +54,7 @@ async def get_albums(
 
     Parameters
     ----------
-    albums_service : AlbumsService
+    album_service : AlbumService
         Зависимость сервиса работы с альбомами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -70,7 +70,7 @@ async def get_albums(
         Объект ответа, содержащий список доступных пользователю медиа альбомов
         в пределах заданной пагинации и общее количество найденных альбомов.
     """
-    albums, total = await albums_service.get_albums(offset, limit, payload["sub"])
+    albums, total = await album_service.get_albums(offset, limit, payload["sub"])
 
     return AlbumsResponse(
         albums=albums, total=total, detail=f"Found {total} album entries."
@@ -88,7 +88,7 @@ async def post_albums(
     body: Annotated[
         CreateAlbumRequest, Body(description="Схема получения данных о медиа альбоме.")
     ],
-    albums_service: AlbumsServiceDependency,
+    album_service: AlbumServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Создание нового медиа альбома.
@@ -100,7 +100,7 @@ async def post_albums(
     ----------
     body : CreateAlbumRequest
         Данные, полученные от клиента в теле запроса.
-    albums_service : AlbumsServiceDependency
+    album_service : AlbumServiceDependency
         Зависимость сервиса работы с альбомами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -111,7 +111,7 @@ async def post_albums(
     StandardResponse
         Успешный ответ о создании нового альбома.
     """
-    albums_service.create_album(
+    album_service.create_album(
         title=body.title,
         description=body.description,
         cover_url=body.cover_url,
@@ -134,7 +134,7 @@ async def search_albums(
         str,
         Query(alias="q", min_length=2, description="Поисковый запрос пользователя."),
     ],
-    albums_service: AlbumsServiceDependency,
+    album_service: AlbumServiceDependency,
     payload: StrictAuthenticationDependency,
     threshold: Annotated[
         float,
@@ -167,7 +167,7 @@ async def search_albums(
     ----------
     search_query : str
         Поисковый запрос пользователя.
-    albums_service : AlbumsService
+    album_service : AlbumService
         Зависимость сервиса работы с альбомами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -184,7 +184,7 @@ async def search_albums(
     AlbumsResponse
         Объект ответа, содержащий список найденных альбомов.
     """
-    albums, total = await albums_service.search_albums(
+    albums, total = await album_service.search_albums(
         search_query, threshold, offset, limit, payload["sub"]
     )
 
@@ -202,7 +202,7 @@ async def search_albums(
 )
 async def get_album(
     album_id: Annotated[UUID, Path(description="UUID запрашиваемого альбома.")],
-    albums_service: AlbumsServiceDependency,
+    album_service: AlbumServiceDependency,
     payload: StrictAuthenticationDependency,
     offset: Annotated[
         int,
@@ -233,7 +233,7 @@ async def get_album(
     ----------
     album_id : UUID
         UUID запрашиваемого альбома.
-    albums_service : AlbumsServiceDependency
+    album_service : AlbumServiceDependency
         Зависимость сервиса работы с альбомами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -248,7 +248,7 @@ async def get_album(
     AlbumResponse
         Подробная информация о конкретном медиа-альбоме.
     """
-    album = await albums_service.get_album(album_id, offset, limit, payload["sub"])
+    album = await album_service.get_album(album_id, offset, limit, payload["sub"])
 
     return AlbumResponse(
         album=album,
@@ -269,7 +269,7 @@ async def patch_album(
         PatchAlbumRequest,
         Body(description="Схема частичного обновления атрибутов альбома"),
     ],
-    albums_service: AlbumsServiceDependency,
+    album_service: AlbumServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Частичное изменение медиа альбома по его UUID.
@@ -286,7 +286,7 @@ async def patch_album(
     body : PatchAlbumRequest
         Данные, полученные от клиента в теле запроса.
         Содержит только те поля, которые нужно обновить.
-    albums_service : AlbumsServiceDependency
+    album_service : AlbumServiceDependency
         Зависимость сервиса работы с альбомами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -297,7 +297,7 @@ async def patch_album(
     StandardResponse
         Ответ о результате изменения медиа альбома.
     """
-    await albums_service.update_album(
+    await album_service.update_album(
         album_id,
         body.title,
         body.description,
@@ -318,7 +318,7 @@ async def patch_album(
 )
 async def delete_album(
     album_id: Annotated[UUID, Path(description="UUID медиа альбома к удалению.")],
-    albums_service: AlbumsServiceDependency,
+    album_service: AlbumServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Удаление медиа альбома по его UUID.
@@ -330,7 +330,7 @@ async def delete_album(
     ----------
     album_id : UUID
         UUID альбома к удалению.
-    albums_service : AlbumsServiceDependency
+    album_service : AlbumServiceDependency
         Зависимость сервиса работы с альбомами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -341,7 +341,7 @@ async def delete_album(
     StandardResponse
         Ответ о результате удаления медиа альбома.
     """
-    await albums_service.delete_album(album_id, payload["sub"])
+    await album_service.delete_album(album_id, payload["sub"])
 
     return StandardResponse(detail="Album entry deleted successfully.")
 
@@ -360,7 +360,7 @@ async def attach(
     body: Annotated[
         AttachFilesRequest, Body(description="Список UUID медиа файлов к добавлению.")
     ],
-    albums_service: AlbumsServiceDependency,
+    album_service: AlbumServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Привязка медиа-файлов к медиа-альбому.
@@ -374,7 +374,7 @@ async def attach(
         UUID альбома, к которому добавляются медиа-файлы.
     body : AttachFilesRequest
         Список UUID медиа-файлов к добавлению.
-    albums_service : AlbumsServiceDependency
+    album_service : AlbumServiceDependency
         Зависимость сервиса работы с альбомами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -385,7 +385,7 @@ async def attach(
     StandardResponse
         Ответ о результате добавления файлов к альбому.
     """
-    await albums_service.attach(album_id, body.files_uuids, payload["sub"])
+    await album_service.attach(album_id, body.files_uuids, payload["sub"])
 
     return StandardResponse(detail="Files successfully attached to album.")
 
@@ -404,7 +404,7 @@ async def detach(
     body: Annotated[
         AttachFilesRequest, Body(description="Список UUID медиа-файлов к удалению.")
     ],
-    albums_service: AlbumsServiceDependency,
+    album_service: AlbumServiceDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Отвязка медиа-файлов от медиа-альбома.
@@ -418,7 +418,7 @@ async def detach(
         UUID альбома, из которого удаляются файлы.
     body : AttachFilesRequest
         Список UUID медиа-файлов к удалению.
-    albums_service : AlbumsServiceDependency
+    album_service : AlbumServiceDependency
         Зависимость сервиса работы с альбомами.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
@@ -429,6 +429,6 @@ async def detach(
     StandardResponse
         Ответ о результате удаления файлов из альбома.
     """
-    await albums_service.detach(album_id, body.files_uuids, payload["sub"])
+    await album_service.detach(album_id, body.files_uuids, payload["sub"])
 
     return StandardResponse(detail="Files successfully detached from album.")

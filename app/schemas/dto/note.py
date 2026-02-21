@@ -1,6 +1,6 @@
 from app.core.enums import NoteType
 from app.schemas.dto.base import BaseSQLModelDTO
-from app.schemas.dto.users import CreatorDTO
+from app.schemas.dto.user import CreatorDTO
 
 
 class NoteDTO(BaseSQLModelDTO):
