@@ -123,7 +123,7 @@ async def post_notes(
     StandardResponse
         Успешный ответ о создании новой заметки.
     """
-    note_service.create_note(body.type, body.title, body.content, payload["sub"])
+    await note_service.create_note(body.type, body.title, body.content, payload["sub"])
 
     return StandardResponse(detail="New note created successful.")
 

@@ -422,6 +422,7 @@ class FileService:
             )
 
         await self._file_repo.mark_file_uploaded(file.id)
+        await self._redis_client.increment_count("files", user_id)
 
     async def get_download_presigned_url(
         self, file_id: UUID, user_id: UUID
@@ -602,3 +603,4 @@ class FileService:
             pass
 
         await self._file_repo.delete_file_by_id(file_id)
+        await self._redis_client.decrement_count("files", user_id)

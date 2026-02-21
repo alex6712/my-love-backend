@@ -50,12 +50,13 @@ class NoteService:
         self._note_repo = unit_of_work.get_repository(NoteRepository)
         self._couple_repo = unit_of_work.get_repository(CoupleRepository)
 
-    def create_note(
+    async def create_note(
         self, type: NoteType, title: str, content: str, created_by: UUID
     ) -> None:
         """Создание новой пользовательской заметки.
 
         Создаёт новую заметку по переданным данным.
+        Инкрементирует счётчик в Redis.
 
         Parameters
         ----------
@@ -69,6 +70,8 @@ class NoteService:
             UUID пользователя, создающего заметку.
         """
         self._note_repo.add_note(type, title, content, created_by)
+
+        await self._redis_client.increment_count("notes", created_by)
 
     async def get_notes(
         self,
@@ -181,6 +184,8 @@ class NoteService:
         Если UUID пользователя не совпадает с UUID создателя заметки, завершает
         действие исключением. В ином случае удаляет заметку.
 
+        Декрементирует счётчик заметок в Redis.
+
         Parameters
         ----------
         note_id : UUID
@@ -202,3 +207,5 @@ class NoteService:
             )
 
         await self._note_repo.delete_note_by_id(note_id)
+
+        await self._redis_client.decrement_count("notes", user_id)
