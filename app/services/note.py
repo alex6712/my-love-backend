@@ -3,6 +3,7 @@ from uuid import UUID
 from app.core.enums import NoteType, SortOrder
 from app.core.exceptions.note import NoteNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
+from app.infrastructure.redis import RedisClient
 from app.repositories.couple import CoupleRepository
 from app.repositories.note import NoteRepository
 from app.schemas.dto.note import NoteDTO
@@ -17,6 +18,8 @@ class NoteService:
 
     Attributes
     ----------
+    _redis_client : RedisClient
+        Клиент Redis для кеширования запросов.
     _note_repo : NoteRepository
         Репозиторий для операций с заметками в БД.
     _couple_repo : CoupleRepository
@@ -28,14 +31,21 @@ class NoteService:
         Создание новой пользовательской заметки.
     get_notes(offset, limit, user_id)
         Получение всех заметок по UUID создателя.
+    count_notes(user_id)
+        Получение количества всех доступных пользователю заметок.
     update_note(note_id, title, content, user_id)
         Обновление атрибутов заметки по его UUID.
     delete_note(note_id, user_id)
         Удаление заметки по его UUID.
     """
 
-    def __init__(self, unit_of_work: UnitOfWork):
+    _COUNT_CACHE_TTL = 3600
+    """Время в секундах, которое живёт кэш счётчика записей."""
+
+    def __init__(self, unit_of_work: UnitOfWork, redis_client: RedisClient):
         super().__init__()
+
+        self._redis_client = redis_client
 
         self._note_repo = unit_of_work.get_repository(NoteRepository)
         self._couple_repo = unit_of_work.get_repository(CoupleRepository)
@@ -97,6 +107,36 @@ class NoteService:
         return await self._note_repo.get_notes_by_creator(
             note_type, offset, limit, user_id, order, partner_id
         )
+
+    async def count_notes(self, user_id: UUID) -> int:
+        """Получение количества всех доступных пользователю заметок.
+
+        Возвращает закэшированное значение из Redis, если оно есть.
+        В случае cache miss обращается к БД и прогревает кэш.
+
+        Parameters
+        ----------
+        user_id : UUID
+            UUID пользователя.
+
+        Returns
+        -------
+        int
+            Количество доступных пользователю заметок.
+        """
+        cached = await self._redis_client.get_count("notes", user_id)
+
+        if cached is not None:
+            return cached
+
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
+        count = await self._note_repo.count_notes_by_creator(user_id, partner_id)
+
+        await self._redis_client.set_count(
+            "notes", user_id, count, self._COUNT_CACHE_TTL
+        )
+
+        return count
 
     async def update_note(
         self, note_id: UUID, title: str | None, content: str | None, user_id: UUID

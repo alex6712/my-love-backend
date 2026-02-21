@@ -122,6 +122,7 @@ def get_couple_service(
 
 def get_note_service(
     unit_of_work: UnitOfWorkDependency,
+    redis_client: RedisClientDependency,
 ) -> NoteService:
     """Фабрика зависимостей для создания экземпляра сервиса заметок.
 
@@ -134,13 +135,16 @@ def get_note_service(
     unit_of_work : UnitOfWorkDependency
         Зависимость Unit of Work, которая будет передана
         в конструктор сервиса заметок.
+    redis_client : RedisClientDependency
+        Зависимость RedisClient, которая будет передана
+        в конструктор сервиса заметок.
 
     Returns
     -------
     NoteService
         Экземпляр сервиса заметок с внедренным Unit of Work.
     """
-    return NoteService(unit_of_work)
+    return NoteService(unit_of_work, redis_client)
 
 
 def get_user_service(

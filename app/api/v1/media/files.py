@@ -17,7 +17,7 @@ from app.schemas.v1.requests.files import (
     UploadFilesBatchRequest,
 )
 from app.schemas.v1.responses.files import FilesResponse
-from app.schemas.v1.responses.standard import StandardResponse
+from app.schemas.v1.responses.standard import CountResponse, StandardResponse
 from app.schemas.v1.responses.urls import (
     PresignedURLResponse,
     PresignedURLsBatchResponse,
@@ -92,6 +92,41 @@ async def get_files(
     return FilesResponse(
         files=files, total=total, detail=f"Found {total} file entries."
     )
+
+
+@router.get(
+    "/count",
+    response_model=CountResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Получение количества всех доступных пользователю медиа файлов.",
+    response_description="Количество доступных пользователю медиа файлов.",
+)
+async def count(
+    file_service: FileServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> CountResponse:
+    """Получение количества всех доступных пользователю медиа файлов.
+
+    Возвращает общее количество медиа файлов, доступных пользователю
+    с UUID, переданным в токене доступа, включая файлы его партнёра.
+
+    Parameters
+    ----------
+    file_service : FileService
+        Зависимость сервиса работы с файлами.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    CountResponse
+        Объект ответа, содержащий общее количество доступных
+        пользователю медиа файлов.
+    """
+    count = await file_service.count_files(payload["sub"])
+
+    return CountResponse(count=count, detail=f"Found {count} file entries.")
 
 
 @router.post(

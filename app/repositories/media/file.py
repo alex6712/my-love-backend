@@ -23,6 +23,8 @@ class FileRepository(SharedResourceRepository):
         Добавляет в базу данных новые записи о загружаемых медиа-файлах.
     get_files_by_creator(offset, limit, user_id, partner_id)
         Получение списка файлов по создателю.
+    count_files_by_creator(user_id, partner_id)
+        Возвращает количество медиа-файлов по id их создателя.
     get_file_by_id(file_id, user_id, partner_id)
         Получает медиа-файл по его UUID.
     get_files_by_ids(files_ids, user_id, partner_id)
@@ -127,6 +129,30 @@ class FileRepository(SharedResourceRepository):
         )
 
         return [FileDTO.model_validate(file) for file in files.all()], total or 0
+
+    async def count_files_by_creator(
+        self,
+        user_id: UUID,
+        partner_id: UUID | None = None,
+    ) -> int:
+        """Возвращает количество медиа-файлов по id их создателя.
+
+        Parameters
+        ----------
+        user_id : UUID
+            UUID текущего пользователя.
+        partner_id : UUID | None, optional
+            UUID партнёра текущего пользователя.
+
+        Returns
+        -------
+        int
+            Количество доступных пользователю медиа-файлов.
+        """
+        where_clause = self._build_shared_clause(FileModel, user_id, partner_id)
+        count_query = self._build_count_query(FileModel, where_clause)
+
+        return await self.session.scalar(count_query) or 0
 
     async def get_file_by_id(
         self,

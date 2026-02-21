@@ -35,6 +35,20 @@ class RedisClient:
         Проверяет, находится ли токен в черном списке.
     delete_token(token)
         Удаление токена из черного списка.
+    get_count(scope, user_id)
+        Возвращает закэшированное количество записей пользователя.
+    set_count(scope, user_id, count, ttl)
+        Устанавливает значение счётчика в кэше.
+    increment_count(scope, user_id)
+        Инкрементирует счётчик записей пользователя.
+    decrement_count(scope, user_id)
+        Декрементирует счётчик записей пользователя.
+    acquire_idempotency_key(scope, user_id, key, ttl)
+        Атомарно захватывает ключ идемпотентности.
+    get_idempotency_state(scope, user_id, key)
+        Возвращает текущее состояние ключа идемпотентности.
+    finalize_idempotency_key(scope, user_id, key, ttl, response)
+        Помечает ключ идемпотентности как завершённый.
     """
 
     def __init__(self, redis_url: str):
@@ -138,6 +152,112 @@ class RedisClient:
             Токен, который нужно удалить из черного списка.
         """
         await self.client.delete(f"blacklist:access_token:{token}")
+
+    @staticmethod
+    def _count_key(scope: str, user_id: UUID) -> str:
+        """Вспомогательный "приватный" метод формирования Redis-ключа счётчика.
+
+        Принимает на вход необходимые аргументы и формирует
+        из них уникальный ключ для хранения счётчика в Redis.
+
+        Parameters
+        ----------
+        scope : str
+            Область применения счётчика (идиоматично namespace).
+            Например: "files", "notes".
+        user_id : UUID
+            UUID пользователя, которому принадлежит счётчик.
+
+        Returns
+        -------
+        str
+            Уникальный ключ для менеджмента счётчика в Redis.
+        """
+        return f"count:{scope}:{user_id}"
+
+    async def get_count(self, scope: str, user_id: UUID) -> int | None:
+        """Получение значения счётчика из кэша.
+
+        Возвращает закэшированное количество записей для пользователя
+        или None, если ключ отсутствует в Redis (cache miss).
+
+        Parameters
+        ----------
+        scope : str
+            Область применения счётчика (идиоматично namespace).
+            Например: "files", "notes".
+        user_id : UUID
+            UUID пользователя, которому принадлежит счётчик.
+
+        Returns
+        -------
+        int | None
+            Закэшированное количество записей или None при cache miss.
+        """
+        value = await self.client.get(self._count_key(scope, user_id))
+
+        return int(value) if value is not None else None
+
+    async def set_count(self, scope: str, user_id: UUID, count: int, ttl: int) -> None:
+        """Устанавливает значение счётчика в кэше.
+
+        Сохраняет количество записей для пользователя в Redis.
+        Используется для прогрева кэша после обращения к БД.
+
+        Parameters
+        ----------
+        scope : str
+            Область применения счётчика (идиоматично namespace).
+            Например: "files", "notes".
+        user_id : UUID
+            UUID пользователя, которому принадлежит счётчик.
+        count : int
+            Количество записей для сохранения.
+        ttl : int
+            Время жизни ключа в секундах.
+        """
+        await self.client.setex(self._count_key(scope, user_id), ttl, count)
+
+    async def increment_count(self, scope: str, user_id: UUID) -> None:
+        """Инкрементирует счётчик записей пользователя.
+
+        Атомарно увеличивает счётчик на единицу.
+        Если ключ отсутствует в Redis, операция не выполняется,
+        чтобы не создавать некорректный счётчик в обход БД.
+
+        Parameters
+        ----------
+        scope : str
+            Область применения счётчика (идиоматично namespace).
+            Например: "files", "notes".
+        user_id : UUID
+            UUID пользователя, которому принадлежит счётчик.
+        """
+        redis_key = self._count_key(scope, user_id)
+
+        if await self.client.exists(redis_key):
+            await self.client.incr(redis_key)
+
+    async def decrement_count(self, scope: str, user_id: UUID) -> None:
+        """Декрементирует счётчик записей пользователя.
+
+        Атомарно уменьшает счётчик на единицу.
+        Если ключ отсутствует в Redis, операция не выполняется,
+        чтобы не создавать некорректный счётчик в обход БД.
+        Счётчик не может опуститься ниже нуля.
+
+        Parameters
+        ----------
+        scope : str
+            Область применения счётчика (идиоматично namespace).
+            Например: "files", "notes".
+        user_id : UUID
+            UUID пользователя, которому принадлежит счётчик.
+        """
+        redis_key = self._count_key(scope, user_id)
+
+        if await self.client.exists(redis_key):
+            await self.client.decr(redis_key)
 
     @staticmethod
     def _idempotency_key(scope: str, user_id: UUID, key: UUID) -> str:

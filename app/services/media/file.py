@@ -36,7 +36,7 @@ class FileService:
     Attributes
     ----------
     _redis_client : RedisClient
-        Клиент Redis для управления ключами идемпотентности.
+        Клиент Redis для управления ключами идемпотентности и кеширования запросов.
     _s3_client : S3Client
         Асинхронный клиент для операций с файлами в S3 хранилище.
     _settings : Settings
@@ -50,6 +50,8 @@ class FileService:
     -------
     get_files(offset, limit, user_id)
         Получение всех файлов по UUID создателя.
+    count_files(user_id)
+        Получение количества всех доступных пользователю медиа-файлов.
     get_upload_presigned_url(files_metadata, user_id, idempotency_key)
         Получение presigned-url для загрузки файла напрямую в S3.
     get_upload_presigned_urls(files_metadata, user_id, idempotency_key)
@@ -66,6 +68,9 @@ class FileService:
 
     _IDEMPOTENCY_KEY_TTL = 300
     """Время в секундах, которое живёт ключ идемпотентности."""
+
+    _COUNT_CACHE_TTL = 3600
+    """Время в секундах, которое живёт кэш счётчика записей."""
 
     _SUPPORTED_CONTENT_TYPES = (
         "image/jpeg",
@@ -196,6 +201,36 @@ class FileService:
         return await self._file_repo.get_files_by_creator(
             offset, limit, order, user_id, partner_id
         )
+
+    async def count_files(self, user_id: UUID) -> int:
+        """Получение количества всех доступных пользователю медиа-файлов.
+
+        Возвращает закэшированное значение из Redis, если оно есть.
+        В случае cache miss обращается к БД и прогревает кэш.
+
+        Parameters
+        ----------
+        user_id : UUID
+            UUID пользователя.
+
+        Returns
+        -------
+        int
+            Количество доступных пользователю медиа-файлов.
+        """
+        cached = await self._redis_client.get_count("files", user_id)
+
+        if cached is not None:
+            return cached
+
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
+        count = await self._file_repo.count_files_by_creator(user_id, partner_id)
+
+        await self._redis_client.set_count(
+            "files", user_id, count, self._COUNT_CACHE_TTL
+        )
+
+        return count
 
     async def get_upload_presigned_url(
         self,

@@ -30,6 +30,8 @@ class NoteRepository(SharedResourceRepository):
         Возвращает DTO пользовательской заметки по её id.
     get_notes_by_creator(offset, limit, user_id, partner_id)
         Возвращает список DTO пользовательских заметок по id их создателя.
+    count_notes_by_creator(user_id, partner_id)
+        Возвращает количество заметок по id их создателя.
     update_note_by_id(note_id, title, content)
         Обновление атрибутов заметки в базе данных.
     delete_note_by_id(note_id)
@@ -153,6 +155,30 @@ class NoteRepository(SharedResourceRepository):
         )
 
         return [NoteDTO.model_validate(note) for note in notes.all()], total or 0
+
+    async def count_notes_by_creator(
+        self,
+        user_id: UUID,
+        partner_id: UUID | None = None,
+    ) -> int:
+        """Возвращает количество заметок по id их создателя.
+
+        Parameters
+        ----------
+        user_id : UUID
+            UUID текущего пользователя.
+        partner_id : UUID | None, optional
+            UUID партнёра текущего пользователя.
+
+        Returns
+        -------
+        int
+            Количество доступных пользователю заметок.
+        """
+        where_clause = self._build_shared_clause(NoteModel, user_id, partner_id)
+        count_query = self._build_count_query(NoteModel, where_clause)
+
+        return await self.session.scalar(count_query) or 0
 
     async def update_note_by_id(self, note_id: UUID, title: str, content: str) -> None:
         """Обновление атрибутов заметки в базе данных.

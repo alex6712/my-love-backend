@@ -9,7 +9,7 @@ from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.core.enums import NoteType, SortOrder
 from app.schemas.v1.requests.notes import CreateNoteRequest, PatchNoteRequest
 from app.schemas.v1.responses.notes import NotesResponse
-from app.schemas.v1.responses.standard import StandardResponse
+from app.schemas.v1.responses.standard import CountResponse, StandardResponse
 
 router = APIRouter(
     prefix="/notes",
@@ -126,6 +126,41 @@ async def post_notes(
     note_service.create_note(body.type, body.title, body.content, payload["sub"])
 
     return StandardResponse(detail="New note created successful.")
+
+
+@router.get(
+    "/count",
+    response_model=CountResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Получение количества всех доступных пользователю заметок.",
+    response_description="Количество доступных пользователю заметок.",
+)
+async def count(
+    note_service: NoteServiceDependency,
+    payload: StrictAuthenticationDependency,
+) -> CountResponse:
+    """Получение количества всех доступных пользователю заметок.
+
+    Возвращает общее количество заметок, доступных пользователю
+    с UUID, переданным в токене доступа, включая файлы его партнёра.
+
+    Parameters
+    ----------
+    note_service : NoteService
+        Зависимость сервиса работы с пользовательскими заметками.
+    payload : Payload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    CountResponse
+        Объект ответа, содержащий общее количество доступных
+        пользователю заметок.
+    """
+    count = await note_service.count_notes(payload["sub"])
+
+    return CountResponse(count=count, detail=f"Found {count} note entries.")
 
 
 @router.patch(
