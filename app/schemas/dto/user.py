@@ -29,12 +29,9 @@ class UserWithCredentialsDTO(UserDTO):
     ----------
     password_hash : str
         Хэш пароля пользователя.
-    refresh_token_hash : str | None
-        Хэш refresh-токена для управления сессиями.
     """
 
     password_hash: str
-    refresh_token_hash: str | None
 
 
 class CreatorDTO(UserDTO):
