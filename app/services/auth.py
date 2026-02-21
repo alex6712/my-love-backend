@@ -15,6 +15,7 @@ from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.core.security import (
     create_jwt,
     hash_,
+    hash_token,
     jwt_decode,
     verify,
 )
@@ -139,7 +140,7 @@ class AuthService:
         refresh_token = create_jwt(str(user.id), current_time, exp=expires_at)
 
         session_id = await self._user_session_repo.add_user_session(
-            user.id, hash_(refresh_token), expires_at, current_time
+            user.id, hash_token(refresh_token), expires_at, current_time
         )
 
         return {
@@ -198,7 +199,7 @@ class AuthService:
 
         user_session = (
             await self._user_session_repo.get_user_session_by_refresh_token_hash(
-                hash_(refresh_token)
+                hash_token(refresh_token)
             )
         )
 
@@ -226,7 +227,7 @@ class AuthService:
         }
 
         await self._user_session_repo.update_user_session_by_id(
-            user_session.id, hash_(tokens["refresh"]), expires_at, current_time
+            user_session.id, hash_token(tokens["refresh"]), expires_at, current_time
         )
 
         return tokens

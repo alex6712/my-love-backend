@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import os
 import uuid
 from datetime import datetime, timedelta
@@ -185,6 +187,30 @@ def verify(
         `True`, если хеш секрета соответствует переданному секрету, в ином случае `False`.
     """
     return pwd_context.verify(secret, hashed, scheme, category)
+
+
+def hash_token(token: str) -> str:
+    """Создаёт детерминированный HMAC-SHA256 хеш токена.
+
+    В отличие от `hash_()`, результат детерминирован — одинаковый токен
+    всегда даёт одинаковый хеш, что позволяет искать сессию по хешу в БД.
+    Используется исключительно для хеширования refresh токенов.
+
+    Parameters
+    ----------
+    token : str
+        Токен для хеширования.
+
+    Returns
+    -------
+    str
+        HMAC-SHA256 хеш токена в виде hex-строки.
+    """
+    return hmac.new(
+        settings.HMAC_SECRET_KEY.encode(),
+        token.encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def encrypt_data(

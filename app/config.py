@@ -94,6 +94,8 @@ class Settings(BaseSettings):
         Время жизни access-токена в минутах.
     REFRESH_TOKEN_LIFETIME_DAYS : int
         Время жизни refresh-токена в днях.
+    HMAC_SECRET_KEY : str
+        Секретный ключ хеширования токенов обновления.
     """
 
     APP_NAME: str
@@ -144,6 +146,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str
     ACCESS_TOKEN_LIFETIME_MINUTES: int
     REFRESH_TOKEN_LIFETIME_DAYS: int
+    HMAC_SECRET_KEY: str
 
     model_config = SettingsConfigDict(
         env_file=abspath(".env"),
