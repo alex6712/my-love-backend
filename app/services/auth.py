@@ -202,7 +202,7 @@ class AuthService:
             )
         )
 
-        if user_session is None or not user_session.is_active:
+        if user_session is None:
             raise InvalidTokenException(
                 detail="There's no active session which token hash equals passed one's hash.",
                 token_type="refresh",
