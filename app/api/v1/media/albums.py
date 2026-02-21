@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body, Path, Query, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import AlbumServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
+from app.core.enums import SortOrder
 from app.schemas.v1.requests.albums import (
     AttachFilesRequest,
     CreateAlbumRequest,
@@ -46,6 +47,12 @@ async def get_albums(
             description="Количество возвращаемых альбомов.",
         ),
     ] = 10,
+    order: Annotated[
+        SortOrder,
+        Query(
+            description="Направление сортировки альбомов.",
+        ),
+    ] = SortOrder.ASC,
 ) -> AlbumsResponse:
     """Получение списка всех доступных пользователю медиа альбомов с пагинацией.
 
@@ -63,6 +70,8 @@ async def get_albums(
         Смещение от начала списка (количество пропускаемых альбомов).
     limit : int, optional
         Количество возвращаемых альбомов.
+    order : SortOrder, optional
+        Направление сортировки альбомов.
 
     Returns
     -------
@@ -70,7 +79,7 @@ async def get_albums(
         Объект ответа, содержащий список доступных пользователю медиа альбомов
         в пределах заданной пагинации и общее количество найденных альбомов.
     """
-    albums, total = await album_service.get_albums(offset, limit, payload["sub"])
+    albums, total = await album_service.get_albums(offset, limit, order, payload["sub"])
 
     return AlbumsResponse(
         albums=albums, total=total, detail=f"Found {total} album entries."

@@ -7,7 +7,7 @@ from botocore.exceptions import ClientError
 from pydantic import AnyHttpUrl
 
 from app.config import Settings
-from app.core.enums import FileStatus, IdempotencyStatus
+from app.core.enums import FileStatus, IdempotencyStatus, SortOrder
 from app.core.exceptions.base import IdempotencyException
 from app.core.exceptions.media import (
     MediaNotFoundException,
@@ -167,7 +167,7 @@ class FileService:
         return created, response
 
     async def get_files(
-        self, offset: int, limit: int, user_id: UUID
+        self, offset: int, limit: int, order: SortOrder, user_id: UUID
     ) -> tuple[list[FileDTO], int]:
         """Получение всех файлов по UUID создателя.
 
@@ -181,6 +181,8 @@ class FileService:
             Смещение от начала списка (количество пропускаемых файлов).
         limit : int
             Количество возвращаемых файлов.
+        order : SortOrder
+            Направление сортировки файлов.
         user_id : UUID
             UUID пользователя.
 
@@ -192,7 +194,7 @@ class FileService:
         partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         return await self._file_repo.get_files_by_creator(
-            offset, limit, user_id, partner_id
+            offset, limit, order, user_id, partner_id
         )
 
     async def get_upload_presigned_url(

@@ -5,7 +5,10 @@ from uuid import UUID
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped
-from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.orm.attributes import InstrumentedAttribute
+from sqlalchemy.sql.elements import ColumnElement, UnaryExpression
+
+from app.core.enums import SortOrder
 
 
 class RepositoryInterface(ABC):
@@ -46,6 +49,26 @@ class RepositoryInterface(ABC):
             return query
 
         return query.where(*where_clauses)
+
+    @staticmethod
+    def _build_order_clause(
+        column: InstrumentedAttribute[Any], order: SortOrder
+    ) -> UnaryExpression[Any]:
+        """Создаёт выражение сортировки по переданной колонке.
+
+        Parameters
+        ----------
+        column : InstrumentedAttribute[Any]
+            Колонка модели, по которой выполняется сортировка.
+        order : SortOrder
+            Направление сортировки.
+
+        Returns
+        -------
+        UnaryExpression[Any]
+            Выражение сортировки по переданной колонке в заданном направлении.
+        """
+        return column.desc() if order == SortOrder.DESC else column.asc()
 
 
 class HasCreatedBy(Protocol):

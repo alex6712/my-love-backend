@@ -5,7 +5,7 @@ from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import FileStatus
+from app.core.enums import FileStatus, SortOrder
 from app.models.file import FileModel
 from app.repositories.interface import SharedResourceRepository
 from app.schemas.dto.file import FileDTO, FileMetadataDTO
@@ -84,6 +84,7 @@ class FileRepository(SharedResourceRepository):
         self,
         offset: int,
         limit: int,
+        order: SortOrder,
         user_id: UUID,
         partner_id: UUID | None = None,
     ) -> tuple[list[FileDTO], int]:
@@ -95,6 +96,8 @@ class FileRepository(SharedResourceRepository):
             Смещение от начала списка.
         limit : int
             Количество возвращаемых файлов.
+        order : SortOrder
+            Направление сортировки файлов.
         user_id : UUID
             UUID текущего пользователя.
         partner_id : UUID | None, optional
@@ -108,9 +111,10 @@ class FileRepository(SharedResourceRepository):
         query = (
             select(FileModel)
             .options(selectinload(FileModel.creator))
-            .order_by(FileModel.created_at)
             .slice(offset, offset + limit)
         )
+
+        query = query.order_by(self._build_order_clause(FileModel.created_at, order))
 
         where_clause = self._build_shared_clause(FileModel, user_id, partner_id)
 

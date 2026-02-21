@@ -5,6 +5,7 @@ from sqlalchemy import and_, case, delete, func, insert, or_, select, text, upda
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.enums import SortOrder
 from app.models.album import AlbumModel
 from app.models.album_items import AlbumItemsModel
 from app.models.file import FileModel
@@ -107,7 +108,12 @@ class AlbumRepository(SharedResourceRepository):
         return AlbumDTO.model_validate(album) if album else None
 
     async def get_albums_by_creator(
-        self, offset: int, limit: int, user_id: UUID, partner_id: UUID | None = None
+        self,
+        offset: int,
+        limit: int,
+        order: SortOrder,
+        user_id: UUID,
+        partner_id: UUID | None = None,
     ) -> tuple[list[AlbumDTO], int]:
         """Возвращает список DTO медиа альбомов по id их создателя.
 
@@ -117,6 +123,8 @@ class AlbumRepository(SharedResourceRepository):
             Смещение от начала списка.
         limit : int
             Количество возвращаемых альбомов.
+        order : SortOrder
+            Направление сортировки альбомов.
         user_id : UUID
             UUID текущего пользователя.
         partner_id : UUID | None, optional
@@ -130,9 +138,10 @@ class AlbumRepository(SharedResourceRepository):
         query = (
             select(AlbumModel)
             .options(selectinload(AlbumModel.creator))
-            .order_by(AlbumModel.created_at)
             .slice(offset, offset + limit)
         )
+
+        query = query.order_by(self._build_order_clause(AlbumModel.created_at, order))
 
         where_clause = self._build_shared_clause(AlbumModel, user_id, partner_id)
 

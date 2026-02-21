@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from app.core.enums import NoteType
+from app.core.enums import NoteType, SortOrder
 from app.core.exceptions.note import NoteNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
 from app.repositories.couple import CoupleRepository
@@ -61,7 +61,12 @@ class NoteService:
         self._note_repo.add_note(type, title, content, created_by)
 
     async def get_notes(
-        self, note_type: NoteType | None, offset: int, limit: int, user_id: UUID
+        self,
+        note_type: NoteType | None,
+        offset: int,
+        limit: int,
+        order: SortOrder,
+        user_id: UUID,
     ) -> tuple[list[NoteDTO], int]:
         """Получение всех заметок по UUID создателя.
 
@@ -77,6 +82,8 @@ class NoteService:
             Смещение от начала списка (количество пропускаемых заметок).
         limit : int
             Количество возвращаемых заметок.
+        order : SortOrder
+            Направление сортировки заметок.
         user_id : UUID
             UUID пользователя.
 
@@ -88,7 +95,7 @@ class NoteService:
         partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         return await self._note_repo.get_notes_by_creator(
-            note_type, offset, limit, user_id, partner_id
+            note_type, offset, limit, user_id, order, partner_id
         )
 
     async def update_note(

@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from app.core.enums import SortOrder
 from app.core.exceptions.media import MediaNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
 from app.repositories.couple import CoupleRepository
@@ -83,7 +84,7 @@ class AlbumService:
         )
 
     async def get_albums(
-        self, offset: int, limit: int, user_id: UUID
+        self, offset: int, limit: int, order: SortOrder, user_id: UUID
     ) -> tuple[list[AlbumDTO], int]:
         """Получение всех альбомов по UUID создателя.
 
@@ -97,6 +98,8 @@ class AlbumService:
             Смещение от начала списка (количество пропускаемых альбомов).
         limit : int
             Количество возвращаемых альбомов.
+        order : SortOrder
+            Направление сортировки альбомов.
         user_id : UUID
             UUID пользователя.
 
@@ -108,7 +111,7 @@ class AlbumService:
         partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         return await self._album_repo.get_albums_by_creator(
-            offset, limit, user_id, partner_id
+            offset, limit, order, user_id, partner_id
         )
 
     async def search_albums(

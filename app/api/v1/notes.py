@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, Path, Query, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import NoteServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
-from app.core.enums import NoteType
+from app.core.enums import NoteType, SortOrder
 from app.schemas.v1.requests.notes import CreateNoteRequest, PatchNoteRequest
 from app.schemas.v1.responses.notes import NotesResponse
 from app.schemas.v1.responses.standard import StandardResponse
@@ -46,6 +46,12 @@ async def get_notes(
             description="Количество возвращаемых заметок.",
         ),
     ] = 10,
+    order: Annotated[
+        SortOrder,
+        Query(
+            description="Направление сортировки заметок.",
+        ),
+    ] = SortOrder.ASC,
 ) -> NotesResponse:
     """Получение списка всех доступных пользователю заметок с пагинацией.
 
@@ -65,6 +71,8 @@ async def get_notes(
         Смещение от начала списка (количество пропускаемых заметок).
     limit : int, optional
         Количество возвращаемых заметок.
+    order : SortOrder, optional
+        Направление сортировки заметок.
 
     Returns
     -------
@@ -73,7 +81,7 @@ async def get_notes(
         в пределах заданной пагинации и общее количество найденных заметок.
     """
     notes, total = await note_service.get_notes(
-        note_type, offset, limit, payload["sub"]
+        note_type, offset, limit, order, payload["sub"]
     )
 
     return NotesResponse(

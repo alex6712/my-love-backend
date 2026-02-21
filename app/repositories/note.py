@@ -5,7 +5,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import NoteType
+from app.core.enums import NoteType, SortOrder
 from app.models.note import NoteModel
 from app.repositories.interface import SharedResourceRepository
 from app.schemas.dto.note import NoteDTO
@@ -107,6 +107,7 @@ class NoteRepository(SharedResourceRepository):
         offset: int,
         limit: int,
         user_id: UUID,
+        order: SortOrder,
         partner_id: UUID | None = None,
     ) -> tuple[list[NoteDTO], int]:
         """Возвращает список DTO пользовательских заметок по id их создателя.
@@ -119,6 +120,8 @@ class NoteRepository(SharedResourceRepository):
             Смещение от начала списка.
         limit : int
             Количество возвращаемых заметок.
+        order : SortOrder
+            Направление сортировки заметок.
         user_id : UUID
             UUID текущего пользователя.
         partner_id : UUID | None, optional
@@ -132,9 +135,10 @@ class NoteRepository(SharedResourceRepository):
         query = (
             select(NoteModel)
             .options(selectinload(NoteModel.creator))
-            .order_by(NoteModel.created_at)
             .slice(offset, offset + limit)
         )
+
+        query = query.order_by(self._build_order_clause(NoteModel.created_at, order))
 
         where_clauses = [self._build_shared_clause(NoteModel, user_id, partner_id)]
         if note_type:

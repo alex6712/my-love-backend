@@ -7,6 +7,7 @@ from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import FileServiceDependency
 from app.core.dependencies.transport import IdempotencyKeyDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF, IDEMPOTENCY_CONFLICT_ERROR_REF
+from app.core.enums import SortOrder
 from app.schemas.dto.file import FileMetadataDTO
 from app.schemas.v1.requests.files import (
     ConfirmUploadRequest,
@@ -54,6 +55,12 @@ async def get_files(
             description="Количество возвращаемых файлов.",
         ),
     ] = 10,
+    order: Annotated[
+        SortOrder,
+        Query(
+            description="Направление сортировки файлов.",
+        ),
+    ] = SortOrder.ASC,
 ) -> FilesResponse:
     """Получение списка всех доступных пользователю медиа файлов с пагинацией.
 
@@ -71,6 +78,8 @@ async def get_files(
         Смещение от начала списка (количество пропускаемых файлов).
     limit : int, optional
         Количество возвращаемых файлов.
+    order : SortOrder, optional
+        Направление сортировки файлов.
 
     Returns
     -------
@@ -78,7 +87,7 @@ async def get_files(
         Объект ответа, содержащий список доступных пользователю медиа файлов
         в пределах заданной пагинации и общее количество найденных файлов.
     """
-    files, total = await file_service.get_files(offset, limit, payload["sub"])
+    files, total = await file_service.get_files(offset, limit, order, payload["sub"])
 
     return FilesResponse(
         files=files, total=total, detail=f"Found {total} file entries."
