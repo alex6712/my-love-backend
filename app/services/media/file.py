@@ -310,11 +310,11 @@ class FileService:
         """
         idem_scope = "media_upload_direct"
 
-        new, response = await self._idempotency_gate(
+        is_new, cached = await self._idempotency_gate(
             idem_scope, user_id, idempotency_key
         )
-        if not new:
-            raws = json.loads(response)  # type: ignore
+        if not is_new:
+            raws = json.loads(cached)  # type: ignore
             return [PresignedURLDTO.model_validate_json(raw) for raw in raws]
 
         unsupported_types = {

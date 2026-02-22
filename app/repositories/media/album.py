@@ -41,6 +41,9 @@ class AlbumRepository(SharedResourceRepository):
         Прикрепляет медиа-файлы к альбому.
     """
 
+    _LIKE_ESCAPE_CHAR = "\\"
+    """Символы экранирования для операции LIKE (и ILIKE)."""
+
     def __init__(self, session: AsyncSession):
         super().__init__(session)
 
@@ -197,11 +200,18 @@ class AlbumRepository(SharedResourceRepository):
             {"threshold": threshold},
         )
 
-        ilike_pattern = f"%{search_query}%"
+        def escape_like(value: str, escape_char: str = self._LIKE_ESCAPE_CHAR) -> str:
+            return (
+                value.replace(escape_char, escape_char * 2)
+                .replace("%", f"{escape_char}%")
+                .replace("_", f"{escape_char}_")
+            )
+
+        ilike_pattern = f"%{escape_like(search_query)}%"
 
         ilikes = [
-            AlbumModel.title.ilike(ilike_pattern),
-            AlbumModel.description.ilike(ilike_pattern),
+            AlbumModel.title.ilike(ilike_pattern, escape=self._LIKE_ESCAPE_CHAR),
+            AlbumModel.description.ilike(ilike_pattern, escape=self._LIKE_ESCAPE_CHAR),
         ]
 
         query = (
