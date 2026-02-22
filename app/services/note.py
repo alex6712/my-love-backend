@@ -19,7 +19,7 @@ class NoteService:
     Attributes
     ----------
     _redis_client : RedisClient
-        Клиент Redis для кеширования запросов.
+        Клиент Redis для кэширования запросов.
     _note_repo : NoteRepository
         Репозиторий для операций с заметками в БД.
     _couple_repo : CoupleRepository

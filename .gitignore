@@ -211,7 +211,10 @@ keys/
 *.pem
 *.pem.enc
 
-# Ansible
+# Private scripts
+scripts/private/
+
+# Ansible stuff:
 ansible/inventory/*.yml
 !ansible/inventory/production.yml.example
 *.retry
