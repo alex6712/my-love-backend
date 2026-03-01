@@ -197,7 +197,10 @@ class AuthService:
         # атомарное обновление хэша токена обновления
         user_session_id = (
             await self._user_session_repo.update_user_session_by_refresh_token_hash(
-                hash_token(refresh_token), new_refresh_token, expires_at, current_time
+                hash_token(refresh_token),
+                hash_token(new_refresh_token),
+                expires_at,
+                current_time,
             )
         )
 
