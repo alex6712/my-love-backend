@@ -140,9 +140,6 @@ class CoupleService:
         CoupleRequestNotFoundException
             Если запрос с переданным UUID не найден в запросах к текущему пользователю.
         """
-        if await self._couple_repo.get_active_couple_by_partner_id(user_id):
-            raise CoupleAlreadyExistsException(detail="You're already in couple!")
-
         request = await self._couple_repo.get_pending_request_by_id_and_recipient_id(
             couple_id, user_id
         )
@@ -152,22 +149,35 @@ class CoupleService:
                 detail=f"Couple request with id={couple_id} not found in pending requests for user with id={user_id}.",
             )
 
-        if await self._couple_repo.get_active_couple_by_partner_id(
-            request.initiator.id
-        ):
+        active_couples = await self._couple_repo.get_active_couples_by_partner_ids(
+            user_id, request.initiator.id
+        )
+
+        if active_couples:
+            active_couple = active_couples[0]
+
+            if user_id in (active_couple.initiator.id, active_couple.recipient.id):
+                raise CoupleAlreadyExistsException(detail="You're already in couple!")
+
             raise CoupleAlreadyExistsException(
                 detail=f"User with id={request.initiator.id} is already in couple!",
             )
 
-        await self._couple_repo.update_request_status(
-            couple_id, CoupleRequestStatus.ACCEPTED
+        updated = await self._couple_repo.update_request_status_by_id_and_recipient_id(
+            couple_id, user_id, CoupleRequestStatus.ACCEPTED
         )
+
+        if not updated:
+            raise CoupleRequestNotFoundException(
+                detail=f"Failed to accept pending couple request with id={couple_id}.",
+            )
 
     async def decline_couple_request(self, couple_id: UUID, user_id: UUID) -> None:
         """Отклонение запроса на создание пары между пользователями.
 
-        Проверяет, существует ли для текущего пользователя с UUID=`user_id`
-        запрос на создание пары с UUID=`couple_id`. Отклоняет запрос на создание пары.
+        Инициирует попытку атомарно отклонить запрос на создание пары.
+        Если запрос по переданным параметрам найден, то ему устанавливается
+        статус `CoupleRequestStatus.DECLINED`.
 
         Parameters
         ----------
@@ -181,18 +191,14 @@ class CoupleService:
         CoupleRequestNotFoundException
             Если запрос с переданным UUID не найден в запросах к текущему пользователю.
         """
-        request = await self._couple_repo.get_pending_request_by_id_and_recipient_id(
-            couple_id, user_id
+        updated = await self._couple_repo.update_request_status_by_id_and_recipient_id(
+            couple_id, user_id, CoupleRequestStatus.DECLINED
         )
 
-        if request is None:
+        if not updated:
             raise CoupleRequestNotFoundException(
-                detail=f"Couple request with id={couple_id} not found in pending requests for user with id={user_id}.",
+                detail=f"Couple request with id={couple_id} not found.",
             )
-
-        await self._couple_repo.update_request_status(
-            couple_id, CoupleRequestStatus.DECLINED
-        )
 
     async def get_couple_requests(self, user_id: UUID) -> list[CoupleRequestDTO]:
         """Получение списка всех запросов на создание пары.

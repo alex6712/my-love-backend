@@ -30,12 +30,14 @@ class CoupleRepository(RepositoryInterface):
         Получение информации о партнёре пользователя.
     get_active_couple_by_partner_id(partner_id)
         Получение DTO пары по UUID одного из партнёров.
+    get_active_couples_by_partner_ids(*partner_ids)
+        Получение списка активных пар по UUID нескольких партнёров.
     find_existing_request(initiator_id, recipient_id)
         Поиск существующего запроса на создание пары.
     get_pending_requests_for_recipient(recipient_id)
         Получение входящих запросов для пользователя.
-    update_request_status(request_id, status)
-        Обновление статуса запроса на создание пары.
+    update_request_status_by_id_and_recipient_id(couple_request_id, recipient_id, new_status)
+        Обновление статуса входящего запроса на создание пары.
     """
 
     def __init__(self, session: AsyncSession):
@@ -81,12 +83,10 @@ class CoupleRepository(RepositoryInterface):
         """
         couple = await self.session.scalar(
             select(CoupleRequestModel).where(
-                and_(
-                    CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
-                    or_(
-                        CoupleRequestModel.initiator_id == user_id,
-                        CoupleRequestModel.recipient_id == user_id,
-                    ),
+                CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
+                or_(
+                    CoupleRequestModel.initiator_id == user_id,
+                    CoupleRequestModel.recipient_id == user_id,
                 ),
             )
         )
@@ -130,9 +130,6 @@ class CoupleRepository(RepositoryInterface):
     ) -> CoupleRequestDTO | None:
         """Получение DTO пары по UUID одного из партнёров.
 
-        Получает на вход UUID одного из партнёров и ищет в базе данных
-        запись о паре, в которой состоит данный пользователь.
-
         Parameters
         ----------
         partner_id : UUID
@@ -140,27 +137,52 @@ class CoupleRepository(RepositoryInterface):
 
         Returns
         -------
-        CoupleDTO | None
-            DTO пары между пользователем и его партнёром, None - если пользователь не состоит в паре.
+        CoupleRequestDTO | None
+            DTO пары между пользователем и его партнёром,
+            None — если пользователь не состоит в паре.
+
+        Raises
+        ------
+        MultipleActiveCouplesException
+            Если для пользователя найдено более одной активной пары
+            (нарушение целостности данных).
         """
-        couple = await self.session.scalar(
+        couples = await self.get_active_couples_by_partner_ids(partner_id)
+
+        return couples[0] if couples else None
+
+    async def get_active_couples_by_partner_ids(
+        self, *partner_ids: UUID
+    ) -> list[CoupleRequestDTO]:
+        """Получение списка активных пар по UUID нескольких партнёров.
+
+        Parameters
+        ----------
+        *partner_ids : UUID
+            Список UUID пользователей.
+
+        Returns
+        -------
+        list[CoupleRequestDTO]
+            Список DTO активных пар, в которых состоит хотя бы один
+            из переданных пользователей.
+        """
+        result = await self.session.scalars(
             select(CoupleRequestModel)
             .options(
                 selectinload(CoupleRequestModel.initiator),
                 selectinload(CoupleRequestModel.recipient),
             )
             .where(
-                and_(
-                    CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
-                    or_(
-                        CoupleRequestModel.initiator_id == partner_id,
-                        CoupleRequestModel.recipient_id == partner_id,
-                    ),
+                CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
+                or_(
+                    CoupleRequestModel.initiator_id.in_(partner_ids),
+                    CoupleRequestModel.recipient_id.in_(partner_ids),
                 ),
             )
         )
 
-        return CoupleRequestDTO.model_validate(couple) if couple else None
+        return [CoupleRequestDTO.model_validate(request) for request in result.all()]
 
     async def find_existing_request(
         self, initiator_id: UUID, recipient_id: UUID
@@ -229,10 +251,8 @@ class CoupleRepository(RepositoryInterface):
                 selectinload(CoupleRequestModel.recipient),
             )
             .where(
-                and_(
-                    CoupleRequestModel.status == CoupleRequestStatus.PENDING,
-                    CoupleRequestModel.recipient_id == recipient_id,
-                )
+                CoupleRequestModel.status == CoupleRequestStatus.PENDING,
+                CoupleRequestModel.recipient_id == recipient_id,
             )
         )
 
@@ -265,33 +285,49 @@ class CoupleRepository(RepositoryInterface):
                 selectinload(CoupleRequestModel.recipient),
             )
             .where(
-                and_(
-                    CoupleRequestModel.id == couple_request_id,
-                    CoupleRequestModel.recipient_id == recipient_id,
-                    CoupleRequestModel.status == CoupleRequestStatus.PENDING,
-                )
+                CoupleRequestModel.id == couple_request_id,
+                CoupleRequestModel.recipient_id == recipient_id,
+                CoupleRequestModel.status == CoupleRequestStatus.PENDING,
             )
         )
 
         return CoupleRequestDTO.model_validate(request) if request else None
 
-    async def update_request_status(
-        self, request_id: UUID, status: CoupleRequestStatus
-    ) -> None:
-        """Обновление статуса запроса на создание пары.
+    async def update_request_status_by_id_and_recipient_id(
+        self,
+        couple_request_id: UUID,
+        recipient_id: UUID,
+        new_status: CoupleRequestStatus,
+    ) -> bool:
+        """Обновление статуса входящего запроса на создание пары.
 
-        Получает на вход UUID запроса на создание пары и новый
-        статус запроса. Обновляет запись в базе данных.
+        Обновляет статус запроса только если он существует, адресован
+        указанному реципиенту и находится в состоянии `CoupleRequestStatus.PENDING`.
 
         Parameters
         ----------
-        request_id : UUID
+        couple_request_id : UUID
             UUID запроса на создание пары.
-        status : CoupleRequestStatus
+        recipient_id : UUID
+            UUID пользователя-реципиента.
+        new_status : CoupleRequestStatus
             Новый статус запроса.
+
+        Returns
+        -------
+        bool
+            True, если запись была обновлена, False — если запрос не найден
+            или не находится в состоянии PENDING.
         """
-        await self.session.execute(
+        updated = await self.session.scalar(
             update(CoupleRequestModel)
-            .where(CoupleRequestModel.id == request_id)
-            .values(status=status)
+            .where(
+                CoupleRequestModel.id == couple_request_id,
+                CoupleRequestModel.recipient_id == recipient_id,
+                CoupleRequestModel.status == CoupleRequestStatus.PENDING,
+            )
+            .values(status=new_status)
+            .returning(CoupleRequestModel.id)
         )
+
+        return updated is not None

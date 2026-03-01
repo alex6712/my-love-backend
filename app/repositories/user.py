@@ -23,7 +23,7 @@ class UserRepository(RepositoryInterface):
     -------
     add_user(user_info)
         Добавляет в базу данных новую запись о пользователе.
-    get_user_by_id(id_)
+    get_user_by_id(user_id)
         Возвращает модель пользователя по его id.
     user_exists_by_id(user_id)
         Проверка на существование пользователя по его UUID.
@@ -55,12 +55,12 @@ class UserRepository(RepositoryInterface):
             )
         )
 
-    async def get_user_by_id(self, id_: UUID) -> UserWithCredentialsDTO | None:
+    async def get_user_by_id(self, user_id: UUID) -> UserWithCredentialsDTO | None:
         """Возвращает DTO пользователя по его id.
 
         Parameters
         ----------
-        id_ : UUID
+        user_id : UUID
             UUID пользователя.
 
         Returns
@@ -68,7 +68,7 @@ class UserRepository(RepositoryInterface):
         UserDTO | None
             DTO записи пользователя, None - если пользователь с таким UUID не найден.
         """
-        user = await self._get_user_by_id(id_)
+        user = await self._get_user_by_id(user_id)
 
         return UserWithCredentialsDTO.model_validate(user) if user else None
 
@@ -92,12 +92,12 @@ class UserRepository(RepositoryInterface):
         """
         return await self._get_user_by_id(user_id) is not None
 
-    async def _get_user_by_id(self, id_: UUID) -> UserModel | None:
+    async def _get_user_by_id(self, user_id: UUID) -> UserModel | None:
         """Возвращает модель пользователя по его id.
 
         Parameters
         ----------
-        id_ : UUID
+        user_id : UUID
             UUID пользователя.
 
         Returns
@@ -105,7 +105,9 @@ class UserRepository(RepositoryInterface):
         UserModel | None
             SQL модель записи пользователя, если пользователь не найден - None.
         """
-        return await self.session.scalar(select(UserModel).where(UserModel.id == id_))
+        return await self.session.scalar(
+            select(UserModel).where(UserModel.id == user_id)
+        )
 
     async def get_user_by_username(
         self, username: str
