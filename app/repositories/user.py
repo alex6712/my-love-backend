@@ -46,7 +46,7 @@ class UserRepository(RepositoryInterface):
         username : str
             Имя пользователя приложения.
         password_hash : str
-            Хеш пароля пользователя приложения.
+            Хэш пароля пользователя приложения.
         """
         self.session.add(
             UserModel(

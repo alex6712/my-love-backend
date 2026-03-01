@@ -12,7 +12,7 @@ class UserSessionDTO(BaseSQLModelDTO):
     user_id : UUID
         UUID пользователя системы (владельца сессии).
     refresh_token_hash : str
-        Хеш токена обновления сессии пользователя.
+        Хэш токена обновления сессии пользователя.
     expires_at : datetime
         Дата и время, когда токен будет просрочен.
     last_used_at : datetime

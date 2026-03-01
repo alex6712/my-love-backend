@@ -26,7 +26,7 @@ class UserSessionModel(BaseModel):
         String(128),
         nullable=False,
         index=True,
-        comment="Хеш токена обновления (Argon2id)",
+        comment="Хэш токена обновления (HMAC-SHA256)",
     )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -70,7 +70,7 @@ def create_jwt(
     """Создаёт и возвращает подписанный JWT.
 
     Формирует payload из переданных аргументов и кодирует его.
-    Значение `exp` должно быть задано одним из трёх способов -
+    Значение `exp` должно быть задано одним из двух способов -
     иначе выбрасывается `RuntimeError`.
 
     Parameters
@@ -91,7 +91,6 @@ def create_jwt(
         Если передан вместе с `exp`, то `expires_delta` перезапишет `exp`.
     **claims : Any
         Дополнительные произвольные claims, которые будут добавлены в payload.
-        Также может содержать `exp` как fallback.
 
     Returns
     -------
@@ -102,21 +101,13 @@ def create_jwt(
     ------
     RuntimeError
         Если ни один из источников для `exp` не передан:
-        ни `exp`, ни `expires_delta`, ни `exp` внутри `**claims`.
-
-    Notes
-    -----
-    Приоритет установки `exp` claim от высшего к низшему:
-    1. Высочайший приоритет: `expires_delta`.
-    2. Средний приоритет: `exp` преданный по ключевому слову в claims.
-    3. Наименьший приоритет: аргумент `exp`.
+        ни `exp`, ни `expires_delta`.
     """
-    if not exp and not expires_delta and not claims.get("exp"):
+    if not exp and not expires_delta:
         raise RuntimeError(
             "There's no source to set the 'exp' value from!\n"
-            "You can pass it via 'exp' argument directly, via"
-            "'expires_delta' argument for calculate from 'iat'"
-            "and via the kwargs."
+            "You can pass it via 'exp' argument directly or via"
+            "'expires_delta' argument for calculate from 'iat'."
         )
 
     if jti is None:
@@ -160,7 +151,7 @@ def hash_(
     Returns
     -------
     str
-        Хеш секрета в соответствии с установленной схемой и настройками.
+        Хэш секрета в соответствии с установленной схемой и настройками.
     """
     return pwd_context.hash(secret, scheme, category)
 
@@ -180,7 +171,7 @@ def verify(
     secret : str | bytes
         Секрет для проверки.
     hashed : str | bytes
-        Хеш секрета.
+        Хэш секрета.
     scheme : str | None
         Схема, по которой хеширование будет выполнено. Необязательный аргумент.
         Если не передан, используется схема по умолчанию.

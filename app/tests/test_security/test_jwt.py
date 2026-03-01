@@ -47,7 +47,7 @@ class TestPasswordHashing:
         assert verify(wrong_password, hashed) is False
 
     def test_hash_verify_with_bytes(self):
-        """Хеширование должно работать с байтами."""
+        """Хэширование должно работать с байтами."""
         password = b"bytes_password"
         hashed = hash_(password)
 

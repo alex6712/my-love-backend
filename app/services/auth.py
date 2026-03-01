@@ -192,7 +192,9 @@ class AuthService:
             days=self._settings.REFRESH_TOKEN_LIFETIME_DAYS
         )
 
-        new_refresh_token = create_jwt(payload["sub"], current_time, exp=expires_at)
+        new_refresh_token = create_jwt(
+            str(payload["sub"]), current_time, exp=expires_at
+        )
 
         # атомарное обновление хэша токена обновления
         user_session_id = (
@@ -212,7 +214,7 @@ class AuthService:
 
         return {
             "access": create_jwt(
-                payload["sub"],
+                str(payload["sub"]),
                 current_time,
                 expires_delta=timedelta(
                     minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES

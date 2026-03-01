@@ -27,7 +27,7 @@ class UserModel(BaseModel):
     password_hash: Mapped[str] = mapped_column(
         String(128),
         nullable=False,
-        comment="Хеш пароля (Argon2id через Passlib)",
+        comment="Хэш пароля (Argon2id через Passlib)",
     )
     avatar_url: Mapped[str] = mapped_column(
         String(512),
