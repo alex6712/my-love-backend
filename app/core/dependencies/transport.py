@@ -10,7 +10,7 @@ async def get_idempotency_key(
         Header(
             alias="Idempotency-Key",
             description="UUID ключ идемпотентности.",
-            example="24a8660f-d467-438c-b13d-5738fd30893d",
+            examples=["24a8660f-d467-438c-b13d-5738fd30893d"],
         ),
     ],
 ) -> UUID:

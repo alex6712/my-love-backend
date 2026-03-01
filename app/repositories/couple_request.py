@@ -5,13 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import CoupleRequestStatus
-from app.models.couple import CoupleRequestModel
+from app.models.couple_request import CoupleRequestModel
 from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.couple import CoupleRequestDTO
 from app.schemas.dto.user import PartnerDTO
 
 
-class CoupleRepository(RepositoryInterface):
+class CoupleRequestRepository(RepositoryInterface):
     """Репозиторий пар между пользователями.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).

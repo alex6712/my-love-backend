@@ -9,7 +9,7 @@ from app.core.exceptions.couple import (
 )
 from app.core.exceptions.user import UserNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
-from app.repositories.couple import CoupleRepository
+from app.repositories.couple_request import CoupleRequestRepository
 from app.repositories.user import UserRepository
 from app.schemas.dto.couple import CoupleRequestDTO
 from app.schemas.dto.user import PartnerDTO
@@ -25,7 +25,7 @@ class CoupleService:
     ----------
     _user_repo : UserRepository
         Репозиторий для операций с пользователями в БД.
-    _couple_repo : CoupleRepository
+    _couple_request_repo : CoupleRequestRepository
         Репозиторий для операций с парами пользователей в БД.
 
     Methods
@@ -38,7 +38,7 @@ class CoupleService:
 
     def __init__(self, unit_of_work: UnitOfWork):
         self._user_repo = unit_of_work.get_repository(UserRepository)
-        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
+        self._couple_request_repo = unit_of_work.get_repository(CoupleRequestRepository)
 
     async def get_partner(self, user_id: UUID) -> PartnerDTO | None:
         """Получение информации о партнёре пользователя.
@@ -56,7 +56,7 @@ class CoupleService:
         PartnerDTO | None
             Информация о партнёре пользователя.
         """
-        return await self._couple_repo.get_partner_by_user_id(user_id)
+        return await self._couple_request_repo.get_partner_by_user_id(user_id)
 
     async def create_couple_request(
         self, initiator_id: UUID, recipient_username: str
@@ -105,19 +105,25 @@ class CoupleService:
             )
 
         # TODO: заменить на ОДИН запрос
-        if await self._couple_repo.get_active_couple_by_partner_id(initiator_id):
+        if await self._couple_request_repo.get_active_couple_by_partner_id(
+            initiator_id
+        ):
             raise CoupleAlreadyExistsException(detail="You're already in couple!")
-        if await self._couple_repo.get_active_couple_by_partner_id(recipient_id):
+        if await self._couple_request_repo.get_active_couple_by_partner_id(
+            recipient_id
+        ):
             raise CoupleAlreadyExistsException(
                 detail=f"User with username={recipient_username} is already in couple!",
             )
 
-        if await self._couple_repo.find_existing_request(initiator_id, recipient_id):
+        if await self._couple_request_repo.find_existing_request(
+            initiator_id, recipient_id
+        ):
             raise CoupleRequestAlreadyExistsException(
                 detail=f"Couple request with UUIDs {initiator_id} <-> {recipient_id} already exists!"
             )
 
-        self._couple_repo.add_couple_request(initiator_id, recipient_id)
+        self._couple_request_repo.add_couple_request(initiator_id, recipient_id)
 
     async def accept_couple_request(self, couple_id: UUID, user_id: UUID) -> None:
         """Подтверждение запроса на создание пары между пользователями.
@@ -140,8 +146,10 @@ class CoupleService:
         CoupleRequestNotFoundException
             Если запрос с переданным UUID не найден в запросах к текущему пользователю.
         """
-        request = await self._couple_repo.get_pending_request_by_id_and_recipient_id(
-            couple_id, user_id
+        request = (
+            await self._couple_request_repo.get_pending_request_by_id_and_recipient_id(
+                couple_id, user_id
+            )
         )
 
         if request is None:
@@ -149,8 +157,10 @@ class CoupleService:
                 detail=f"Couple request with id={couple_id} not found in pending requests for user with id={user_id}.",
             )
 
-        active_couples = await self._couple_repo.get_active_couples_by_partner_ids(
-            user_id, request.initiator.id
+        active_couples = (
+            await self._couple_request_repo.get_active_couples_by_partner_ids(
+                user_id, request.initiator.id
+            )
         )
 
         if active_couples:
@@ -163,7 +173,7 @@ class CoupleService:
                 detail=f"User with id={request.initiator.id} is already in couple!",
             )
 
-        updated = await self._couple_repo.update_request_status_by_id_and_recipient_id(
+        updated = await self._couple_request_repo.update_request_status_by_id_and_recipient_id(
             couple_id, user_id, CoupleRequestStatus.ACCEPTED
         )
 
@@ -191,7 +201,7 @@ class CoupleService:
         CoupleRequestNotFoundException
             Если запрос с переданным UUID не найден в запросах к текущему пользователю.
         """
-        updated = await self._couple_repo.update_request_status_by_id_and_recipient_id(
+        updated = await self._couple_request_repo.update_request_status_by_id_and_recipient_id(
             couple_id, user_id, CoupleRequestStatus.DECLINED
         )
 
@@ -216,4 +226,6 @@ class CoupleService:
         list[CoupleRequestDTO]
             Список всех текущих запросов на создание пары.
         """
-        return await self._couple_repo.get_pending_requests_for_recipient(user_id)
+        return await self._couple_request_repo.get_pending_requests_for_recipient(
+            user_id
+        )

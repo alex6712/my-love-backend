@@ -4,7 +4,7 @@ from app.core.enums import NoteType, SortOrder
 from app.core.exceptions.note import NoteNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
-from app.repositories.couple import CoupleRepository
+from app.repositories.couple_request import CoupleRequestRepository
 from app.repositories.note import NoteRepository
 from app.schemas.dto.note import NoteDTO
 
@@ -22,7 +22,7 @@ class NoteService:
         Клиент Redis для кэширования запросов.
     _note_repo : NoteRepository
         Репозиторий для операций с заметками в БД.
-    _couple_repo : CoupleRepository
+    _couple_request_repo : CoupleRequestRepository
         Репозиторий для операций с парами пользователей в БД.
 
     Methods
@@ -46,7 +46,7 @@ class NoteService:
         self._redis_client = redis_client
 
         self._note_repo = unit_of_work.get_repository(NoteRepository)
-        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
+        self._couple_request_repo = unit_of_work.get_repository(CoupleRequestRepository)
 
     async def create_note(
         self, type: NoteType, title: str, content: str, created_by: UUID
@@ -103,7 +103,7 @@ class NoteService:
         tuple[list[NoteDTO], int]
             Кортеж из списка заметок и общего количества.
         """
-        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
 
         return await self._note_repo.get_notes_by_creator(
             note_type, offset, limit, user_id, order, partner_id
@@ -130,7 +130,7 @@ class NoteService:
         if cached is not None:
             return cached
 
-        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
         count = await self._note_repo.count_notes_by_creator(user_id, partner_id)
 
         await self._redis_client.set_count(
@@ -159,7 +159,7 @@ class NoteService:
         user_id : UUID
             UUID пользователя, инициирующего изменение заметки.
         """
-        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
 
         note = await self._note_repo.get_note_by_id(note_id, user_id, partner_id)
 

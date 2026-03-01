@@ -16,7 +16,7 @@ from app.core.exceptions.media import (
 )
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
-from app.repositories.couple import CoupleRepository
+from app.repositories.couple_request import CoupleRequestRepository
 from app.repositories.media import FileRepository
 from app.schemas.dto.file import FileDTO, FileMetadataDTO
 from app.schemas.dto.presigned_url import PresignedURLDTO
@@ -41,7 +41,7 @@ class FileService:
         Асинхронный клиент для операций с файлами в S3 хранилище.
     _settings : Settings
         Настройки приложения.
-    _couple_repo : CoupleRepository
+    _couple_request_repo : CoupleRequestRepository
         Репозиторий для операций с парами пользователей в БД.
     _file_repo : FileRepository
         Репозиторий для операций с файлами в БД.
@@ -91,7 +91,7 @@ class FileService:
         self._s3_client = s3_client
         self._settings = settings
 
-        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
+        self._couple_request_repo = unit_of_work.get_repository(CoupleRequestRepository)
         self._file_repo = unit_of_work.get_repository(FileRepository)
 
     @staticmethod
@@ -194,7 +194,7 @@ class FileService:
         tuple[list[FileDTO], int]
             Кортеж из списка файлов и общего количества.
         """
-        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
 
         return await self._file_repo.get_files_by_creator(
             offset, limit, order, user_id, partner_id
@@ -221,7 +221,7 @@ class FileService:
         if cached is not None:
             return cached
 
-        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
         count = await self._file_repo.count_files_by_creator(user_id, partner_id)
 
         await self._redis_client.set_count(
@@ -482,7 +482,7 @@ class FileService:
             Возникает в случае, если файл находится в статусе загрузки (PENDING),
             загрузка не удалась (FAILED) или файл был удалён (DELETED).
         """
-        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
 
         files = await self._file_repo.get_files_by_ids(files_uuids, user_id, partner_id)
 

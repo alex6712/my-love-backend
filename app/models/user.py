@@ -7,7 +7,7 @@ from app.models.base import BaseModel
 
 if TYPE_CHECKING:
     from app.models.album import AlbumModel
-    from app.models.couple import CoupleRequestModel
+    from app.models.couple_request import CoupleRequestModel
     from app.models.file import FileModel
     from app.models.note import NoteModel
     from app.models.user_session import UserSessionModel
