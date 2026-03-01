@@ -11,6 +11,7 @@ from jose import jwt
 from passlib.context import CryptContext
 
 from app.config import get_settings
+from app.core.exceptions.base import WeakServerSecretException
 from app.core.types import Payload
 
 settings = get_settings()
@@ -61,7 +62,7 @@ def create_jwt(
     iat: datetime,
     *,
     exp: datetime | None = None,
-    jti: str = str(uuid.uuid4()),
+    jti: str | None = None,
     iss: str = "my-love-backend",
     expires_delta: timedelta | None = None,
     **claims: Any,
@@ -80,8 +81,7 @@ def create_jwt(
         Время выпуска токена (`iat` claim).
     exp : datetime | None, optional
         Точное время истечения токена (`exp` claim).
-        Имеет приоритет над `expires_delta`.
-    jti : str, optional
+    jti : str | None, optional
         Уникальный идентификатор токена (`jti` claim).
         По умолчанию генерируется автоматически через `uuid.uuid4()`.
     iss : str, optional
@@ -91,7 +91,7 @@ def create_jwt(
         Если передан вместе с `exp`, то `expires_delta` перезапишет `exp`.
     **claims : Any
         Дополнительные произвольные claims, которые будут добавлены в payload.
-        Также может содержать `exp` как fallback, если остальные способы не переданы.
+        Также может содержать `exp` как fallback.
 
     Returns
     -------
@@ -103,6 +103,13 @@ def create_jwt(
     RuntimeError
         Если ни один из источников для `exp` не передан:
         ни `exp`, ни `expires_delta`, ни `exp` внутри `**claims`.
+
+    Notes
+    -----
+    Приоритет установки `exp` claim от высшего к низшему:
+    1. Высочайший приоритет: `expires_delta`.
+    2. Средний приоритет: `exp` преданный по ключевому слову в claims.
+    3. Наименьший приоритет: аргумент `exp`.
     """
     if not exp and not expires_delta and not claims.get("exp"):
         raise RuntimeError(
@@ -111,6 +118,9 @@ def create_jwt(
             "'expires_delta' argument for calculate from 'iat'"
             "and via the kwargs."
         )
+
+    if jti is None:
+        jti = str(uuid.uuid4())
 
     to_encode: Payload = {"sub": sub, "iat": iat, "exp": exp, "jti": jti, "iss": iss}
     to_encode.update(claims)
@@ -189,7 +199,9 @@ def verify(
     return pwd_context.verify(secret, hashed, scheme, category)
 
 
-def hash_token(token: str) -> str:
+def hash_token(
+    token: str, secret_key: bytes = settings.HMAC_SECRET_KEY.encode()
+) -> str:
     """Создаёт детерминированный HMAC-SHA256 хеш токена.
 
     В отличие от `hash_()`, результат детерминирован — одинаковый токен
@@ -200,14 +212,29 @@ def hash_token(token: str) -> str:
     ----------
     token : str
         Токен для хеширования.
+    secret_key : bytes, optional
+        Секретный ключ для HMAC. По умолчанию используется значение
+        из настроек приложения. Длина ключа должна быть не менее 32 байт.
 
     Returns
     -------
     str
         HMAC-SHA256 хеш токена в виде hex-строки.
+
+    Raises
+    ------
+    WeakServerSecretException
+        Если длина секретного ключа меньше 32 байт.
     """
+    if len(secret_key) < 32:
+        raise WeakServerSecretException(
+            detail=(
+                f"HMAC secret key is too weak: expected at least 32 bytes, got {len(secret_key)}."
+            )
+        )
+
     return hmac.new(
-        settings.HMAC_SECRET_KEY.encode(),
+        secret_key,
         token.encode(),
         hashlib.sha256,
     ).hexdigest()

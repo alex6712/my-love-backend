@@ -43,8 +43,6 @@ class NoteService:
     """Время в секундах, которое живёт кэш счётчика записей."""
 
     def __init__(self, unit_of_work: UnitOfWork, redis_client: RedisClient):
-        super().__init__()
-
         self._redis_client = redis_client
 
         self._note_repo = unit_of_work.get_repository(NoteRepository)

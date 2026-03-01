@@ -46,8 +46,6 @@ class AlbumService:
     """
 
     def __init__(self, unit_of_work: UnitOfWork):
-        super().__init__()
-
         self._album_repo = unit_of_work.get_repository(AlbumRepository)
         self._file_repo = unit_of_work.get_repository(FileRepository)
         self._couple_repo = unit_of_work.get_repository(CoupleRepository)

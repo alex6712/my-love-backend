@@ -64,8 +64,6 @@ class AuthService:
     def __init__(
         self, unit_of_work: UnitOfWork, redis_client: RedisClient, settings: Settings
     ):
-        super().__init__()
-
         self._redis_client = redis_client
         self._settings = settings
 
@@ -189,55 +187,44 @@ class AuthService:
 
         payload = self._validate_token(refresh_token, "refresh")
 
-        user = await self._user_repo.get_user_by_id(payload["sub"])
-
-        if user is None:
-            raise InvalidTokenException(
-                detail="The passed token is damaged or poorly signed.",
-                token_type="refresh",
-            )
-
-        user_session = (
-            await self._user_session_repo.get_user_session_by_refresh_token_hash(
-                hash_token(refresh_token)
-            )
-        )
-
-        if user_session is None:
-            raise InvalidTokenException(
-                detail="There's no active session which token hash equals passed one's hash.",
-                token_type="refresh",
-            )
-
         current_time = datetime.now(timezone.utc)
         expires_at = current_time + timedelta(
             days=self._settings.REFRESH_TOKEN_LIFETIME_DAYS
         )
 
-        tokens: Tokens = {
+        new_refresh_token = create_jwt(payload["sub"], current_time, exp=expires_at)
+
+        # атомарное обновление хэша токена обновления
+        user_session_id = (
+            await self._user_session_repo.update_user_session_by_refresh_token_hash(
+                hash_token(refresh_token), new_refresh_token, expires_at, current_time
+            )
+        )
+
+        if user_session_id is None:
+            raise InvalidTokenException(
+                detail="There's no active session which token hash equals passed one's hash.",
+                token_type="refresh",
+            )
+
+        return {
             "access": create_jwt(
-                str(user.id),
+                payload["sub"],
                 current_time,
                 expires_delta=timedelta(
                     minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES
                 ),
-                session_id=str(user_session.id),
+                session_id=str(user_session_id),
             ),
-            "refresh": create_jwt(str(user.id), current_time, exp=expires_at),
+            "refresh": new_refresh_token,
         }
-
-        await self._user_session_repo.update_user_session_by_id(
-            user_session.id, hash_token(tokens["refresh"]), expires_at, current_time
-        )
-
-        return tokens
 
     async def logout(self, access_token: str | None) -> None:
         """Выполняет выход пользователя из системы путем инвалидации JWT.
 
         Parameters
         ----------
-        access_token : srt | None
+        access_token : str | None
             Валидный access токен пользователя, полученный при аутентификации.
             Должен содержать актуальный payload с идентификатором пользователя (sub).
 
@@ -253,22 +240,22 @@ class AuthService:
         """
         payload = await self.validate_access_token(access_token)
 
+        assert access_token is not None
+
         if not all(payload.get(claim) for claim in ("exp", "session_id")):
             raise InvalidTokenException(
                 detail="The passed token is damaged or poorly signed.",
                 token_type="access",
             )
 
-        exp_timestamp = payload.get("exp")
-
         current_time = datetime.now(timezone.utc).timestamp()
-        ttl = int(exp_timestamp - current_time)  # type: ignore
+        ttl = int(payload["exp"] - current_time)
 
         if ttl > 0:
-            await self._redis_client.revoke_token(token=access_token, ttl=ttl)  # type: ignore
+            await self._redis_client.revoke_token(token=access_token, ttl=ttl)
 
         user_session = await self._user_session_repo.get_user_session_by_id(
-            UUID(payload.get("session_id"))
+            UUID(payload["session_id"])
         )
 
         if user_session is not None:

@@ -238,6 +238,43 @@ class CoupleRepository(RepositoryInterface):
 
         return [CoupleRequestDTO.model_validate(request) for request in requests.all()]
 
+    async def get_pending_request_by_id_and_recipient_id(
+        self, couple_request_id: UUID, recipient_id: UUID
+    ) -> CoupleRequestDTO | None:
+        """Получение входящего запроса на создание пары по его ID и ID реципиента.
+
+        Возвращает приглашение, если оно существует, адресовано указанному
+        пользователю и находится в состоянии `CoupleRequestStatus.PENDING`.
+
+        Parameters
+        ----------
+        couple_request_id : UUID
+            UUID запроса на создание пары.
+        recipient_id : UUID
+            UUID пользователя-реципиента.
+
+        Returns
+        -------
+        CoupleRequestDTO | None
+            DTO запроса на создание пары, или None, если запрос не найден.
+        """
+        request = await self.session.scalar(
+            select(CoupleRequestModel)
+            .options(
+                selectinload(CoupleRequestModel.initiator),
+                selectinload(CoupleRequestModel.recipient),
+            )
+            .where(
+                and_(
+                    CoupleRequestModel.id == couple_request_id,
+                    CoupleRequestModel.recipient_id == recipient_id,
+                    CoupleRequestModel.status == CoupleRequestStatus.PENDING,
+                )
+            )
+        )
+
+        return CoupleRequestDTO.model_validate(request) if request else None
+
     async def update_request_status(
         self, request_id: UUID, status: CoupleRequestStatus
     ) -> None:

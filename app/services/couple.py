@@ -37,8 +37,6 @@ class CoupleService:
     """
 
     def __init__(self, unit_of_work: UnitOfWork):
-        super().__init__()
-
         self._user_repo = unit_of_work.get_repository(UserRepository)
         self._couple_repo = unit_of_work.get_repository(CoupleRepository)
 
@@ -145,25 +143,20 @@ class CoupleService:
         if await self._couple_repo.get_active_couple_by_partner_id(user_id):
             raise CoupleAlreadyExistsException(detail="You're already in couple!")
 
-        # TODO: убрать это безобразие. Создать метод в репозитории
-        # на получение запроса по его UUID и UUID партнёра
+        request = await self._couple_repo.get_pending_request_by_id_and_recipient_id(
+            couple_id, user_id
+        )
 
-        requests = await self._couple_repo.get_pending_requests_for_recipient(user_id)
-
-        try:
-            request_idx = [request.id for request in requests].index(couple_id)
-
-            request = requests[request_idx]
-
-            if await self._couple_repo.get_active_couple_by_partner_id(
-                request.initiator.id
-            ):
-                raise CoupleAlreadyExistsException(
-                    detail=f"User with id={request.initiator.id} is already in couple!",
-                )
-        except ValueError:
+        if request is None:
             raise CoupleRequestNotFoundException(
                 detail=f"Couple request with id={couple_id} not found in pending requests for user with id={user_id}.",
+            )
+
+        if await self._couple_repo.get_active_couple_by_partner_id(
+            request.initiator.id
+        ):
+            raise CoupleAlreadyExistsException(
+                detail=f"User with id={request.initiator.id} is already in couple!",
             )
 
         await self._couple_repo.update_request_status(
@@ -188,9 +181,11 @@ class CoupleService:
         CoupleRequestNotFoundException
             Если запрос с переданным UUID не найден в запросах к текущему пользователю.
         """
-        requests = await self._couple_repo.get_pending_requests_for_recipient(user_id)
+        request = await self._couple_repo.get_pending_request_by_id_and_recipient_id(
+            couple_id, user_id
+        )
 
-        if couple_id not in [request.id for request in requests]:
+        if request is None:
             raise CoupleRequestNotFoundException(
                 detail=f"Couple request with id={couple_id} not found in pending requests for user with id={user_id}.",
             )

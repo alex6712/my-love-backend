@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from app.core.exceptions.user import UserNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
 from app.repositories.user import UserRepository
 from app.schemas.dto.user import UserDTO
@@ -23,8 +24,6 @@ class UserService:
     """
 
     def __init__(self, unit_of_work: UnitOfWork):
-        super().__init__()
-
         self._user_repo = unit_of_work.get_repository(UserRepository)
 
     async def get_me(self, user_id: UUID) -> UserDTO:
@@ -46,6 +45,6 @@ class UserService:
         user = await self._user_repo.get_user_by_id(user_id)
 
         if user is None:
-            raise RuntimeError("Unknown error. Check access token validation path.")
+            raise UserNotFoundException(f"User with id={user_id} not found.")
 
         return UserDTO.model_validate(user)

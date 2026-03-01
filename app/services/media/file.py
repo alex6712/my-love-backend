@@ -87,8 +87,6 @@ class FileService:
         s3_client: "S3Client",
         settings: Settings,
     ):
-        super().__init__()
-
         self._redis_client = redis_client
         self._s3_client = s3_client
         self._settings = settings

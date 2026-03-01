@@ -23,8 +23,8 @@ class UserSessionRepository(RepositoryInterface):
         Возвращает сессию по её идентификатору.
     get_user_session_by_refresh_token_hash(refresh_token_hash)
         Возвращает сессию по хешу refresh-токена.
-    update_user_session_by_id(session_id, refresh_token_hash, expires_at, last_used_at)
-        Обновляет данные сессии по её идентификатору.
+    update_user_session_by_refresh_token_hash(old_refresh_token_hash, ne_refresh_token_hash, expires_at, last_used_at)
+        Обновляет данные сессии по хэшу токена обновления.
     delete_user_session_by_id(session_id)
         Удаляет сессию по её идентификатору.
     """
@@ -123,38 +123,46 @@ class UserSessionRepository(RepositoryInterface):
 
         return UserSessionDTO.model_validate(user_session) if user_session else None
 
-    async def update_user_session_by_id(
+    async def update_user_session_by_refresh_token_hash(
         self,
-        session_id: UUID,
-        refresh_token_hash: str,
+        old_refresh_token_hash: str,
+        new_refresh_token_hash: str,
         expires_at: datetime,
         last_used_at: datetime,
-    ) -> None:
-        """Обновляет данные сессии по её идентификатору.
+    ) -> UUID | None:
+        """Обновляет данные сессии по хэшу токена обновления.
 
-        Используется, например, при ротации refresh-токена —
+        Используется, например, при ротации refresh-токена -
         когда нужно заменить хэш и обновить время истечения и последнего использования.
 
         Parameters
         ----------
-        session_id : UUID
-            Идентификатор обновляемой сессии.
-        refresh_token_hash : str
+        old_refresh_token_hash : str
+            Старый хэш refresh-токена.
+        new_refresh_token_hash : str
             Новый хэш refresh-токена.
         expires_at : datetime
             Новое время истечения сессии.
         last_used_at : datetime
             Время последнего использования сессии.
+
+        Returns
+        -------
+        UUID | None
+            Уникальный идентификатор сессии пользователя.
         """
-        await self.session.execute(
+        user_session_id = await self.session.scalar(
             update(UserSessionModel)
-            .where(UserSessionModel.id == session_id)
+            .where(UserSessionModel.refresh_token_hash == old_refresh_token_hash)
             .values(
-                refresh_token_hash=refresh_token_hash,
+                refresh_token_hash=new_refresh_token_hash,
                 expires_at=expires_at,
                 last_used_at=last_used_at,
             )
+            .returning(UserSessionModel.id)
         )
+
+        return user_session_id
 
     async def delete_user_session_by_id(self, session_id: UUID) -> None:
         """Удаляет сессию по её идентификатору.

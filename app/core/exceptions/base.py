@@ -56,6 +56,28 @@ class UnitOfWorkContextClosedException(BaseApplicationException):
         super().__init__(detail, *args, domain="application")
 
 
+class WeakServerSecretException(BaseApplicationException):
+    """Исключение, вызываемое при обнаружении слабого секретного ключа сервера.
+
+    Parameters
+    ----------
+    detail : str | None
+        Детальное сообщение об ошибке для пользователя или логирования.
+    *args : Any
+        Стандартные аргументы исключения.
+
+    Notes
+    -----
+    Возникает при попытке запустить сервер или выполнить операцию, требующую
+    криптографически стойкого секретного ключа, если предоставленный ключ
+    не соответствует требованиям безопасности (например, слишком короткий,
+    предсказуемый или использует значение по умолчанию).
+    """
+
+    def __init__(self, detail: str | None, *args: Any):
+        super().__init__(detail, *args, domain="application")
+
+
 class NotFoundException(BaseApplicationException):
     """Базовое исключение для группировки всех исключений типа `NotFound`.
 
