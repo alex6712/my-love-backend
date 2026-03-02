@@ -1,11 +1,12 @@
 from uuid import UUID
 
 from app.core.enums import SortOrder
+from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.media import MediaNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
 from app.repositories.couple_request import CoupleRequestRepository
 from app.repositories.media import AlbumRepository, FileRepository
-from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
+from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO, PatchAlbumDTO
 
 
 class AlbumService:
@@ -196,57 +197,44 @@ class AlbumService:
         return album
 
     async def update_album(
-        self,
-        album_id: UUID,
-        title: str | None,
-        description: str | None,
-        cover_url: str | None,
-        is_private: bool | None,
-        user_id: UUID,
+        self, album_id: UUID, patch_album_dto: PatchAlbumDTO, user_id: UUID
     ) -> None:
         """Частичное обновление атрибутов медиа-альбома по его UUID.
 
-        Получает идентификатор партнера текущего пользователя и передает данные
-        в репозиторий для обновления альбома с учетом прав доступа.
-        Обновляет только те поля, которые переданы (не равны None).
+        Получает идентификатор партнёра текущего пользователя и передаёт данные
+        в репозиторий для обновления альбома с учётом прав доступа.
+        Обновляет только явно переданные поля (не равные `UNSET`).
 
         Parameters
         ----------
         album_id : UUID
             UUID альбома к изменению.
-        title : str | None
-            Новый заголовок альбома. Если None - текущее значение не изменяется.
-        description : str | None
-            Новое описание альбома. Если None - текущее значение не изменяется.
-        cover_url : str | None
-            Новая ссылка на обложку альбома. Если None - текущее значение не изменяется.
-        is_private : bool | None
-            Новый статус приватности альбома. Если None - текущее значение не изменяется.
+        patch_album_dto : PatchAlbumDTO
+            DTO с полями для обновления. Содержит только явно переданные поля.
         user_id : UUID
             UUID пользователя, инициирующего изменение альбома.
+
+        Raises
+        ------
+        NothingToUpdateException
+            Не было передано ни одного поля на обновление.
+        MediaNotFoundException
+            Если альбом не найдена или пользователь не является его создателем.
         """
         partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
 
-        album = await self._album_repo.get_album_by_id(album_id, user_id, partner_id)
+        if patch_album_dto.is_empty():
+            raise NothingToUpdateException(detail="No fields provided for update.")
 
-        if album is None:
+        updated = await self._album_repo.update_album_by_id(
+            album_id, patch_album_dto, user_id, partner_id
+        )
+
+        if not updated:
             raise MediaNotFoundException(
                 media_type="album",
                 detail=f"Album with id={album_id} not found, or you're not this album's creator.",
             )
-
-        if title is None:
-            title = album.title
-        if description is None:
-            description = album.description
-        if cover_url is None:
-            cover_url = album.cover_url
-        if is_private is None:
-            is_private = album.is_private
-
-        await self._album_repo.update_album_by_id(
-            album_id, title, description, cover_url, is_private
-        )
 
     async def delete_album(self, album_id: UUID, user_id: UUID) -> None:
         """Удаление альбома по его UUID.

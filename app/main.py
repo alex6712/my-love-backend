@@ -37,6 +37,7 @@ from app.core.exceptions.base import (
     AlreadyExistsException,
     IdempotencyException,
     NotFoundException,
+    NothingToUpdateException,
 )
 from app.core.exceptions.couple import CoupleNotSelfException
 from app.core.exceptions.media import (
@@ -671,6 +672,37 @@ async def upload_not_completed_exception_handler(
             detail=exc.detail,
         ).model_dump(mode="json"),
         status_code=status.HTTP_404_NOT_FOUND,
+    )
+
+
+@my_love_backend.exception_handler(NothingToUpdateException)
+async def nothing_to_update_exception_handler(
+    request: Request,
+    exc: NothingToUpdateException,
+) -> JSONResponse:
+    """Обрабатывает исключения NothingToUpdateException.
+
+    Специализированный обработчик для случаев, когда PATCH-запрос
+    не содержит ни одного поля для обновления.
+
+    Parameters
+    ----------
+    request : Request
+        Объект входящего HTTP-запроса (не используется).
+    exc : NothingToUpdateException
+        Экземпляр исключения с детальным описанием ошибки.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с указанием на то, что в запросе отсутствуют данные для обновления.
+    """
+    return JSONResponse(
+        content=StandardResponse(
+            code=APICode.NOTHING_TO_UPDATE,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_400_BAD_REQUEST,
     )
 
 

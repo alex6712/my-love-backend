@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from app.core.enums import NoteType, SortOrder
+from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.note import NoteNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
@@ -140,10 +141,7 @@ class NoteService:
         return count
 
     async def update_note(
-        self,
-        note_id: UUID,
-        patch_note_dto: PatchNoteDTO,
-        user_id: UUID,
+        self, note_id: UUID, patch_note_dto: PatchNoteDTO, user_id: UUID
     ) -> None:
         """Частичное обновление атрибутов заметки по её UUID.
 
@@ -162,10 +160,15 @@ class NoteService:
 
         Raises
         ------
+        NothingToUpdateException
+            Не было передано ни одного поля на обновление.
         NoteNotFoundException
             Если заметка не найдена или пользователь не является её создателем.
         """
         partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+
+        if patch_note_dto.is_empty():
+            raise NothingToUpdateException(detail="No fields provided for update.")
 
         updated = await self._note_repo.update_note_by_id(
             note_id, patch_note_dto, user_id, partner_id

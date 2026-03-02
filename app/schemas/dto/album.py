@@ -1,4 +1,5 @@
-from app.schemas.dto.base import BaseSQLModelDTO
+from app.core.types import UNSET, Maybe
+from app.schemas.dto.base import BasePatchDTO, BaseSQLModelDTO
 from app.schemas.dto.file import FileDTO
 from app.schemas.dto.user import CreatorDTO
 
@@ -45,3 +46,27 @@ class AlbumWithItemsDTO(AlbumDTO):
 
     items: list[FileDTO]
     total: int
+
+
+class PatchAlbumDTO(BasePatchDTO):
+    """DTO для частичного обновления альбома.
+
+    Attributes
+    ----------
+    title : Maybe[str]
+        Новое наименование альбома. Если `UNSET`- поле не изменяется.
+    description : Maybe[str | None]
+        Новое описание альбома. Если `UNSET`- поле не изменяется.
+        Может быть явно передано как None для удаления описания.
+    cover_url : Maybe[str | None]
+        Новая URL обложки альбома. Если `UNSET`- поле не изменяется.
+        Может быть явно передана как None для удаления обложки.
+    is_private : Maybe[bool]
+        Видимость альбома (True - личный, False - публичный).
+        Если `UNSET`- поле не изменяется.
+    """
+
+    title: Maybe[str] = UNSET
+    description: Maybe[str | None] = UNSET
+    cover_url: Maybe[str | None] = UNSET
+    is_private: Maybe[bool] = UNSET

@@ -85,6 +85,17 @@ class BasePatchDTO(BaseDTO):
             if value is not UNSET
         }
 
+    def is_empty(self) -> bool:
+        """Проверяет, что ни одно поле не было явно передано.
+
+        Returns
+        -------
+        bool
+            True, если все поля остались `UNSET`, False - если хотя бы
+            одно поле было явно передано.
+        """
+        return not self.to_update_values()
+
 
 class BaseSQLModelDTO(BaseDTO):
     """Базовый класс DTO для всех SQL-моделей.

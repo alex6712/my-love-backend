@@ -2,6 +2,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.core.types import UNSET, Maybe
+
 
 class CreateAlbumRequest(BaseModel):
     """Схема запроса на создание медиа-альбома.
@@ -53,39 +55,42 @@ class PatchAlbumRequest(BaseModel):
 
     Attributes
     ----------
-    title : str | None
-        Наименование альбома. Если передано None, текущее
-        значение не изменяется.
-    description : str | None
-        Описание альбома. Если передано None, текущее
-        значение не изменяется.
-    cover_url : str | None
-        URL обложки альбома. Если передано None, текущее
-        значение не изменяется.
-    is_private : bool | None
-        Видимость альбома (True - личный или False - публичный).
-        Если передано None, текущее значение не изменяется.
+    title : Maybe[str]
+        Наименование альбома. Если не передан - остаётся `UNSET`
+        и текущее значение в базе данных не изменяется.
+    description : Maybe[str | None]
+        Описание альбома. Если не передан - остаётся `UNSET`
+        и текущее значение не изменяется. Может быть явно передан
+        как None для удаления описания.
+    cover_url : Maybe[str | None]
+        URL обложки альбома. Если не передан - остаётся `UNSET`
+        и текущее значение не изменяется. Может быть явно передан
+        как None для удаления обложки.
+    is_private : Maybe[bool]
+        Видимость альбома (True - личный, False - публичный).
+        Если не передан - остаётся `UNSET` и текущее значение
+        в базе данных не изменяется.
     """
 
-    title: str | None = Field(
-        default=None,
+    title: Maybe[str] = Field(
+        default_factory=lambda: UNSET,
         description="Наименование медиа альбома",
         examples=["Поездка в Париж 2004"],
     )
-    description: str | None = Field(
-        default=None,
+    description: Maybe[str | None] = Field(
+        default_factory=lambda: UNSET,
         description="Описание медиа альбома",
         examples=["Альбом с романтичными видами Города Любви!"],
     )
-    cover_url: str | None = Field(
-        default=None,
+    cover_url: Maybe[str | None] = Field(
+        default_factory=lambda: UNSET,
         description="Ссылка на обложку медиа альбома",
         examples=[
             "https://camo.githubusercontent.com/78a574a2925825ac33911b5a8bad6176bea158260c4581a72129bfa8d2ce87f3/68747470733a2f2f7777772e6963656769662e636f6d2f77702d636f6e74656e742f75706c6f6164732f323032332f30312f6963656769662d3136322e676966"
         ],
     )
-    is_private: bool | None = Field(
-        default=None,
+    is_private: Maybe[bool] = Field(
+        default_factory=lambda: UNSET,
         description="Видимость альбома (True - личный или False - публичный)",
         examples=[True, False],
     )

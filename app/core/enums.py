@@ -15,6 +15,8 @@ class APICode(StrEnum):
         Ресурс не найден.
     VALIDATION_ERROR
         Неверные данные.
+    NOTHING_TO_UPDATE
+        Пустой PATCH-запрос.
     INCORRECT_USERNAME_PASSWORD
         Неверное имя пользователя или пароль.
     TOKEN_NOT_PASSED
@@ -53,6 +55,10 @@ class APICode(StrEnum):
 
     VALIDATION_ERROR = "VALIDATION_ERROR"
     """При ошибке валидации переданных клиентом данных."""
+
+    NOTHING_TO_UPDATE = "NOTHING_TO_UPDATE"
+    """Вызывается, когда PATCH-запрос не содержит ни одного поля для обновления - 
+    все поля DTO остались `UNSET`."""
 
     INCORRECT_USERNAME_PASSWORD = "INCORRECT_USERNAME_PASSWORD"
     """Если по `username` не найден пользователь или `password` и хеш пароля в БД не совпадают."""

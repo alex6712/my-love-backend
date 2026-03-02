@@ -102,6 +102,28 @@ class AlreadyExistsException(BaseApplicationException):
     pass
 
 
+class NothingToUpdateException(BaseApplicationException):
+    """Исключение, вызываемое при попытке обработки пустого PATCH-запроса.
+
+    Parameters
+    ----------
+    detail : str | None
+        Детальное сообщение об ошибке для пользователя или логирования.
+    *args : Any
+        Стандартные аргументы исключения.
+
+    Notes
+    -----
+    Возбуждается, когда PATCH-запрос не содержит ни одного поля для обновления -
+    то есть все поля DTO остались `UNSET`. Позволяет вернуть клиенту явную ошибку
+    вместо ложного успеха, при котором запись считается обновлённой, хотя
+    фактически никаких изменений не было и проверка прав доступа не выполнялась.
+    """
+
+    def __init__(self, detail: str | None, *args: Any):
+        super().__init__(detail, *args, domain="application")
+
+
 class IdempotencyException(BaseApplicationException):
     """Исключение, вызываемое при конфликте обработки ключа идемпотентности.
 

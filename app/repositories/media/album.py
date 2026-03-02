@@ -10,7 +10,7 @@ from app.models.album import AlbumModel
 from app.models.album_items import AlbumItemsModel
 from app.models.file import FileModel
 from app.repositories.interface import SharedResourceRepository
-from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO
+from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO, PatchAlbumDTO
 
 
 class AlbumRepository(SharedResourceRepository):
@@ -320,39 +320,46 @@ class AlbumRepository(SharedResourceRepository):
     async def update_album_by_id(
         self,
         album_id: UUID,
-        title: str,
-        description: str | None,
-        cover_url: str | None,
-        is_private: bool,
-    ) -> None:
+        patch_album_dto: PatchAlbumDTO,
+        user_id: UUID,
+        partner_id: UUID | None = None,
+    ) -> bool:
         """Обновление атрибутов альбома в базе данных.
 
         Выполняет SQL-запрос UPDATE для изменения атрибутов альбома,
-        фильтруя записи по идентификатору альбома и правам создателя.
+        фильтруя записи по идентификатору альбома и правам доступа
+        через `_build_shared_clause`.
 
         Parameters
         ----------
         album_id : UUID
             UUID альбома к изменению.
-        title : str
-            Новое значение заголовка альбома.
-        description : str | None
-            Новое значение описания альбома.
-        cover_url : str | None
-            Новая ссылка на обложку альбома.
-        is_private : bool
-            Новый статус приватности альбома.
+        patch_album_dto : PatchAlbumDTO
+            DTO с полями для обновления. Только явно переданные поля
+            попадают в SET-часть запроса через `to_update_values()`.
+        user_id : UUID
+            UUID текущего пользователя.
+        partner_id : UUID | None, optional
+            UUID партнёра текущего пользователя. Передаётся в
+            `_build_shared_clause` для проверки прав на альбомы партнёра.
+
+        Returns
+        -------
+        bool
+            True, если запись была обновлена, False - если альбом
+            не найден или не прошёл проверку прав доступа.
         """
-        await self.session.execute(
+        updated = await self.session.scalar(
             update(AlbumModel)
-            .where(AlbumModel.id == album_id)
-            .values(
-                title=title,
-                description=description,
-                cover_url=cover_url,
-                is_private=is_private,
+            .where(
+                AlbumModel.id == album_id,
+                self._build_shared_clause(AlbumModel, user_id, partner_id),
             )
+            .values(**patch_album_dto.to_update_values())
+            .returning(AlbumModel.id)
         )
+
+        return updated is not None
 
     async def delete_album_by_id(self, album_id: UUID) -> None:
         """Удаляет запись о медиа альбоме из базы данных по его UUID.

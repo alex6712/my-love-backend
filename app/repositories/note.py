@@ -209,7 +209,7 @@ class NoteRepository(SharedResourceRepository):
         Returns
         -------
         bool
-            True, если запись была обновлена, False — если заметка
+            True, если запись была обновлена, False - если заметка
             не найдена или не прошла проверку прав доступа.
         """
         updated = await self.session.scalar(

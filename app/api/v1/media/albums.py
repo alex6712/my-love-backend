@@ -7,6 +7,7 @@ from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import AlbumServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.core.enums import SortOrder
+from app.schemas.dto.album import PatchAlbumDTO
 from app.schemas.v1.requests.albums import (
     AttachFilesRequest,
     CreateAlbumRequest,
@@ -308,10 +309,7 @@ async def patch_album(
     """
     await album_service.update_album(
         album_id,
-        body.title,
-        body.description,
-        body.cover_url,
-        body.is_private,
+        PatchAlbumDTO.from_request_schema(body),
         payload["sub"],
     )
 
