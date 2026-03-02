@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 
 from app.core.enums import NoteType
+from app.core.types import UNSET, Maybe
 
 
 class CreateNoteRequest(BaseModel):
@@ -37,7 +38,7 @@ class PatchNoteRequest(BaseModel):
     """Схема запроса на частичное редактирование заметки.
 
     Используется в качестве представления данных для частичного
-    обновления полей пользовательской заметки. Все поля опциональны —
+    обновления полей пользовательской заметки. Все поля опциональны -
     передаются только те атрибуты, которые необходимо изменить.
 
     Attributes
@@ -50,13 +51,13 @@ class PatchNoteRequest(BaseModel):
         текущее значение не изменяется.
     """
 
-    title: str | None = Field(
-        default=None,
+    title: Maybe[str] = Field(
+        default_factory=lambda: UNSET,
         description="Заголовок пользовательской заметки",
         examples=["Новый телефон"],
     )
-    content: str | None = Field(
-        default=None,
+    content: Maybe[str] = Field(
+        default_factory=lambda: UNSET,
         description="Содержание пользовательской заметки",
         examples=["iPhone 15 Pro в цвете Natural Titanium"],
     )

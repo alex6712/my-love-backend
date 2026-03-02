@@ -139,7 +139,7 @@ class CoupleRequestRepository(RepositoryInterface):
         -------
         CoupleRequestDTO | None
             DTO пары между пользователем и его партнёром,
-            None — если пользователь не состоит в паре.
+            None - если пользователь не состоит в паре.
 
         Raises
         ------
@@ -316,7 +316,7 @@ class CoupleRequestRepository(RepositoryInterface):
         Returns
         -------
         bool
-            True, если запись была обновлена, False — если запрос не найден
+            True, если запись была обновлена, False - если запрос не найден
             или не находится в состоянии PENDING.
         """
         updated = await self.session.scalar(

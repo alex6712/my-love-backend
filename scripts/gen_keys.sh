@@ -46,7 +46,7 @@ if [ -f "$PRIVATE_KEY" ] || [ -f "$PUBLIC_KEY" ]; then
         echo "Keys already exist. Use -f/--force to overwrite."
         exit 0
     fi
-    echo "Force flag set — overwriting existing keys..."
+    echo "Force flag set - overwriting existing keys..."
 fi
 
 cd "$KEYS_DIR" || exit 1

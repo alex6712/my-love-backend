@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.core.enums import NoteType, SortOrder
 from app.models.note import NoteModel
 from app.repositories.interface import SharedResourceRepository
-from app.schemas.dto.note import NoteDTO
+from app.schemas.dto.note import NoteDTO, PatchNoteDTO
 
 
 class NoteRepository(SharedResourceRepository):
@@ -180,26 +180,49 @@ class NoteRepository(SharedResourceRepository):
 
         return await self.session.scalar(count_query) or 0
 
-    async def update_note_by_id(self, note_id: UUID, title: str, content: str) -> None:
+    async def update_note_by_id(
+        self,
+        note_id: UUID,
+        patch_note_dto: PatchNoteDTO,
+        user_id: UUID,
+        partner_id: UUID | None = None,
+    ) -> bool:
         """Обновление атрибутов заметки в базе данных.
 
         Выполняет SQL-запрос UPDATE для изменения атрибутов заметки,
-        фильтруя записи по идентификатору заметки и правам создателя.
+        фильтруя записи по идентификатору заметки и правам доступа
+        через `_build_shared_clause`.
 
         Parameters
         ----------
         note_id : UUID
             UUID заметки к изменению.
-        title : str
-            Новое значение заголовка пользовательской заметки.
-        content : str
-            Новое значение содержимого пользовательской заметки.
+        patch_note_dto : PatchNoteDTO
+            DTO с полями для обновления. Только явно переданные поля
+            попадают в SET-часть запроса через `to_update_values()`.
+        user_id : UUID
+            UUID текущего пользователя.
+        partner_id : UUID | None, optional
+            UUID партнёра текущего пользователя. Передаётся в
+            `_build_shared_clause` для проверки прав на заметки партнёра.
+
+        Returns
+        -------
+        bool
+            True, если запись была обновлена, False — если заметка
+            не найдена или не прошла проверку прав доступа.
         """
-        await self.session.execute(
+        updated = await self.session.scalar(
             update(NoteModel)
-            .where(NoteModel.id == note_id)
-            .values(title=title, content=content)
+            .where(
+                NoteModel.id == note_id,
+                self._build_shared_clause(NoteModel, user_id, partner_id),
+            )
+            .values(**patch_note_dto.to_update_values())
+            .returning(NoteModel.id)
         )
+
+        return updated is not None
 
     async def delete_note_by_id(self, note_id: UUID) -> None:
         """Удаляет запись о пользовательской заметке из базы данных по её UUID.

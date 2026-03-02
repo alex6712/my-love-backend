@@ -6,7 +6,7 @@ from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
 from app.repositories.couple_request import CoupleRequestRepository
 from app.repositories.note import NoteRepository
-from app.schemas.dto.note import NoteDTO
+from app.schemas.dto.note import NoteDTO, PatchNoteDTO
 
 
 class NoteService:
@@ -140,40 +140,41 @@ class NoteService:
         return count
 
     async def update_note(
-        self, note_id: UUID, title: str | None, content: str | None, user_id: UUID
+        self,
+        note_id: UUID,
+        patch_note_dto: PatchNoteDTO,
+        user_id: UUID,
     ) -> None:
-        """Частичное обновление атрибутов заметки по его UUID.
+        """Частичное обновление атрибутов заметки по её UUID.
 
-        Получает идентификатор партнера текущего пользователя и передает данные
-        в репозиторий для обновления заметки с учетом прав доступа.
-        Обновляет только те поля, которые переданы (не равны None).
+        Получает идентификатор партнёра текущего пользователя и передаёт данные
+        в репозиторий для обновления заметки с учётом прав доступа.
+        Обновляет только явно переданные поля (не равные `UNSET`).
 
         Parameters
         ----------
         note_id : UUID
             UUID заметки к изменению.
-        title : str | None
-            Новый заголовок заметки. Если None — текущее значение не изменяется.
-        content : str | None
-            Новое содержание заметки. Если None — текущее значение не изменяется.
+        patch_note_dto : PatchNoteDTO
+            DTO с полями для обновления. Содержит только явно переданные поля.
         user_id : UUID
             UUID пользователя, инициирующего изменение заметки.
+
+        Raises
+        ------
+        NoteNotFoundException
+            Если заметка не найдена или пользователь не является её создателем.
         """
         partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
 
-        note = await self._note_repo.get_note_by_id(note_id, user_id, partner_id)
+        updated = await self._note_repo.update_note_by_id(
+            note_id, patch_note_dto, user_id, partner_id
+        )
 
-        if note is None:
+        if not updated:
             raise NoteNotFoundException(
                 detail=f"Note with id={note_id} not found, or you're not this note's creator.",
             )
-
-        if title is None:
-            title = note.title
-        if content is None:
-            content = note.content
-
-        await self._note_repo.update_note_by_id(note_id, title, content)
 
     async def delete_note(self, note_id: UUID, user_id: UUID) -> None:
         """Удаление заметки по его UUID.

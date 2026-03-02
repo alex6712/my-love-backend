@@ -1,5 +1,6 @@
 from app.core.enums import NoteType
-from app.schemas.dto.base import BaseSQLModelDTO
+from app.core.types import UNSET, Maybe
+from app.schemas.dto.base import BasePatchDTO, BaseSQLModelDTO
 from app.schemas.dto.user import CreatorDTO
 
 
@@ -23,3 +24,18 @@ class NoteDTO(BaseSQLModelDTO):
     content: str
 
     creator: CreatorDTO
+
+
+class PatchNoteDTO(BasePatchDTO):
+    """DTO для частичного обновления заметки.
+
+    Attributes
+    ----------
+    title : Maybe[str]
+        Новый заголовок заметки. Если `UNSET` - поле не изменяется.
+    content : Maybe[str]
+        Новое содержание заметки. Если `UNSET` - поле не изменяется.
+    """
+
+    title: Maybe[str] = UNSET
+    content: Maybe[str] = UNSET

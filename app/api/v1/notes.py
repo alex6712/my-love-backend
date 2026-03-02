@@ -7,6 +7,7 @@ from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import NoteServiceDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.core.enums import NoteType, SortOrder
+from app.schemas.dto.note import PatchNoteDTO
 from app.schemas.v1.requests.notes import CreateNoteRequest, PatchNoteRequest
 from app.schemas.v1.responses.notes import NotesResponse
 from app.schemas.v1.responses.standard import CountResponse, StandardResponse
@@ -182,7 +183,7 @@ async def patch_notes(
 
     Проверяет права владения текущего пользователя над заметкой с
     переданным UUID, изменяет только переданные атрибуты при достатке прав.
-    Все поля в теле запроса опциональны — передаются только те атрибуты,
+    Все поля в теле запроса опциональны - передаются только те атрибуты,
     которые необходимо изменить.
 
     Parameters
@@ -203,7 +204,11 @@ async def patch_notes(
     StandardResponse
         Успешный ответ о результате изменения заметки.
     """
-    await note_service.update_note(note_id, body.title, body.content, payload["sub"])
+    await note_service.update_note(
+        note_id,
+        PatchNoteDTO.from_request_schema(body),
+        payload["sub"],
+    )
 
     return StandardResponse(detail="Note content updated successful.")
 
