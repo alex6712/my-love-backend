@@ -8,7 +8,7 @@ from app.core.dependencies.services import FileServiceDependency
 from app.core.dependencies.transport import IdempotencyKeyDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF, IDEMPOTENCY_CONFLICT_ERROR_REF
 from app.core.enums import SortOrder
-from app.schemas.dto.file import FileMetadataDTO
+from app.schemas.dto.file import FileMetadataDTO, PatchFileDTO
 from app.schemas.v1.requests.files import (
     ConfirmUploadRequest,
     DownloadFilesBatchRequest,
@@ -412,8 +412,7 @@ async def patch_file(
     """
     await file_service.update_file(
         file_id,
-        body.title,
-        body.description,
+        PatchFileDTO.from_request_schema(body),
         payload["sub"],
     )
 

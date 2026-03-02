@@ -8,7 +8,7 @@ from pydantic import AnyHttpUrl
 
 from app.config import Settings
 from app.core.enums import FileStatus, IdempotencyStatus, SortOrder
-from app.core.exceptions.base import IdempotencyException
+from app.core.exceptions.base import IdempotencyException, NothingToUpdateException
 from app.core.exceptions.media import (
     MediaNotFoundException,
     UnsupportedFileTypeException,
@@ -18,7 +18,7 @@ from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
 from app.repositories.couple_request import CoupleRequestRepository
 from app.repositories.media import FileRepository
-from app.schemas.dto.file import FileDTO, FileMetadataDTO
+from app.schemas.dto.file import FileDTO, FileMetadataDTO, PatchFileDTO
 from app.schemas.dto.presigned_url import PresignedURLDTO
 
 if TYPE_CHECKING:
@@ -531,38 +531,41 @@ class FileService:
         ]
 
     async def update_file(
-        self, file_id: UUID, title: str | None, description: str | None, user_id: UUID
+        self, file_id: UUID, patch_file_dto: PatchFileDTO, user_id: UUID
     ) -> None:
         """Обновление атрибутов медиа-файла по его UUID.
 
-        Получает идентификатор партнера текущего пользователя и передает данные
-        в репозиторий для обновления файла с учетом прав доступа.
+        Передаёт данные в репозиторий для обновления альбома с учётом прав доступа.
+        Обновляет только явно переданные поля (не равные `UNSET`).
 
         Parameters
         ----------
-        album_id : UUID
+        file_id : UUID
             UUID файла к изменению.
-        title : str | None
-            Новый заголовок файла.
-        description : str | None
-            Новое описание файла или None для сохранения текущего значения.
+        patch_file_dto : PatchFileDTO
+            DTO с полями для обновления. Содержит только явно переданные поля.
         user_id : UUID
             UUID пользователя, инициирующего изменение файла.
-        """
-        file = await self._file_repo.get_file_by_id(file_id, user_id)
 
-        if file is None:
+        Raises
+        ------
+        NothingToUpdateException
+            Не было передано ни одного поля на обновление.
+        MediaNotFoundException
+            Если файл не найден или пользователь не является его создателем.
+        """
+        if patch_file_dto.is_empty():
+            raise NothingToUpdateException(detail="No fields provided for update.")
+
+        updated = await self._file_repo.update_file_by_id(
+            file_id, patch_file_dto, user_id
+        )
+
+        if not updated:
             raise MediaNotFoundException(
                 media_type="file",
                 detail=f"File with id={file_id} not found, or you're not this file's creator.",
             )
-
-        if title is None:
-            title = file.title
-        if description is None:
-            description = file.description
-
-        await self._file_repo.update_file_by_id(file_id, title, description)
 
     async def delete_file(self, file_id: UUID, user_id: UUID) -> None:
         """Удаление файла по его UUID.

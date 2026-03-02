@@ -2,6 +2,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.core.types import UNSET, Maybe
+
 
 class UploadFileRequest(BaseModel):
     """Схема запроса на получение Presigned URL загрузки файла.
@@ -55,21 +57,22 @@ class PatchFileRequest(BaseModel):
 
     Attributes
     ----------
-    title : str | None
-        Наименование медиа файла. Если передано None, текущее
-        значение не изменяется.
-    description : str | None
-        Описание медиа файла. Если передано None, текущее
-        значение не изменяется.
+    title : Maybe[str]
+        Наименование медиа файла. Если не передано - остаётся `UNSET`
+        и текущее значение в базе данных не изменяется.
+    description : Maybe[str | None]
+        Описание медиа файла. Если не передано - остаётся `UNSET`
+        и текущее значение не изменяется. Может быть явно передан
+        как None для удаления описания.
     """
 
-    title: str | None = Field(
-        default=None,
+    title: Maybe[str] = Field(
+        default_factory=lambda: UNSET,
         description="Наименование медиа файла",
         examples=["яскотятами"],
     )
-    description: str | None = Field(
-        default=None,
+    description: Maybe[str | None] = Field(
+        default_factory=lambda: UNSET,
         description="Описание медиа файла",
         examples=["Файл смерти: кто прочитал, тот..."],
     )

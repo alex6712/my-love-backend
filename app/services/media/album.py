@@ -219,7 +219,7 @@ class AlbumService:
         NothingToUpdateException
             Не было передано ни одного поля на обновление.
         MediaNotFoundException
-            Если альбом не найдена или пользователь не является его создателем.
+            Если альбом не найден или пользователь не является его создателем.
         """
         partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
 

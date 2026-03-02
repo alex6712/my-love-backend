@@ -1,7 +1,8 @@
 from typing import Any
 
 from app.core.enums import FileStatus
-from app.schemas.dto.base import BaseDTO, BaseSQLModelDTO
+from app.core.types import UNSET, Maybe
+from app.schemas.dto.base import BaseDTO, BasePatchDTO, BaseSQLModelDTO
 from app.schemas.dto.user import CreatorDTO
 
 
@@ -43,3 +44,19 @@ class FileDTO(BaseSQLModelDTO, FileMetadataDTO):
     geo_data: dict[str, Any] | None
 
     creator: CreatorDTO
+
+
+class PatchFileDTO(BasePatchDTO):
+    """DTO для частичного обновления медиа-файла.
+
+    Attributes
+    ----------
+    title : Maybe[str]
+        Новое наименование файла. Если `UNSET`- поле не изменяется.
+    description : Maybe[str | None]
+        Новое описание файла. Если `UNSET`- поле не изменяется.
+        Может быть явно передано как None для удаления описания.
+    """
+
+    title: Maybe[str] = UNSET
+    description: Maybe[str | None] = UNSET

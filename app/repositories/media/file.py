@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.core.enums import FileStatus, SortOrder
 from app.models.file import FileModel
 from app.repositories.interface import SharedResourceRepository
-from app.schemas.dto.file import FileDTO, FileMetadataDTO
+from app.schemas.dto.file import FileDTO, FileMetadataDTO, PatchFileDTO
 
 
 class FileRepository(SharedResourceRepository):
@@ -240,31 +240,41 @@ class FileRepository(SharedResourceRepository):
     async def update_file_by_id(
         self,
         file_id: UUID,
-        title: str | None,
-        description: str | None,
-    ) -> None:
+        patch_file_dto: PatchFileDTO,
+        user_id: UUID,
+    ) -> bool:
         """Обновление атрибутов файла в базе данных.
 
         Выполняет SQL-запрос UPDATE для изменения атрибутов файла,
-        фильтруя записи по идентификатору файла и правам создателя.
+        фильтруя записи по идентификатору файла и правам доступа.
 
         Parameters
         ----------
-        album_id : UUID
+        file_id : UUID
             UUID файла к изменению.
-        title : str
-            Новое значение заголовка файла.
-        description : str | None
-            Новое значение описания файла.
+        patch_file_dto : PatchFileDTO
+            DTO с полями для обновления. Только явно переданные поля
+            попадают в SET-часть запроса через `to_update_values()`.
+        user_id : UUID
+            UUID текущего пользователя.
+
+        Returns
+        -------
+        bool
+            True, если запись была обновлена, False - если файл
+            не найден или не прошёл проверку прав доступа.
         """
-        await self.session.execute(
+        updated = await self.session.scalar(
             update(FileModel)
-            .where(FileModel.id == file_id)
-            .values(
-                title=title,
-                description=description,
+            .where(
+                FileModel.id == file_id,
+                FileModel.created_by == user_id,
             )
+            .values(**patch_file_dto.to_update_values())
+            .returning(FileModel.id)
         )
+
+        return updated is not None
 
     async def delete_file_by_id(self, file_id: UUID) -> None:
         """Удаляет запись о медиа файле из базы данных по его UUID.
