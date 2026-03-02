@@ -64,12 +64,10 @@ async def get_dashboard(
     """
     user_id: UUID = payload["sub"]
 
-    tasks = [
-        asyncio.create_task(services.file.count_files(user_id)),
-        asyncio.create_task(services.note.count_notes(user_id)),
-    ]
-
-    files_count, notes_count = await asyncio.gather(*tasks)
+    files_count, notes_count = await asyncio.gather(
+        services.file.count_files(user_id),
+        services.note.count_notes(user_id),
+    )
 
     return DashboardResponse(
         files_count=files_count,
