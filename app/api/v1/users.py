@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
-from app.core.dependencies.services import UserServiceDependency
+from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.schemas.v1.responses.user import UserResponse
 
@@ -20,7 +20,7 @@ router = APIRouter(
     responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def get_me(
-    user_service: UserServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> UserResponse:
     """Запрос на получение информации о пользователе.
@@ -30,8 +30,19 @@ async def get_me(
 
     Parameters
     ----------
-    user_service : UserService
-        Зависимость сервиса пользователей.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -41,7 +52,7 @@ async def get_me(
     UserResponse
         Ответ с вложенным DTO пользователя.
     """
-    user = await user_service.get_me(payload["sub"])
+    user = await services.user.get_me(payload["sub"])
 
     return UserResponse(
         user=user,

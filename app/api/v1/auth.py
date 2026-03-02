@@ -3,11 +3,11 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Request, Response, status
 
 from app.core.dependencies.auth import (
-    AuthServiceDependency,
     ExtractAccessTokenDependency,
     ExtractRefreshTokenDependency,
     SignInCredentialsDependency,
 )
+from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import (
     AUTHORIZATION_ERROR_REF,
     LOGIN_ERROR_REF,
@@ -40,7 +40,7 @@ async def register(
     body: Annotated[
         RegisterRequest, Body(description="Схема запроса на регистрацию пользователя.")
     ],
-    auth_service: AuthServiceDependency,
+    services: ServiceManagerDependency,
 ) -> StandardResponse:
     """Регистрация нового пользователя.
 
@@ -57,15 +57,26 @@ async def register(
         при инъекции заголовков X-RateLimit-*.
     body : RegisterRequest
         Данные, полученные от клиента в теле запроса.
-    auth_service : AuthServiceDependency
-        Зависимость сервиса аутентификации.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
 
     Returns
     -------
     StandardResponse
         Ответ с кодом 201 и сообщением об успешной регистрации.
     """
-    await auth_service.register(body.username, body.password)
+    await services.auth.register(body.username, body.password)
 
     return StandardResponse(detail="User created successfully.")
 
@@ -83,7 +94,7 @@ async def login(
     request: Request,
     response: Response,
     form_data: SignInCredentialsDependency,
-    auth_service: AuthServiceDependency,
+    services: ServiceManagerDependency,
 ) -> TokensResponse:
     """Аутентификация пользователя.
 
@@ -99,15 +110,26 @@ async def login(
         при инъекции заголовков X-RateLimit-*.
     form_data : SignInCredentialsDependency
         Зависимость для получения учетных данных из формы.
-    auth_service : AuthServiceDependency
-        Зависимость сервиса аутентификации.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
 
     Returns
     -------
     TokensResponse
         Ответ с вложенными JWT access и refresh токенами.
     """
-    tokens = await auth_service.login(
+    tokens = await services.auth.login(
         form_data.username,
         form_data.password,
     )
@@ -132,7 +154,7 @@ async def refresh(
     request: Request,
     response: Response,
     refresh_token: ExtractRefreshTokenDependency,
-    auth_service: AuthServiceDependency,
+    services: ServiceManagerDependency,
 ) -> TokensResponse:
     """Обновление пары JWT-токенов.
 
@@ -149,15 +171,26 @@ async def refresh(
         при инъекции заголовков X-RateLimit-*.
     refresh_token : ExtractRefreshTokenDependency
         Зависимость на получение токена обновления из заголовков запроса.
-    auth_service : AuthServiceDependency
-        Зависимость сервиса аутентификации.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
 
     Returns
     -------
     TokensResponse
         Ответ с вложенными JWT access и refresh токенами.
     """
-    tokens = await auth_service.refresh(refresh_token)
+    tokens = await services.auth.refresh(refresh_token)
 
     return TokensResponse(
         detail="Refresh successful.",
@@ -176,7 +209,7 @@ async def refresh(
 )
 async def logout(
     access_token: ExtractAccessTokenDependency,
-    auth_service: AuthServiceDependency,
+    services: ServiceManagerDependency,
 ) -> StandardResponse:
     """Завершение текущей сессии пользователя.
 
@@ -187,8 +220,19 @@ async def logout(
     ----------
     access_token : ExtractAccessTokenDependency
         Access token, извлеченный из заголовков запроса.
-    auth_service : AuthServiceDependency
-        Зависимость сервиса аутентификации.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
 
     Returns
     -------
@@ -200,6 +244,6 @@ async def logout(
     - Access token должен быть валидным на момент выполнения запроса
     - После выполнения запроса refresh token становится недействительным
     """
-    await auth_service.logout(access_token)
+    await services.auth.logout(access_token)
 
     return StandardResponse(detail="User successfully logout.")

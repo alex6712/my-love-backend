@@ -9,12 +9,12 @@ from fastapi.security import (
 )
 
 from app.config import get_settings
-from app.core.dependencies.services import AuthServiceDependency
+from app.core.dependencies.services import ServiceManagerDependency
 from app.core.exceptions.auth import AuthDomainException
 from app.core.types import Payload
 
 SignInCredentialsDependency = Annotated[OAuth2PasswordRequestForm, Depends()]
-"""Зависимость на получение реквизитов для входа в систему"""
+"""Зависимость на получение реквизитов для входа в систему."""
 
 settings = get_settings()
 
@@ -33,24 +33,18 @@ def dependency(
 
     Parameters
     ----------
-    credentials : HTTPAuthorizationCredentials
+    credentials : HTTPAuthorizationCredentials | None
         Учётные данные, полученные из HTTP Bearer-токена.
 
     Returns
     -------
     str | None
-        Значение токена обновления.
+        Значение токена обновления либо None, если токен отсутствует.
 
     Notes
     -----
-    Функция используется для получения конкретного значение токена обновления из
-    объекта учётных данных HTTPAuthorizationCredentials, которы имеет два поля:
-    - `scheme`: схема предоставления токена (в данном случае всегда HTTP Bearer);
-    - `credentials`: строка, содержащая значение токена.
-
-    Данные о схеме бесполезны, учитывая, что они в этом случае принимают лишь одно
-    значение. Эта функция достаёт из объекта учётных данных только необходимый
-    токен обновления.
+    Из объекта HTTPAuthorizationCredentials извлекается только поле
+    `credentials`, содержащее сам токен. Поле `scheme` игнорируется.
     """
     return credentials.credentials if credentials else None
 
@@ -62,75 +56,74 @@ ExtractRefreshTokenDependency = Annotated[str | None, Depends(dependency)]
 """Зависимость на получение токена обновления из заголовков запроса."""
 
 AuthDependencyCallable = Callable[
-    [ExtractAccessTokenDependency, AuthServiceDependency],
+    [ExtractAccessTokenDependency, ServiceManagerDependency],
     Coroutine[Any, Any, Payload | None],
 ]
-"""Тип для вызываемого объекта зависимости аутентификации"""
+"""Тип вызываемого объекта зависимости аутентификации."""
 
 
 def check_auth(strict: bool = True) -> AuthDependencyCallable:
     """Фабрика для создания зависимостей аутентификации.
 
-    Генерирует зависимости FastAPI с гибким поведением при ошибках аутентификации.
-    Позволяет выбирать между строгим и мягким режимом проверки токена.
+    Генерирует зависимости FastAPI с гибким поведением при ошибках
+    аутентификации. Позволяет выбирать между строгим и мягким режимом
+    проверки access token.
 
     Parameters
     ----------
     strict : bool, optional
-        Определяет режим обработки ошибок аутентификации:
-        - `True` (по умолчанию): строгий режим - выбрасывает StarletteHTTPException
-        - `False`: мягкий режим - возвращает None при ошибках
+        Режим обработки ошибок:
+        - True (по умолчанию): строгий режим — исключение пробрасывается.
+        - False: мягкий режим — при ошибке возвращается None.
 
     Returns
     -------
     AuthDependencyCallable
-        Функция, использующая `AuthServiceDependency` для проверки аутентификации
-        пользователя.
+        Функция зависимости, использующая ServiceManager
+        для доступа к AuthService.
 
     See Also
     --------
-    SoftAuthenticationDependency : Готовая зависимость для мягкой проверки
-    StrictAuthenticationDependency : Готовая зависимость для строгой проверки
+    SoftAuthenticationDependency
+    StrictAuthenticationDependency
     """
 
     async def dependency(
-        access_token: ExtractAccessTokenDependency, auth_service: AuthServiceDependency
+        access_token: ExtractAccessTokenDependency,
+        services: ServiceManagerDependency,
     ) -> Payload | None:
-        """Внутренняя функция зависимости, выполняющая проверку аутентификации.
-
-        Реализует основную логику проверки JWT токена и обработки ошибок
-        в соответствии с выбранным режимом.
+        """Внутренняя функция зависимости, выполняющая проверку токена.
 
         Parameters
         ----------
-        auth_service : AuthServiceDependency
-            Сервис аутентификации, внедряемый через DI контейнер FastAPI.
-            Используется для проверки валидности access token.
+        access_token : str | None
+            JWT access token, извлечённый из заголовков запроса.
+        services : ServiceManagerDependency
+            Менеджер сервисов уровня запроса.
 
         Returns
         -------
         Payload | None
-            Расшифрованные данные токена (Payload) при успешной проверке.
-            None возвращается только в мягком режиме при ошибке аутентификации.
+            Расшифрованные данные токена при успешной проверке.
+            В мягком режиме при ошибке возвращается None.
 
         Raises
         ------
-        UserDomainException
-            В строгом режиме (strict=True).
+        AuthDomainException
+            В строгом режиме при ошибке аутентификации.
 
         Notes
         -----
-        Важные аспекты поведения:
-        1. В строгом режиме НЕ перехватываются не доменные исключения
-        2. В мягком режиме ЛЮБЫЕ UserDomainException преобразуются в None
-        3. Не-HTTP исключения всегда пробрасываются выше
+        Поведение:
+        1. В строгом режиме доменные исключения пробрасываются.
+        2. В мягком режиме AuthDomainException преобразуется в None.
+        3. Недоменные исключения никогда не подавляются.
         """
         try:
-            return await auth_service.validate_access_token(access_token)
+            return await services.auth.validate_access_token(access_token)
         except AuthDomainException as e:
             if strict:
                 raise e
-
             return None
 
     return dependency
@@ -139,14 +132,15 @@ def check_auth(strict: bool = True) -> AuthDependencyCallable:
 SoftAuthenticationDependency = Annotated[
     Payload | None, Depends(check_auth(strict=False))
 ]
-"""Зависимость для **мягкой** проверки аутентификации.
+"""Зависимость для мягкой проверки аутентификации.
 
-Предназначена для эндпоинтов, доступных как аутентифицированным,
-так и неаутентифицированным пользователям (например, /login).
+Используется в эндпоинтах, доступных как аутентифицированным,
+так и неаутентифицированным пользователям.
 """
 
 StrictAuthenticationDependency = Annotated[Payload, Depends(check_auth(strict=True))]
-"""Зависимость для **строгой** проверки аутентификации.
+"""Зависимость для строгой проверки аутентификации.
 
-Предназначена для защищенных эндпоинтов, требующих обязательной аутентификации.
+Используется в защищённых эндпоинтах,
+требующих обязательной аутентификации.
 """

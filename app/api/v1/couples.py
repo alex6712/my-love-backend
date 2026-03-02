@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Path, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
-from app.core.dependencies.services import CoupleServiceDependency
+from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.schemas.v1.requests.couples import CreateCoupleRequest
 from app.schemas.v1.responses.couple import CoupleRequestsResponse
@@ -26,7 +26,7 @@ router = APIRouter(
     response_description="Информация о партнёре текущего пользователя",
 )
 async def get_partner(
-    couple_service: CoupleServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> PartnerResponse:
     """Запрос на получение информации о партнёре пользователя.
@@ -36,8 +36,19 @@ async def get_partner(
 
     Parameters
     ----------
-    couple_service : CoupleService
-        Зависимость сервиса пар пользователей.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -47,7 +58,7 @@ async def get_partner(
     PartnerResponse
         Ответ с вложенным DTO партнёра.
     """
-    partner = await couple_service.get_partner(payload["sub"])
+    partner = await services.couple.get_partner(payload["sub"])
 
     return PartnerResponse(
         partner=partner,
@@ -69,7 +80,7 @@ async def create_couple_request(
         CreateCoupleRequest,
         Body(description="Схема запроса на создание приглашения в пару."),
     ],
-    couple_service: CoupleServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Запрос на регистрацию новой пары между пользователями.
@@ -81,8 +92,19 @@ async def create_couple_request(
     ----------
     body : CreateCoupleRequest
         Данные, полученные от клиента в теле запроса.
-    couple_service : CoupleService
-        Зависимость сервиса пар пользователей.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -92,7 +114,7 @@ async def create_couple_request(
     StandardResponse
         Ответ, подтверждающий успешную регистрацию приглашения в пару.
     """
-    await couple_service.create_couple_request(payload["sub"], body.partner_username)
+    await services.couple.create_couple_request(payload["sub"], body.partner_username)
 
     return StandardResponse(detail="Couple request created successfully.")
 
@@ -108,7 +130,7 @@ async def accept_couple_request(
     couple_id: Annotated[
         UUID, Path(description="UUID принимаемого приглашения в пару.")
     ],
-    couple_service: CoupleServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Подтверждение регистрации новой пары между пользователями.
@@ -120,8 +142,19 @@ async def accept_couple_request(
     ----------
     couple_id : UUID
         UUID запроса на создание пары.
-    couple_service : CoupleService
-        Зависимость сервиса пар пользователей.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -131,7 +164,7 @@ async def accept_couple_request(
     StandardResponse
         Отчёт об успешном создании новой пары.
     """
-    await couple_service.accept_couple_request(couple_id, payload["sub"])
+    await services.couple.accept_couple_request(couple_id, payload["sub"])
 
     return StandardResponse(detail="Couple register successfully.")
 
@@ -147,7 +180,7 @@ async def decline_couple_request(
     couple_id: Annotated[
         UUID, Path(description="UUID отклоняемого приглашения в пару.")
     ],
-    couple_service: CoupleServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Отклонение регистрации новой пары между пользователями.
@@ -159,8 +192,19 @@ async def decline_couple_request(
     ----------
     couple_id : UUID
         UUID запроса на создание пары.
-    couple_service : CoupleService
-        Зависимость сервиса пар пользователей.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -170,7 +214,7 @@ async def decline_couple_request(
     StandardResponse
         Отчёт об успешном отклонении запроса.
     """
-    await couple_service.decline_couple_request(couple_id, payload["sub"])
+    await services.couple.decline_couple_request(couple_id, payload["sub"])
 
     return StandardResponse(detail="Couple register declined.")
 
@@ -183,7 +227,7 @@ async def decline_couple_request(
     response_description="Список текущих приглашений в пару",
 )
 async def get_couple_requests(
-    couple_service: CoupleServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> CoupleRequestsResponse:
     """Получение списка текущих приглашений.
@@ -194,8 +238,19 @@ async def get_couple_requests(
 
     Parameters
     ----------
-    couple_service : CoupleService
-        Зависимость сервиса пар пользователей.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -205,7 +260,7 @@ async def get_couple_requests(
     CoupleRequestsResponse
         Список всех запросов на создание пары текущего пользователя.
     """
-    requests = await couple_service.get_couple_requests(payload["sub"])
+    requests = await services.couple.get_couple_requests(payload["sub"])
 
     detail = "Couple requests not found."
     if len(requests) > 0:

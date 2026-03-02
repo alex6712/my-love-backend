@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Path, Query, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
-from app.core.dependencies.services import AlbumServiceDependency
+from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.core.enums import SortOrder
 from app.schemas.dto.album import PatchAlbumDTO
@@ -31,7 +31,7 @@ router = APIRouter(
     response_description="Список всех доступных альбомов",
 )
 async def get_albums(
-    album_service: AlbumServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     offset: Annotated[
         int,
@@ -62,8 +62,19 @@ async def get_albums(
 
     Parameters
     ----------
-    album_service : AlbumService
-        Зависимость сервиса работы с альбомами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -80,7 +91,9 @@ async def get_albums(
         Объект ответа, содержащий список доступных пользователю медиа альбомов
         в пределах заданной пагинации и общее количество найденных альбомов.
     """
-    albums, total = await album_service.get_albums(offset, limit, order, payload["sub"])
+    albums, total = await services.album.get_albums(
+        offset, limit, order, payload["sub"]
+    )
 
     return AlbumsResponse(
         albums=albums, total=total, detail=f"Found {total} album entries."
@@ -98,7 +111,7 @@ async def post_albums(
     body: Annotated[
         CreateAlbumRequest, Body(description="Схема получения данных о медиа альбоме.")
     ],
-    album_service: AlbumServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Создание нового медиа альбома.
@@ -110,8 +123,19 @@ async def post_albums(
     ----------
     body : CreateAlbumRequest
         Данные, полученные от клиента в теле запроса.
-    album_service : AlbumServiceDependency
-        Зависимость сервиса работы с альбомами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -121,7 +145,7 @@ async def post_albums(
     StandardResponse
         Успешный ответ о создании нового альбома.
     """
-    album_service.create_album(
+    services.album.create_album(
         title=body.title,
         description=body.description,
         cover_url=body.cover_url,
@@ -144,7 +168,7 @@ async def search_albums(
         str,
         Query(alias="q", min_length=2, description="Поисковый запрос пользователя."),
     ],
-    album_service: AlbumServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     threshold: Annotated[
         float,
@@ -177,8 +201,19 @@ async def search_albums(
     ----------
     search_query : str
         Поисковый запрос пользователя.
-    album_service : AlbumService
-        Зависимость сервиса работы с альбомами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -194,7 +229,7 @@ async def search_albums(
     AlbumsResponse
         Объект ответа, содержащий список найденных альбомов.
     """
-    albums, total = await album_service.search_albums(
+    albums, total = await services.album.search_albums(
         search_query, threshold, offset, limit, payload["sub"]
     )
 
@@ -212,7 +247,7 @@ async def search_albums(
 )
 async def get_album(
     album_id: Annotated[UUID, Path(description="UUID запрашиваемого альбома.")],
-    album_service: AlbumServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     offset: Annotated[
         int,
@@ -243,8 +278,19 @@ async def get_album(
     ----------
     album_id : UUID
         UUID запрашиваемого альбома.
-    album_service : AlbumServiceDependency
-        Зависимость сервиса работы с альбомами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -258,7 +304,7 @@ async def get_album(
     AlbumResponse
         Подробная информация о конкретном медиа-альбоме.
     """
-    album = await album_service.get_album(album_id, offset, limit, payload["sub"])
+    album = await services.album.get_album(album_id, offset, limit, payload["sub"])
 
     return AlbumResponse(
         album=album,
@@ -279,7 +325,7 @@ async def patch_album(
         PatchAlbumRequest,
         Body(description="Схема частичного обновления атрибутов альбома"),
     ],
-    album_service: AlbumServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Частичное изменение медиа альбома по его UUID.
@@ -296,8 +342,19 @@ async def patch_album(
     body : PatchAlbumRequest
         Данные, полученные от клиента в теле запроса.
         Содержит только те поля, которые нужно обновить.
-    album_service : AlbumServiceDependency
-        Зависимость сервиса работы с альбомами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -307,7 +364,7 @@ async def patch_album(
     StandardResponse
         Ответ о результате изменения медиа альбома.
     """
-    await album_service.update_album(
+    await services.album.update_album(
         album_id,
         PatchAlbumDTO.from_request_schema(body),
         payload["sub"],
@@ -325,7 +382,7 @@ async def patch_album(
 )
 async def delete_album(
     album_id: Annotated[UUID, Path(description="UUID медиа альбома к удалению.")],
-    album_service: AlbumServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Удаление медиа альбома по его UUID.
@@ -337,8 +394,19 @@ async def delete_album(
     ----------
     album_id : UUID
         UUID альбома к удалению.
-    album_service : AlbumServiceDependency
-        Зависимость сервиса работы с альбомами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -348,7 +416,7 @@ async def delete_album(
     StandardResponse
         Ответ о результате удаления медиа альбома.
     """
-    await album_service.delete_album(album_id, payload["sub"])
+    await services.album.delete_album(album_id, payload["sub"])
 
     return StandardResponse(detail="Album entry deleted successfully.")
 
@@ -367,7 +435,7 @@ async def attach(
     body: Annotated[
         AttachFilesRequest, Body(description="Список UUID медиа файлов к добавлению.")
     ],
-    album_service: AlbumServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Привязка медиа-файлов к медиа-альбому.
@@ -381,8 +449,19 @@ async def attach(
         UUID альбома, к которому добавляются медиа-файлы.
     body : AttachFilesRequest
         Список UUID медиа-файлов к добавлению.
-    album_service : AlbumServiceDependency
-        Зависимость сервиса работы с альбомами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -392,7 +471,7 @@ async def attach(
     StandardResponse
         Ответ о результате добавления файлов к альбому.
     """
-    await album_service.attach(album_id, body.files_uuids, payload["sub"])
+    await services.album.attach(album_id, body.files_uuids, payload["sub"])
 
     return StandardResponse(detail="Files successfully attached to album.")
 
@@ -411,7 +490,7 @@ async def detach(
     body: Annotated[
         AttachFilesRequest, Body(description="Список UUID медиа-файлов к удалению.")
     ],
-    album_service: AlbumServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Отвязка медиа-файлов от медиа-альбома.
@@ -425,8 +504,19 @@ async def detach(
         UUID альбома, из которого удаляются файлы.
     body : AttachFilesRequest
         Список UUID медиа-файлов к удалению.
-    album_service : AlbumServiceDependency
-        Зависимость сервиса работы с альбомами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -436,6 +526,6 @@ async def detach(
     StandardResponse
         Ответ о результате удаления файлов из альбома.
     """
-    await album_service.detach(album_id, body.files_uuids, payload["sub"])
+    await services.album.detach(album_id, body.files_uuids, payload["sub"])
 
     return StandardResponse(detail="Files successfully detached from album.")

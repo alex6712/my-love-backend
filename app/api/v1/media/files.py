@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Path, Query, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
-from app.core.dependencies.services import FileServiceDependency
+from app.core.dependencies.services import ServiceManagerDependency
 from app.core.dependencies.transport import IdempotencyKeyDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF, IDEMPOTENCY_CONFLICT_ERROR_REF
 from app.core.enums import SortOrder
@@ -38,7 +38,7 @@ router = APIRouter(
     response_description="Список всех доступных файлов",
 )
 async def get_files(
-    file_service: FileServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     offset: Annotated[
         int,
@@ -69,8 +69,19 @@ async def get_files(
 
     Parameters
     ----------
-    file_service : AlbumService
-        Зависимость сервиса работы с файлами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -87,7 +98,7 @@ async def get_files(
         Объект ответа, содержащий список доступных пользователю медиа файлов
         в пределах заданной пагинации и общее количество найденных файлов.
     """
-    files, total = await file_service.get_files(offset, limit, order, payload["sub"])
+    files, total = await services.file.get_files(offset, limit, order, payload["sub"])
 
     return FilesResponse(
         files=files, total=total, detail=f"Found {total} file entries."
@@ -102,7 +113,7 @@ async def get_files(
     response_description="Количество доступных пользователю медиа файлов.",
 )
 async def count(
-    file_service: FileServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> CountResponse:
     """Получение количества всех доступных пользователю медиа файлов.
@@ -112,8 +123,19 @@ async def count(
 
     Parameters
     ----------
-    file_service : FileService
-        Зависимость сервиса работы с файлами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -124,7 +146,7 @@ async def count(
         Объект ответа, содержащий общее количество доступных
         пользователю медиа файлов.
     """
-    count = await file_service.count_files(payload["sub"])
+    count = await services.file.count_files(payload["sub"])
 
     return CountResponse(count=count, detail=f"Found {count} file entries.")
 
@@ -142,7 +164,7 @@ async def upload(
         UploadFileRequest,
         Body(description="Схема получения метаданных загружаемого медиа-файла."),
     ],
-    file_service: FileServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLResponse:
@@ -157,8 +179,19 @@ async def upload(
     ----------
     body : UploadFileRequest
         Данные, полученные от клиента в теле запроса.
-    file_service : FileService
-        Зависимость сервиса работы с файлами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -170,7 +203,7 @@ async def upload(
     PresignedURLResponse
         Успешный ответ о генерации presigned-url.
     """
-    url = await file_service.get_upload_presigned_url(
+    url = await services.file.get_upload_presigned_url(
         FileMetadataDTO.model_validate(body),
         payload["sub"],
         idempotency_key,
@@ -195,7 +228,7 @@ async def upload_batch(
         UploadFilesBatchRequest,
         Body(description="Схема получения метаданных загружаемых медиа-файлов."),
     ],
-    file_service: FileServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLsBatchResponse:
@@ -210,8 +243,19 @@ async def upload_batch(
     ----------
     body : UploadFilesBatchRequest
         Данные, полученные от клиента в теле запроса.
-    file_service : FileService
-        Зависимость сервиса работы с файлами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -223,7 +267,7 @@ async def upload_batch(
     PresignedURLsBatchResponse
         Успешный ответ о генерации presigned-url.
     """
-    urls = await file_service.get_upload_presigned_urls(
+    urls = await services.file.get_upload_presigned_urls(
         [FileMetadataDTO.model_validate(m) for m in body.files_metadata],
         payload["sub"],
         idempotency_key,
@@ -246,7 +290,7 @@ async def upload_confirm(
         ConfirmUploadRequest,
         Body(description="Схема получения UUID медиа-файла для подтверждения загрузки"),
     ],
-    file_service: FileServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Подтверждение окончания загрузки файла по Presigned URL.
@@ -259,8 +303,19 @@ async def upload_confirm(
     ----------
     body : ConfirmUploadRequest
         Данные, полученные от клиента в теле запроса.
-    file_service : FileService
-        Зависимость сервиса работы с файлами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -270,7 +325,7 @@ async def upload_confirm(
     StandardResponse
         Успешный ответ о регистрации загруженного файла.
     """
-    await file_service.confirm_upload(body.file_id, payload["sub"])
+    await services.file.confirm_upload(body.file_id, payload["sub"])
 
     return StandardResponse(detail="Upload confirmation is successful.")
 
@@ -287,7 +342,7 @@ async def download(
         UUID,
         Path(description="UUID файла для скачивания на клиент."),
     ],
-    file_service: FileServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> PresignedURLResponse:
     """Получение presigned-url для скачивания медиа-файла из приватного хранилища.
@@ -300,8 +355,19 @@ async def download(
     ----------
     file_id : UUID
         UUID файла для скачивания на клиент.
-    file_service : FileService
-        Зависимость сервиса работы с файлами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -311,7 +377,7 @@ async def download(
     PresignedURLResponse
         Успешный ответ о генерации presigned-url для скачивания.
     """
-    url = await file_service.get_download_presigned_url(
+    url = await services.file.get_download_presigned_url(
         file_id,
         payload["sub"],
     )
@@ -334,7 +400,7 @@ async def download_batch(
         DownloadFilesBatchRequest,
         Body(description="Схема получения UUID файлов для скачивания на клиент."),
     ],
-    file_service: FileServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> PresignedURLsBatchResponse:
     """Получение presigned-url для скачивания пакета медиа-файлов в приватное хранилище.
@@ -347,8 +413,19 @@ async def download_batch(
     ----------
     body : DownloadFilesBatchRequest
         Данные, полученные от клиента в теле запроса.
-    file_service : FileService
-        Зависимость сервиса работы с файлами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -358,7 +435,7 @@ async def download_batch(
     PresignedURLsBatchResponse
         Успешный ответ о генерации presigned-urls для скачивания.
     """
-    urls = await file_service.get_download_presigned_urls(
+    urls = await services.file.get_download_presigned_urls(
         body.files_uuids,
         payload["sub"],
     )
@@ -382,7 +459,7 @@ async def patch_file(
         PatchFileRequest,
         Body(description="Схема частичного обновления атрибутов файла"),
     ],
-    file_service: FileServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Частичное изменение медиа файла по его UUID.
@@ -399,8 +476,19 @@ async def patch_file(
     body : PatchFileRequest
         Данные, полученные от клиента в теле запроса.
         Содержит только те поля, которые нужно обновить.
-    file_service : FileServiceDependency
-        Зависимость сервиса работы с файлами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -410,7 +498,7 @@ async def patch_file(
     StandardResponse
         Ответ о результате изменения медиа файла.
     """
-    await file_service.update_file(
+    await services.file.update_file(
         file_id,
         PatchFileDTO.from_request_schema(body),
         payload["sub"],
@@ -431,7 +519,7 @@ async def delete_file(
         UUID,
         Path(description="UUID файла для удаления."),
     ],
-    file_service: FileServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Удаление медиа-файла по его UUID.
@@ -443,8 +531,19 @@ async def delete_file(
     ----------
     file_id : UUID
         UUID файла для удаления.
-    file_service : FileService
-        Зависимость сервиса работы с файлами.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -454,6 +553,6 @@ async def delete_file(
     StandardResponse
         Успешный ответ об удалении медиа-файла.
     """
-    await file_service.delete_file(file_id, payload["sub"])
+    await services.file.delete_file(file_id, payload["sub"])
 
     return StandardResponse(detail="File deleted successfully.")

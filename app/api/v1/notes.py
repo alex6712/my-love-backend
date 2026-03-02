@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Path, Query, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
-from app.core.dependencies.services import NoteServiceDependency
+from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.core.enums import NoteType, SortOrder
 from app.schemas.dto.note import PatchNoteDTO
@@ -27,7 +27,7 @@ router = APIRouter(
     response_description="Список пользовательских заметок",
 )
 async def get_notes(
-    note_service: NoteServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     note_type: Annotated[
         NoteType | None, Query(alias="t", description="Тип заметок для получения.")
@@ -61,8 +61,19 @@ async def get_notes(
 
     Parameters
     ----------
-    note_service : NoteService
-        Зависимость сервиса работы с пользовательскими заметками.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -81,7 +92,7 @@ async def get_notes(
         Объект ответа, содержащий список доступных пользователю заметок
         в пределах заданной пагинации и общее количество найденных заметок.
     """
-    notes, total = await note_service.get_notes(
+    notes, total = await services.note.get_notes(
         note_type, offset, limit, order, payload["sub"]
     )
 
@@ -101,7 +112,7 @@ async def post_notes(
     body: Annotated[
         CreateNoteRequest, Body(description="Схема получения данных о заметке.")
     ],
-    note_service: NoteServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Создание пользовательской заметки.
@@ -113,8 +124,19 @@ async def post_notes(
     ----------
     body : CreateNoteRequest
         Схема получения данных о заметке.
-    note_service : NoteService
-        Зависимость сервиса работы с пользовательскими заметками.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -124,7 +146,7 @@ async def post_notes(
     StandardResponse
         Успешный ответ о создании новой заметки.
     """
-    await note_service.create_note(body.type, body.title, body.content, payload["sub"])
+    await services.note.create_note(body.type, body.title, body.content, payload["sub"])
 
     return StandardResponse(detail="New note created successful.")
 
@@ -137,7 +159,7 @@ async def post_notes(
     response_description="Количество доступных пользователю заметок.",
 )
 async def count(
-    note_service: NoteServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> CountResponse:
     """Получение количества всех доступных пользователю заметок.
@@ -147,8 +169,19 @@ async def count(
 
     Parameters
     ----------
-    note_service : NoteService
-        Зависимость сервиса работы с пользовательскими заметками.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -159,7 +192,7 @@ async def count(
         Объект ответа, содержащий общее количество доступных
         пользователю заметок.
     """
-    count = await note_service.count_notes(payload["sub"])
+    count = await services.note.count_notes(payload["sub"])
 
     return CountResponse(count=count, detail=f"Found {count} note entries.")
 
@@ -176,7 +209,7 @@ async def patch_notes(
     body: Annotated[
         PatchNoteRequest, Body(description="Схема частичного обновления заметки.")
     ],
-    note_service: NoteServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Частичное изменение пользовательской заметки.
@@ -193,8 +226,19 @@ async def patch_notes(
     body : PatchNoteRequest
         Схема частичного обновления данных о заметке.
         Содержит только те поля, которые нужно обновить.
-    note_service : NoteService
-        Зависимость сервиса работы с пользовательскими заметками.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -204,7 +248,7 @@ async def patch_notes(
     StandardResponse
         Успешный ответ о результате изменения заметки.
     """
-    await note_service.update_note(
+    await services.note.update_note(
         note_id,
         PatchNoteDTO.from_request_schema(body),
         payload["sub"],
@@ -222,7 +266,7 @@ async def patch_notes(
 )
 async def delete_notes(
     note_id: Annotated[UUID, Path(description="UUID изменяемой заметки.")],
-    note_service: NoteServiceDependency,
+    services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Удаление пользовательской заметки.
@@ -234,8 +278,19 @@ async def delete_notes(
     ----------
     note_id : UUID
         UUID заметки к удалению.
-    note_service : NoteService
-        Зависимость сервиса работы с пользовательскими заметками.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
     payload : Payload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -245,6 +300,6 @@ async def delete_notes(
     StandardResponse
         Успешный ответ об удалении заметки.
     """
-    await note_service.delete_note(note_id, payload["sub"])
+    await services.note.delete_note(note_id, payload["sub"])
 
     return StandardResponse(detail="Note deleted successful.")
