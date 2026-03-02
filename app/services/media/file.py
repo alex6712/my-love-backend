@@ -404,17 +404,12 @@ class FileService:
         if file.status == FileStatus.UPLOADED:
             return
 
-        exists = False
         try:
             await self._s3_client.head_object(
                 Bucket=self._settings.MINIO_BUCKET_NAME,
                 Key=file.object_key,
             )
-            exists = True
         except ClientError:
-            pass
-
-        if not exists:
             raise UploadNotCompletedException(
                 detail=f"File with id={file_id} has not been found in object storage yet.",
             )
