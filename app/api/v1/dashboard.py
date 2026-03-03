@@ -1,4 +1,3 @@
-import asyncio
 from uuid import UUID
 
 from fastapi import APIRouter, status
@@ -64,10 +63,8 @@ async def get_dashboard(
     """
     user_id: UUID = payload["sub"]
 
-    files_count, notes_count = await asyncio.gather(
-        services.file.count_files(user_id),
-        services.note.count_notes(user_id),
-    )
+    files_count = await services.file.count_files(user_id)
+    notes_count = await services.note.count_notes(user_id)
 
     return DashboardResponse(
         files_count=files_count,
