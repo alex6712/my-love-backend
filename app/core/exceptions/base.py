@@ -78,6 +78,22 @@ class WeakServerSecretException(BaseApplicationException):
         super().__init__(detail, *args, domain="application")
 
 
+class UnexpectedStateException(BaseApplicationException):
+    """Базовое исключение для неожиданных состояний системы.
+
+    Notes
+    -----
+    Возникает когда система обнаруживает внутренне inconsistent состояние -
+    то есть ситуацию, которая не должна быть достижима при корректной работе.
+    Все такие исключения должны логироваться и маппиться в HTTP 500.
+
+    В отличие от прикладных исключений, не несёт полезной информации для клиента
+    и сигнализирует исключительно о баге или рассинхроне внутри системы.
+    """
+
+    pass
+
+
 class NotFoundException(BaseApplicationException):
     """Базовое исключение для группировки всех исключений типа `NotFound`.
 

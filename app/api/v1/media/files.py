@@ -8,7 +8,12 @@ from app.core.dependencies.services import ServiceManagerDependency
 from app.core.dependencies.transport import IdempotencyKeyDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF, IDEMPOTENCY_CONFLICT_ERROR_REF
 from app.core.enums import SortOrder
-from app.schemas.dto.file import FileMetadataDTO, PatchFileDTO
+from app.schemas.dto.file import (
+    DownloadFileErrorDTO,
+    FileMetadataDTO,
+    PatchFileDTO,
+    UploadFileErrorDTO,
+)
 from app.schemas.v1.requests.files import (
     ConfirmUploadRequest,
     DownloadFilesBatchRequest,
@@ -204,7 +209,7 @@ async def upload(
         Успешный ответ о генерации presigned-url.
     """
     url = await services.file.get_upload_presigned_url(
-        FileMetadataDTO.model_validate(body),
+        FileMetadataDTO.model_validate(body.model_dump()),
         payload["sub"],
         idempotency_key,
     )
@@ -231,7 +236,7 @@ async def upload_batch(
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
-) -> PresignedURLsBatchResponse:
+) -> PresignedURLsBatchResponse[UploadFileErrorDTO]:
     """Получение presigned-url для загрузки пакета медиа-файлов в приватное хранилище.
 
     Предоставляет подписанные ссылки для прямой загрузки нескольких файлов в объектное
@@ -267,14 +272,16 @@ async def upload_batch(
     PresignedURLsBatchResponse
         Успешный ответ о генерации presigned-url.
     """
-    urls = await services.file.get_upload_presigned_urls(
-        [FileMetadataDTO.model_validate(m) for m in body.files_metadata],
+    successful, failed = await services.file.get_upload_presigned_urls(
+        [FileMetadataDTO.model_validate(m.model_dump()) for m in body.files_metadata],
         payload["sub"],
         idempotency_key,
     )
 
     return PresignedURLsBatchResponse(
-        urls=urls, detail="Presigned URLs generated successfully."
+        successful=successful,
+        failed=failed,
+        detail="Presigned URLs generated successfully.",
     )
 
 
@@ -388,7 +395,7 @@ async def download(
     )
 
 
-@router.get(
+@router.post(
     "/download/batch",
     response_model=PresignedURLsBatchResponse,
     status_code=status.HTTP_200_OK,
@@ -402,7 +409,7 @@ async def download_batch(
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
-) -> PresignedURLsBatchResponse:
+) -> PresignedURLsBatchResponse[DownloadFileErrorDTO]:
     """Получение presigned-url для скачивания пакета медиа-файлов в приватное хранилище.
 
     Предоставляет подписанные ссылки для прямого скачивания нескольких файлов из объектного
@@ -435,13 +442,14 @@ async def download_batch(
     PresignedURLsBatchResponse
         Успешный ответ о генерации presigned-urls для скачивания.
     """
-    urls = await services.file.get_download_presigned_urls(
+    successful, failed = await services.file.get_download_presigned_urls(
         body.files_uuids,
         payload["sub"],
     )
 
     return PresignedURLsBatchResponse(
-        urls=urls,
+        successful=successful,
+        failed=failed,
         detail="Presigned URLs generated successfully.",
     )
 

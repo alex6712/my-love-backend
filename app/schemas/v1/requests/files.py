@@ -6,18 +6,24 @@ from app.core.types import UNSET, Maybe
 
 
 class UploadFileRequest(BaseModel):
-    """Схема запроса на получение Presigned URL загрузки файла.
+    """Схема запроса на получение presigned URL для загрузки файла.
 
     Attributes
     ----------
+    client_ref_id : str
+        Произвольный клиентский идентификатор для корреляции результата.
     content_type : str
         MIME-тип отправляемого файла.
     title : str
-        Наименование медиа файла.
+        Наименование медиа-файла.
     description : str | None
-        Описание медиа файла.
+        Описание медиа-файла.
     """
 
+    client_ref_id: str = Field(
+        description="Произвольный клиентский идентификатор для корреляции результата.",
+        examples=["file-upload-1"],
+    )
     content_type: str = Field(
         description="MIME-тип отправляемого файла.",
         examples=["image/png"],

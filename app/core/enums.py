@@ -39,12 +39,22 @@ class APICode(StrEnum):
         Медиа-альбом не найден.
     FILE_NOT_FOUND
         Медиа-файл не найден.
+    FILE_UPLOAD_PENDING
+        Файл ещё не загружен в хранилище.
+    FILE_UPLOAD_FAILED
+        Загрузка файла завершилась ошибкой.
+    FILE_DELETED
+        Файл был удалён пользователем.
+    FILE_PRESIGNED_URL_GENERATION_FAILED
+        Ошибка при генерации presigned URL.
     UNSUPPORTED_FILE_TYPE
         Не поддерживаемый тип файла.
     UPLOAD_NOT_COMPLETED
         ФАйл не найден в объектном хранилище.
     RATE_LIMIT_EXCEEDED
         Превышено максимальное количество запросов за единицу времени.
+    INTERNAL_SERVER_ERROR
+        Внутренняя ошибка сервера.
     """
 
     SUCCESS = "SUCCESS"
@@ -100,6 +110,18 @@ class APICode(StrEnum):
     FILE_NOT_FOUND = "FILE_NOT_FOUND"
     """При попытке получить медиа-файл по несуществующему набору параметров."""
 
+    FILE_UPLOAD_PENDING = "FILE_UPLOAD_PENDING"
+    """При попытке скачать файл, загрузка которого ещё не завершена (статус PENDING)."""
+
+    FILE_UPLOAD_FAILED = "FILE_UPLOAD_FAILED"
+    """При попытке скачать файл, загрузка которого завершилась ошибкой (статус FAILED)."""
+
+    FILE_DELETED = "FILE_DELETED"
+    """При попытке скачать файл, который был явно удалён пользователем (статус DELETED)."""
+
+    FILE_PRESIGNED_URL_GENERATION_FAILED = "FILE_PRESIGNED_URL_GENERATION_FAILED"
+    """Presigned URL для загрузки/скачивания файла не была сгенерирована из-за ошибки."""
+
     UNSUPPORTED_FILE_TYPE = "UNSUPPORTED_FILE_TYPE"
     """При попытке загрузить файл с необрабатываемым типом."""
 
@@ -108,6 +130,9 @@ class APICode(StrEnum):
 
     RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED"
     """Превышено максимальное количество запросов за единицу времени."""
+
+    INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR"
+    """На сервере произошла неожиданная ошибка. В любом случае, клиент не должен знать какая."""
 
 
 class SortOrder(StrEnum):
@@ -243,3 +268,65 @@ class NoteType(StrEnum):
 
     MEMORY = "MEMORY"
     """Сохранённое воспоминание о важном событии или моменте."""
+
+
+class DownloadFileErrorCode(StrEnum):
+    """Класс-перечисление кодов ошибок при скачивании файла.
+
+    Определяет все возможные причины, по которым операция скачивания
+    файла может завершиться неудачей.
+
+    Attributes
+    ----------
+    NOT_FOUND
+        Файл не найден.
+    UPLOAD_PENDING
+        Загрузка файла ещё не завершена.
+    UPLOAD_FAILED
+        Загрузка файла завершилась ошибкой.
+    FILE_DELETED
+        Файл был удалён.
+    INVALID_STATUS
+        Файл находится в недопустимом для скачивания статусе.
+    GENERATION_FAILED
+        Генерация presigned URL завершилась ошибкой.
+    """
+
+    NOT_FOUND = "NOT_FOUND"
+    """Запрашиваемый файл отсутствует в системе."""
+
+    UPLOAD_PENDING = "UPLOAD_PENDING"
+    """Файл ещё загружается и недоступен для скачивания."""
+
+    UPLOAD_FAILED = "UPLOAD_FAILED"
+    """Файл не был загружен из-за ошибки на этапе загрузки."""
+
+    FILE_DELETED = "FILE_DELETED"
+    """Файл был удалён и более недоступен."""
+
+    INVALID_STATUS = "INVALID_STATUS"
+    """Текущий статус файла не допускает операцию скачивания."""
+
+    GENERATION_FAILED = "GENERATION_FAILED"
+    """Presigned URL для скачивания файла не была сгенерирована из-за ошибки на этапе генерации."""
+
+
+class UploadFileErrorCode(StrEnum):
+    """Класс-перечисление кодов ошибок при загрузке файла.
+
+    Определяет все возможные причины, по которым операция загрузки
+    файла может завершиться неудачей.
+
+    Attributes
+    ----------
+    UNSUPPORTED_FILE_TYPE
+        Тип файла не поддерживается.
+    GENERATION_FAILED
+        Генерация presigned URL завершилась ошибкой.
+    """
+
+    UNSUPPORTED_FILE_TYPE = "UNSUPPORTED_FILE_TYPE"
+    """Тип файла не входит в список поддерживаемых для загрузки."""
+
+    GENERATION_FAILED = "GENERATION_FAILED"
+    """Presigned URL для загрузки файла не была сгенерирована из-за ошибки на этапе генерации."""

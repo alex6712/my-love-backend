@@ -1,13 +1,14 @@
 from typing import Any
+from uuid import UUID
 
-from app.core.enums import FileStatus
+from app.core.enums import DownloadFileErrorCode, FileStatus, UploadFileErrorCode
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BaseDTO, BasePatchDTO, BaseSQLModelDTO
+from app.schemas.dto.base import BaseDTO, BaseErrorDTO, BasePatchDTO, BaseSQLModelDTO
 from app.schemas.dto.user import CreatorDTO
 
 
-class FileMetadataDTO(BaseDTO):
-    """DTO для представления метаданных медиа-файла.
+class InternalFileMetadataDTO(BaseDTO):
+    """Базовое DTO для представления метаданных медиа-файла.
 
     Attributes
     ----------
@@ -24,7 +25,19 @@ class FileMetadataDTO(BaseDTO):
     description: str | None
 
 
-class FileDTO(BaseSQLModelDTO, FileMetadataDTO):
+class FileMetadataDTO(InternalFileMetadataDTO):
+    """DTO для представления метаданных медиа-файла.
+
+    Attributes
+    ----------
+    client_ref_id: str
+        Произвольный клиентский идентификатор для корреляции результата.
+    """
+
+    client_ref_id: str
+
+
+class FileDTO(BaseSQLModelDTO, InternalFileMetadataDTO):
     """DTO для представления медиа-файла.
 
     Attributes
@@ -60,3 +73,35 @@ class PatchFileDTO(BasePatchDTO):
 
     title: Maybe[str] = UNSET
     description: Maybe[str | None] = UNSET
+
+
+class DownloadFileErrorDTO(BaseErrorDTO[DownloadFileErrorCode]):
+    """DTO для представления ошибки при скачивании файла.
+
+    Расширяет :class:`BaseErrorDTO`, фиксируя тип кода ошибки как
+    :class:`DownloadFileErrorCode` и добавляя идентификатор файла,
+    при обработке которого возникла ошибка.
+
+    Attributes
+    ----------
+    file_id : UUID
+        Идентификатор файла, скачивание которого завершилось ошибкой.
+    """
+
+    file_id: UUID
+
+
+class UploadFileErrorDTO(BaseErrorDTO[UploadFileErrorCode]):
+    """DTO для представления ошибки при загрузке файла.
+
+    Расширяет :class:`BaseErrorDTO`, фиксируя тип кода ошибки как
+    :class:`UploadFileErrorCode` и добавляя клиентский идентификатор файла,
+    при обработке которого возникла ошибка.
+
+    Attributes
+    ----------
+    client_ref_id : str
+        Клиентский идентификатор файла, загрузка которого завершилась ошибкой.
+    """
+
+    client_ref_id: str

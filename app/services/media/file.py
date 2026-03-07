@@ -1,15 +1,31 @@
 import asyncio
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, overload
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
 from pydantic import AnyHttpUrl
 
 from app.config import Settings
-from app.core.enums import FileStatus, IdempotencyStatus, SortOrder
-from app.core.exceptions.base import IdempotencyException, NothingToUpdateException
+from app.core.enums import (
+    DownloadFileErrorCode,
+    FileStatus,
+    IdempotencyStatus,
+    SortOrder,
+    UploadFileErrorCode,
+)
+from app.core.exceptions.base import (
+    IdempotencyException,
+    NothingToUpdateException,
+    UnexpectedStateException,
+)
 from app.core.exceptions.media import (
+    FileDeletedException,
+    FileInvalidStatusException,
+    FilePresignedUrlGenerationFailedException,
+    FileUploadFailedException,
+    FileUploadPendingException,
+    MediaDomainException,
     MediaNotFoundException,
     UnsupportedFileTypeException,
     UploadNotCompletedException,
@@ -18,7 +34,13 @@ from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
 from app.repositories.couple_request import CoupleRequestRepository
 from app.repositories.media import FileRepository
-from app.schemas.dto.file import FileDTO, FileMetadataDTO, PatchFileDTO
+from app.schemas.dto.file import (
+    DownloadFileErrorDTO,
+    FileDTO,
+    FileMetadataDTO,
+    PatchFileDTO,
+    UploadFileErrorDTO,
+)
 from app.schemas.dto.presigned_url import PresignedURLDTO
 
 if TYPE_CHECKING:
@@ -117,8 +139,33 @@ class FileService:
         """
         return f"{user_id}/{batch_id}/{uuid4().hex}"
 
+    @overload
     async def _idempotency_gate(
-        self, idem_scope: str, user_id: UUID, idempotency_key: UUID
+        self,
+        idem_scope: str,
+        user_id: UUID,
+        idempotency_key: UUID,
+        *,
+        not_null: Literal[True],
+    ) -> tuple[bool, str]: ...
+
+    @overload
+    async def _idempotency_gate(
+        self,
+        idem_scope: str,
+        user_id: UUID,
+        idempotency_key: UUID,
+        *,
+        not_null: Literal[False] = ...,
+    ) -> tuple[bool, str | None]: ...
+
+    async def _idempotency_gate(
+        self,
+        idem_scope: str,
+        user_id: UUID,
+        idempotency_key: UUID,
+        *,
+        not_null: bool = False,
     ) -> tuple[bool, str | None]:
         """Управляет проверкой и захватом ключа идемпотентности.
 
@@ -135,21 +182,32 @@ class FileService:
             UUID пользователя, выполняющего запрос.
         idempotency_key : UUID
             Уникальный ключ идемпотентности от клиента.
+        not_null : bool, optional
+            Если True - гарантирует, что кэшированный ответ не равен None
+            для уже обработанных запросов (created=False). При нарушении
+            вызывает UnexpectedStateException. По умолчанию False.
 
         Returns
         -------
+        tuple[bool, str]
+            Если not_null=True: кэшированный ответ гарантированно str.
         tuple[bool, str | None]
-            Кортеж из двух элементов:
-            - bool: True если ключ захвачен впервые (новый запрос),
-              False если запрос уже обрабатывался или завершён.
-            - str | None: Кэшированный ответ предыдущего выполнения
-              или None для новых запросов.
+            Если not_null=False (по умолчанию): кэшированный ответ может
+            быть None для уже обработанных запросов (created=False).
+
+        В обоих случаях bool-элемент кортежа означает:
+            - True  - ключ захвачен впервые, запрос новый.
+            - False - запрос уже обрабатывается или завершён.
 
         Raises
         ------
         IdempotencyException
             Если запрос с переданным ключом идемпотентности уже находится
             в процессе обработки (статус PROCESSING).
+        UnexpectedStateException
+            Если not_null=True и запрос уже завершён (created=False),
+            но кэшированный ответ оказался None - неконсистентное состояние
+            в Redis.
         """
         response: str | None = None
 
@@ -167,7 +225,42 @@ class FileService:
 
             response = key.response
 
+        if not created and not_null and response is None:
+            raise UnexpectedStateException(
+                domain="application",
+                detail="Unexpected None value for not-null redis cache.",
+            )
+
         return created, response
+
+    def _serialize_idempotency_response(
+        self, successful: list[PresignedURLDTO], failed: list[UploadFileErrorDTO]
+    ) -> str:
+        """Сериализует результат операции в JSON-строку для сохранения в кэше идемпотентности.
+
+        Формирует структуру с двумя ключами: successful и failed,
+        каждый из которых содержит список JSON-сериализованных DTO.
+        Используется перед вызовом finalize_idempotency_key.
+
+        Parameters
+        ----------
+        successful : list[PresignedURLDTO]
+            Список успешно сгенерированных presigned URLs.
+        failed : list[UploadFileErrorDTO]
+            Список ошибок для файлов, которые не удалось обработать.
+
+        Returns
+        -------
+        str
+            JSON-строка вида:
+            {"successful": ["<json>", ...], "failed": ["<json>", ...]}.
+        """
+        return json.dumps(
+            {
+                "successful": [url.model_dump_json() for url in successful],
+                "failed": [err.model_dump_json() for err in failed],
+            }
+        )
 
     async def get_files(
         self, offset: int, limit: int, order: SortOrder, user_id: UUID
@@ -255,34 +348,73 @@ class FileService:
         Returns
         -------
         PresignedURLDTO
-            Сгенерированная presigned URL.
+            Сгенерированная presigned URL и идентификатор созданной записи файла.
 
         Raises
         ------
         UnsupportedFileTypeException
-            Возникает в том случае, если тип переданного файла не поддерживается.
+            Если тип переданного файла не входит в список поддерживаемых.
         IdempotencyException
-            Возникает в том случае, если запрос с переданным ключом идемпотентности
-            уже находится в процессе обработки.
+            Если запрос с переданным ключом идемпотентности уже находится в процессе обработки.
+        FilePresignedUrlGenerationFailedException
+            Если не удалось сгенерировать presigned URL на стороне S3.
         """
-        result = await self.get_upload_presigned_urls(
-            [file_metadata], user_id, idempotency_key
+        idem_scope = "media_upload_single_direct"
+
+        is_new, cached = await self._idempotency_gate(
+            idem_scope, user_id, idempotency_key, not_null=True
+        )
+        if not is_new:
+            raws = json.loads(cached)
+            return PresignedURLDTO.model_validate_json(raws["successful"])
+
+        validated_file = self._validate_file_for_upload(file_metadata)
+
+        object_key = self._generate_object_key(user_id, idempotency_key)
+        file_id = await self._file_repo.add_pending_file(
+            validated_file, object_key, user_id
         )
 
-        return result[0]
+        try:
+            url = await self._s3_client.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": self._settings.MINIO_BUCKET_NAME,
+                    "Key": object_key,
+                },
+                ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
+            )
+        except Exception as exc:
+            raise FilePresignedUrlGenerationFailedException(
+                detail=f"Failed to generate presigned URL for file with client_ref_id={file_metadata.client_ref_id}.",
+            ) from exc
+
+        result = PresignedURLDTO(file_id=file_id, presigned_url=AnyHttpUrl(url))
+
+        await self._redis_client.finalize_idempotency_key(
+            scope=idem_scope,
+            user_id=user_id,
+            key=idempotency_key,
+            ttl=self._IDEMPOTENCY_KEY_TTL,
+            response=self._serialize_idempotency_response([result], []),
+        )
+
+        return result
 
     async def get_upload_presigned_urls(
         self,
         files_metadata: list[FileMetadataDTO],
         user_id: UUID,
         idempotency_key: UUID,
-    ) -> list[PresignedURLDTO]:
+    ) -> tuple[list[PresignedURLDTO], list[UploadFileErrorDTO]]:
         """Получение presigned-url для загрузки нескольких файлов напрямую в S3.
 
-        Принимает дополнительные данные о файлах для сохранения записи.
+        Принимает список метаданных файлов, валидирует каждый из них и генерирует
+        presigned URL для прямой загрузки в S3. Файлы, не прошедшие валидацию
+        или для которых не удалось сгенерировать URL, возвращаются отдельным списком ошибок.
 
-        Генерирует уникальные ключи объектов, генерирует presigned-url
-        для прямой загрузки в S3 хранилище, создаёт в базе данных новые записи о загружаемых файлах.
+        В отличие от get_upload_presigned_url, ошибки валидации отдельных файлов
+        не прерывают обработку - они накапливаются и возвращаются в составе результата.
 
         Parameters
         ----------
@@ -295,47 +427,55 @@ class FileService:
 
         Returns
         -------
-        list[PresignedURLDTO]
-            Список сгенерированных presigned URLs.
+        tuple[list[PresignedURLDTO], list[UploadFileErrorDTO]]
+            Кортеж из двух списков:
+            - первый - успешно сгенерированные presigned URLs;
+            - второй - ошибки для файлов, которые не прошли валидацию
+            или для которых генерация URL завершилась неудачей.
 
         Raises
         ------
-        UnsupportedFileTypeException
-            Возникает в том случае, если тип хотя бы одного из переданных файлов не поддерживается.
         IdempotencyException
-            Возникает в том случае, если запрос с переданным ключом идемпотентности
-            уже находится в процессе обработки.
+            Если запрос с переданным ключом идемпотентности уже находится в процессе обработки.
         """
-        idem_scope = "media_upload_direct"
+        idem_scope = "media_upload_batch_direct"
 
         is_new, cached = await self._idempotency_gate(
-            idem_scope, user_id, idempotency_key
+            idem_scope, user_id, idempotency_key, not_null=True
         )
         if not is_new:
-            raws = json.loads(cached)  # type: ignore
-            return [PresignedURLDTO.model_validate_json(raw) for raw in raws]
-
-        unsupported_types = {
-            m.content_type
-            for m in files_metadata
-            if m.content_type not in self._SUPPORTED_CONTENT_TYPES
-        }
-
-        if unsupported_types:
-            raise UnsupportedFileTypeException(
-                detail=(
-                    f"File types '{unsupported_types}' is not supported. "
-                    f"Supported types: {self._SUPPORTED_CONTENT_TYPES}."
-                )
+            raws = json.loads(cached)
+            return (
+                [PresignedURLDTO.model_validate_json(r) for r in raws["successful"]],
+                [UploadFileErrorDTO.model_validate_json(r) for r in raws["failed"]],
             )
 
-        object_keys = [
-            self._generate_object_key(user_id, idempotency_key)
-            for _ in range(len(files_metadata))
-        ]
+        valid_files: list[FileMetadataDTO] = []
+        failed: list[UploadFileErrorDTO] = []
 
+        for metadata in files_metadata:
+            try:
+                valid_files.append(self._validate_file_for_upload(metadata))
+            except MediaDomainException as exc:
+                failed.append(
+                    self._map_upload_exception_to_error_dto(exc, metadata.client_ref_id)
+                )
+
+        if not valid_files:
+            await self._redis_client.finalize_idempotency_key(
+                scope=idem_scope,
+                user_id=user_id,
+                key=idempotency_key,
+                ttl=self._IDEMPOTENCY_KEY_TTL,
+                response=self._serialize_idempotency_response([], failed),
+            )
+            return [], failed
+
+        object_keys = [
+            self._generate_object_key(user_id, idempotency_key) for _ in valid_files
+        ]
         file_ids = await self._file_repo.add_pending_files(
-            files_metadata, object_keys, user_id
+            valid_files, object_keys, user_id
         )
 
         tasks = [
@@ -349,22 +489,104 @@ class FileService:
             )
             for key in object_keys
         ]
-        urls = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        result = [
-            PresignedURLDTO(file_id=id_, presigned_url=AnyHttpUrl(url))
-            for id_, url in zip(file_ids, urls, strict=True)
-        ]
+        successful: list[PresignedURLDTO] = []
+        failed_file_ids: list[UUID] = []
+
+        for file_id, metadata, result in zip(file_ids, valid_files, results):
+            if isinstance(result, BaseException):
+                failed_file_ids.append(file_id)
+
+                failed.append(
+                    UploadFileErrorDTO(
+                        client_ref_id=metadata.client_ref_id,
+                        code=UploadFileErrorCode.GENERATION_FAILED,
+                        message=f"Unexpected error while generating URL for file {metadata.client_ref_id}",
+                    )
+                )
+            else:
+                successful.append(
+                    PresignedURLDTO(file_id=file_id, presigned_url=AnyHttpUrl(result))
+                )
+
+        if failed_file_ids:
+            await self._file_repo.delete_pending_files_by_ids(failed_file_ids)
 
         await self._redis_client.finalize_idempotency_key(
             scope=idem_scope,
             user_id=user_id,
             key=idempotency_key,
             ttl=self._IDEMPOTENCY_KEY_TTL,
-            response=json.dumps([r.model_dump_json() for r in result]),
+            response=self._serialize_idempotency_response(successful, failed),
         )
 
-        return result
+        return successful, failed
+
+    def _validate_file_for_upload(
+        self, file_metadata: FileMetadataDTO
+    ) -> FileMetadataDTO:
+        """Проверяет, что тип файла входит в список поддерживаемых.
+
+        Parameters
+        ----------
+        file_metadata : FileMetadataDTO
+            Метаданные файла для валидации.
+
+        Returns
+        -------
+        FileMetadataDTO
+            Те же метаданные, если файл прошёл проверку.
+
+        Raises
+        ------
+        UnsupportedFileTypeException
+            Если content_type файла не входит в _SUPPORTED_CONTENT_TYPES.
+        """
+        if file_metadata.content_type not in self._SUPPORTED_CONTENT_TYPES:
+            raise UnsupportedFileTypeException(
+                detail=(
+                    f"File types '{file_metadata.content_type}' is not supported. "
+                    f"Supported types: {self._SUPPORTED_CONTENT_TYPES}."
+                )
+            )
+
+        return file_metadata
+
+    def _map_upload_exception_to_error_dto(
+        self, exc: MediaDomainException, client_ref_id: str
+    ) -> UploadFileErrorDTO:
+        """Преобразует доменное исключение загрузки файла в DTO ошибки.
+
+        Используется для формирования списка failed-файлов в batch-операциях,
+        когда ошибка одного файла не должна прерывать обработку остальных.
+
+        Parameters
+        ----------
+        exc : MediaDomainException
+            Исключение, возникшее при обработке файла.
+        client_ref_id : str
+            Клиентский идентификатор файла, при обработке которого возникла ошибка.
+
+        Returns
+        -------
+        UploadFileErrorDTO
+            DTO с кодом ошибки, client_ref_id и сообщением из исключения.
+
+        Raises
+        ------
+        Exception
+            Если тип исключения не предусмотрен маппингом (re-raise через `raise`).
+        """
+        match exc:
+            case UnsupportedFileTypeException():
+                code = UploadFileErrorCode.UNSUPPORTED_FILE_TYPE
+            case _:
+                raise
+
+        return UploadFileErrorDTO(
+            client_ref_id=client_ref_id, code=code, message=exc.detail
+        )
 
     async def confirm_upload(self, file_id: UUID, user_id: UUID) -> None:
         """Подтверждает успешную загрузку файла в объектное хранилище.
@@ -420,92 +642,111 @@ class FileService:
     async def get_download_presigned_url(
         self, file_id: UUID, user_id: UUID
     ) -> PresignedURLDTO:
-        """Получение presigned-url для получения файла из приватного хранилища.
+        """Генерирует presigned URL для скачивания файла из приватного хранилища.
 
-        Принимает UUID файла, ищет запись о файле в базе данных, проверяет права доступа
-        пользователя к файлу и возвращает Presigned URL.
+        Определяет партнёра пользователя и запрашивает файл из репозитория
+        с учётом прав доступа - файл доступен только владельцу или его партнёру.
+        Валидирует статус файла и генерирует временную ссылку через S3-клиент.
 
         Parameters
         ----------
         file_id : UUID
-            UUID файла для скачивания на клиент.
+            Идентификатор запрашиваемого файла.
         user_id : UUID
-            UUID пользователя, запросившего скачивание файла.
+            Идентификатор пользователя, запросившего скачивание.
 
         Returns
         -------
         PresignedURLDTO
-            Сгенерированная presigned URL.
+            DTO с идентификатором файла и сгенерированной presigned URL.
+            Время жизни ссылки определяется настройкой
+            ``settings.PRESIGNED_URL_EXPIRATION``.
 
         Raises
         ------
         MediaNotFoundException
-            Файл с переданным UUID не найден или пользователь не имеет прав на его просмотр.
-        UploadNotCompletedException
-            Возникает в случае, если файл находится в статусе загрузки (PENDING),
-            загрузка не удалась (FAILED) или файл был удалён (DELETED).
+            Файл не найден, был удалён или недоступен пользователю.
+        FileUploadPendingException
+            Файл ещё не загружен в хранилище (статус ``PENDING``).
+            Клиент может повторить запрос позже.
+        FileUploadFailedException
+            Загрузка файла завершилась ошибкой (статус ``FAILED``).
+            Повторный запрос без повторной загрузки файла бессмысленен.
+        FileInvalidStatusException
+            Статус файла в БД не распознан бизнес-логикой. Сигнализирует
+            о баге или рассинхроне схемы БД с кодом приложения.
         """
-        result = await self.get_download_presigned_urls([file_id], user_id)
+        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
 
-        return result[0]
+        file = await self._file_repo.get_file_by_id(file_id, user_id, partner_id)
+
+        validated_file = self._validate_file_for_download(file, file_id)
+
+        try:
+            url = await self._s3_client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": self._settings.MINIO_BUCKET_NAME,
+                    "Key": validated_file.object_key,
+                },
+                ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
+            )
+        except Exception as exc:
+            raise FilePresignedUrlGenerationFailedException(
+                detail=f"Failed to generate presigned URL for file with id={file_id}.",
+            ) from exc
+
+        return PresignedURLDTO(file_id=validated_file.id, presigned_url=AnyHttpUrl(url))
 
     async def get_download_presigned_urls(
         self, files_uuids: list[UUID], user_id: UUID
-    ) -> list[PresignedURLDTO]:
-        """Получение presigned-url для скачивания нескольких файлов напрямую из S3.
+    ) -> tuple[list[PresignedURLDTO], list[DownloadFileErrorDTO]]:
+        """Генерирует presigned URL для скачивания файлов.
 
-        Принимает UUID файлов, ищет записи о файлах в базе данных, проверяет права доступа
-        пользователя к файлам и возвращает Presigned URLs.
+        Для каждого запрошенного файла проверяет доступность и генерирует
+        временную ссылку для скачивания из S3-совместимого хранилища.
+        Файлы, недоступные для скачивания или при ошибке генерации URL,
+        попадают в список ошибок - остальные обрабатываются независимо.
 
         Parameters
         ----------
         files_uuids : list[UUID]
-            Список метаданных загружаемых файлов.
+            Список идентификаторов запрашиваемых файлов.
         user_id : UUID
-            UUID пользователя, загружающего файлы.
+            Идентификатор пользователя, запрашивающего скачивание.
+            Используется для фильтрации файлов - доступны только файлы,
+            принадлежащие пользователю или его партнёру.
 
         Returns
         -------
-        list[PresignedURLDTO]
-            Список сгенерированных presigned URLs.
+        tuple[list[PresignedURLDTO], list[DownloadFileErrorDTO]]
+            Кортеж из двух списков:
 
-        Raises
-        ------
-        MediaNotFoundException
-            Файл с переданным UUID не найден или пользователь не имеет прав на его просмотр.
-        UploadNotCompletedException
-            Возникает в случае, если файл находится в статусе загрузки (PENDING),
-            загрузка не удалась (FAILED) или файл был удалён (DELETED).
+            - ``successful`` - presigned URL для файлов, успешно прошедших
+            валидацию и генерацию ссылки;
+            - ``failed`` - ошибки для файлов, которые не удалось обработать.
         """
         partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
 
-        files = await self._file_repo.get_files_by_ids(files_uuids, user_id, partner_id)
-
-        if len(files) != len(files_uuids):
-            missing = set(files_uuids) - {file.id for file in files}
-
-            raise MediaNotFoundException(
-                media_type="file",
-                detail=f"Files with id in {missing} not found, or you're not this files' creator.",
+        files = {
+            file.id: file
+            for file in await self._file_repo.get_files_by_ids(
+                files_uuids, user_id, partner_id
             )
+        }
 
-        for file in files:
-            match file.status:
-                case FileStatus.PENDING:
-                    raise UploadNotCompletedException(
-                        detail=f"File with id={file.id} is now uploading.",
-                    )
-                case FileStatus.FAILED:
-                    raise UploadNotCompletedException(
-                        detail=f"There were an error while uploading file with id={file.id}. File not accessible.",
-                    )
-                case FileStatus.DELETED:
-                    raise MediaNotFoundException(
-                        media_type="file",
-                        detail=f"File with id={file.id} has been deleted.",
-                    )
-                case FileStatus.UPLOADED:
-                    continue
+        valid_files: list[FileDTO] = []
+        failed: list[DownloadFileErrorDTO] = []
+
+        for file_id in files_uuids:
+            try:
+                valid_files.append(
+                    self._validate_file_for_download(files.get(file_id), file_id)
+                )
+            except FileInvalidStatusException:
+                raise  # пробрасывается наверх, т.к. является неожиданным состоянием системы
+            except MediaDomainException as exc:
+                failed.append(self._map_download_exception_to_error_dto(exc, file_id))
 
         tasks = [
             self._s3_client.generate_presigned_url(
@@ -516,14 +757,136 @@ class FileService:
                 },
                 ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
             )
-            for file in files
+            for file in valid_files
         ]
-        urls = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        return [
-            PresignedURLDTO(file_id=id_, presigned_url=AnyHttpUrl(url))
-            for id_, url in zip(files_uuids, urls, strict=True)
-        ]
+        successful: list[PresignedURLDTO] = []
+
+        for file, result in zip(valid_files, results):
+            if isinstance(result, BaseException):
+                failed.append(
+                    DownloadFileErrorDTO(
+                        file_id=file.id,
+                        code=DownloadFileErrorCode.GENERATION_FAILED,
+                        message=f"Unexpected error occurred while generating URL for file with id={file.id}",
+                    )
+                )
+            else:
+                successful.append(
+                    PresignedURLDTO(file_id=file.id, presigned_url=AnyHttpUrl(result))
+                )
+
+        return successful, failed
+
+    def _validate_file_for_download(
+        self, file: FileDTO | None, file_id: UUID
+    ) -> FileDTO:
+        """Проверяет доступность файла для скачивания.
+
+        Parameters
+        ----------
+        file : FileDTO | None
+            DTO файла, полученный из хранилища. None означает,
+            что файл не найден или недоступен текущему пользователю.
+        file_id : UUID
+            Идентификатор запрашиваемого файла. Используется
+            для формирования сообщений об ошибках.
+
+        Returns
+        -------
+        FileDTO
+            Если файл существует и имеет статус ``UPLOADED``.
+
+        Raises
+        ------
+        MediaNotFoundException
+            Файл не найден или недоступен пользователю.
+        FileUploadPendingException
+            Файл ещё загружается (статус ``PENDING``).
+        FileUploadFailedException
+            Загрузка завершилась ошибкой (статус ``FAILED``).
+        FileDeletedException
+            Файл был удалён (статус ``DELETED``).
+        FileInvalidStatusException
+            Файл находится в неожиданном статусе.
+        """
+        if file is None:
+            raise MediaNotFoundException(
+                media_type="file",
+                detail=f"File with id={file_id} not found, or you're not this file's creator.",
+            )
+
+        if file.status == FileStatus.UPLOADED:
+            return file
+
+        match file.status:
+            case FileStatus.PENDING:
+                raise FileUploadPendingException(
+                    detail=f"File with id={file_id} is now uploading.",
+                )
+            case FileStatus.FAILED:
+                raise FileUploadFailedException(
+                    detail=f"There were an error while uploading file with id={file_id}. File not accessible.",
+                )
+            case FileStatus.DELETED:
+                raise FileDeletedException(
+                    detail=f"File with id={file_id} has been deleted.",
+                )
+            case _:
+                raise FileInvalidStatusException(
+                    detail=f"File with id={file_id} not available.",
+                )
+
+    def _map_download_exception_to_error_dto(
+        self, exc: MediaDomainException, file_id: UUID
+    ) -> DownloadFileErrorDTO:
+        """Маппит доменное исключение валидации файла в :class:`DownloadFileErrorDTO`.
+
+        Преобразует известные исключения скачивания в DTO с соответствующим
+        кодом ошибки. `FileInvalidStatusException` не маппится -
+        сигнализирует о баге и должен всплыть до верхнего обработчика как HTTP 500.
+
+        Parameters
+        ----------
+        exc : MediaDomainException
+            Исключение, выброшенное :meth:`_validate_file_for_download`.
+        file_id : UUID
+            Идентификатор файла, включается в результирующий DTO.
+
+        Returns
+        -------
+        DownloadFileErrorDTO
+            DTO с кодом ошибки, соответствующим типу исключения:
+
+            - :class:`MediaNotFoundException` -> ``NOT_FOUND``
+            - :class:`FileUploadPendingException` -> ``UPLOAD_PENDING``
+            - :class:`FileUploadFailedException` -> ``UPLOAD_FAILED``
+            - :class:`FileDeletedException` -> ``FILE_DELETED``
+
+        Raises
+        ------
+        FileInvalidStatusException
+            Пробрасывается без маппинга. Не должно возвращаться клиенту -
+            только логироваться и преобразовываться в HTTP 500.
+        MediaDomainException
+            Пробрасывается, если передан неизвестный подтип исключения.
+            Сигнализирует о том, что mapper не был обновлён после добавления
+            нового исключения.
+        """
+        match exc:
+            case MediaNotFoundException():
+                code = DownloadFileErrorCode.NOT_FOUND
+            case FileUploadPendingException():
+                code = DownloadFileErrorCode.UPLOAD_PENDING
+            case FileUploadFailedException():
+                code = DownloadFileErrorCode.UPLOAD_FAILED
+            case FileDeletedException():
+                code = DownloadFileErrorCode.FILE_DELETED
+            case _:
+                raise
+
+        return DownloadFileErrorDTO(file_id=file_id, code=code, message=exc.detail)
 
     async def update_file(
         self, file_id: UUID, patch_file_dto: PatchFileDTO, user_id: UUID

@@ -8,7 +8,12 @@ from sqlalchemy.orm import selectinload
 from app.core.enums import FileStatus, SortOrder
 from app.models.file import FileModel
 from app.repositories.interface import SharedResourceRepository
-from app.schemas.dto.file import FileDTO, FileMetadataDTO, PatchFileDTO
+from app.schemas.dto.file import (
+    FileDTO,
+    FileMetadataDTO,
+    InternalFileMetadataDTO,
+    PatchFileDTO,
+)
 
 
 class FileRepository(SharedResourceRepository):
@@ -19,6 +24,8 @@ class FileRepository(SharedResourceRepository):
 
     Methods
     -------
+    add_pending_file(file_metadata, object_key, created_by)
+        Добавляет в базу данных запись о загружаемом медиа-файле.
     add_pending_files(files_metadata, object_keys, created_by)
         Добавляет в базу данных новые записи о загружаемых медиа-файлах.
     get_files_by_creator(offset, limit, user_id, partner_id)
@@ -35,10 +42,62 @@ class FileRepository(SharedResourceRepository):
         Обновление атрибутов файла в базе данных.
     delete_file_by_id(file_id):
         Удаляет запись о медиа файле из базы данных по его UUID.
+    delete_pending_files_by_ids(file_ids)
+        Удаляет записи медиа-файлов со статусом `FileStatus.PENDING` по их идентификаторам.
     """
 
     def __init__(self, session: AsyncSession):
         super().__init__(session)
+
+    async def add_pending_file(
+        self, file_metadata: FileMetadataDTO, object_key: str, created_by: UUID
+    ) -> UUID:
+        """Добавляет в базу данных запись о загружаемом медиа-файле.
+
+        Запись создаётся со статусом ``FileStatus.PENDING``.
+
+        Parameters
+        ----------
+        file_metadata : FileMetadataDTO
+            DTO с метаданными файла.
+        object_key : str
+            Ключ объекта в S3 (путь к файлу в хранилище).
+        created_by : UUID
+            UUID пользователя, создающего запись.
+
+        Returns
+        -------
+        UUID
+            UUID созданной записи медиа-файла.
+
+        Raises
+        ------
+        RuntimeError
+            Если INSERT не вернул идентификатор созданной записи.
+        """
+        metadata = InternalFileMetadataDTO.model_validate(
+            file_metadata.model_dump(exclude={"client_ref_id"})
+        )
+
+        file_id = await self.session.scalar(
+            insert(FileModel)
+            .values(
+                {
+                    "object_key": object_key,
+                    "status": FileStatus.PENDING,
+                    "created_by": created_by,
+                    **metadata.model_dump(),
+                }
+            )
+            .returning(FileModel.id)
+        )
+
+        if not file_id:
+            raise RuntimeError(
+                "Unknown error is occurred while trying to create new file entry."
+            )
+
+        return file_id
 
     async def add_pending_files(
         self,
@@ -72,7 +131,9 @@ class FileRepository(SharedResourceRepository):
                         "object_key": k,
                         "status": FileStatus.PENDING,
                         "created_by": created_by,
-                        **m.model_dump(),
+                        **InternalFileMetadataDTO.model_validate(
+                            m.model_dump(exclude={"client_ref_id"})
+                        ).model_dump(),
                     }
                     for m, k in zip(files_metadata, object_keys, strict=True)
                 ]
@@ -285,3 +346,20 @@ class FileRepository(SharedResourceRepository):
             UUID файла для удаления.
         """
         await self.session.execute(delete(FileModel).where(FileModel.id == file_id))
+
+    async def delete_pending_files_by_ids(self, file_ids: list[UUID]) -> None:
+        """Удаляет записи медиа-файлов со статусом `FileStatus.PENDING` по их идентификаторам.
+
+        Записи с любым другим статусом не затрагиваются,
+        даже если их идентификаторы присутствуют в списке.
+
+        Parameters
+        ----------
+        file_ids : list[UUID]
+            Список UUID записей для удаления.
+        """
+        await self.session.execute(
+            delete(FileModel).where(
+                FileModel.id.in_(file_ids), FileModel.status == FileStatus.PENDING
+            )
+        )
