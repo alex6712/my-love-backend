@@ -9,10 +9,8 @@ from app.core.dependencies.transport import IdempotencyKeyDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF, IDEMPOTENCY_CONFLICT_ERROR_REF
 from app.core.enums import SortOrder
 from app.schemas.dto.file import (
-    DownloadFileErrorDTO,
     FileMetadataDTO,
     PatchFileDTO,
-    UploadFileErrorDTO,
 )
 from app.schemas.v1.requests.files import (
     ConfirmUploadRequest,
@@ -26,6 +24,8 @@ from app.schemas.v1.responses.standard import CountResponse, StandardResponse
 from app.schemas.v1.responses.urls import (
     PresignedURLResponse,
     PresignedURLsBatchResponse,
+    PresignedURLsDownloadBatchResponse,
+    PresignedURLsUploadBatchResponse,
 )
 
 router = APIRouter(
@@ -222,7 +222,7 @@ async def upload(
 
 @router.post(
     "/upload/batch",
-    response_model=PresignedURLsBatchResponse,
+    response_model=PresignedURLsUploadBatchResponse,
     status_code=status.HTTP_200_OK,
     summary="Получение Presigned URL для загрузки пакета медиа-файлов в приватное хранилище.",
     response_description="URLs для прямой загрузки получены успешно",
@@ -236,7 +236,7 @@ async def upload_batch(
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
-) -> PresignedURLsBatchResponse[UploadFileErrorDTO]:
+) -> PresignedURLsUploadBatchResponse:
     """Получение presigned-url для загрузки пакета медиа-файлов в приватное хранилище.
 
     Предоставляет подписанные ссылки для прямой загрузки нескольких файлов в объектное
@@ -397,7 +397,7 @@ async def download(
 
 @router.post(
     "/download/batch",
-    response_model=PresignedURLsBatchResponse,
+    response_model=PresignedURLsDownloadBatchResponse,
     status_code=status.HTTP_200_OK,
     summary="Получение Presigned URL для получения пакета медиа-файлов из приватного хранилища.",
     response_description="URLs для скачивания получены успешно",
@@ -409,7 +409,7 @@ async def download_batch(
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
-) -> PresignedURLsBatchResponse[DownloadFileErrorDTO]:
+) -> PresignedURLsDownloadBatchResponse:
     """Получение presigned-url для скачивания пакета медиа-файлов в приватное хранилище.
 
     Предоставляет подписанные ссылки для прямого скачивания нескольких файлов из объектного

@@ -41,7 +41,7 @@ from app.schemas.dto.file import (
     PatchFileDTO,
     UploadFileErrorDTO,
 )
-from app.schemas.dto.presigned_url import PresignedURLDTO
+from app.schemas.dto.presigned_url import PresignedURLDTO, PresignedURLWithRefDTO
 
 if TYPE_CHECKING:
     from types_aiobotocore_s3 import S3Client
@@ -234,7 +234,7 @@ class FileService:
         return created, response
 
     def _serialize_idempotency_response(
-        self, successful: list[PresignedURLDTO], failed: list[UploadFileErrorDTO]
+        self, successful: list[PresignedURLWithRefDTO], failed: list[UploadFileErrorDTO]
     ) -> str:
         """Сериализует результат операции в JSON-строку для сохранения в кэше идемпотентности.
 
@@ -244,7 +244,7 @@ class FileService:
 
         Parameters
         ----------
-        successful : list[PresignedURLDTO]
+        successful : list[PresignedURLWithRefDTO]
             Список успешно сгенерированных presigned URLs.
         failed : list[UploadFileErrorDTO]
             Список ошибок для файлов, которые не удалось обработать.
@@ -328,7 +328,7 @@ class FileService:
         file_metadata: FileMetadataDTO,
         user_id: UUID,
         idempotency_key: UUID,
-    ) -> PresignedURLDTO:
+    ) -> PresignedURLWithRefDTO:
         """Получение presigned-url для загрузки файла напрямую в S3.
 
         Принимает дополнительные данные о файле для сохранения записи.
@@ -347,7 +347,7 @@ class FileService:
 
         Returns
         -------
-        PresignedURLDTO
+        PresignedURLWithRefDTO
             Сгенерированная presigned URL и идентификатор созданной записи файла.
 
         Raises
@@ -366,7 +366,7 @@ class FileService:
         )
         if not is_new:
             raws = json.loads(cached)
-            return PresignedURLDTO.model_validate_json(raws["successful"][0])
+            return PresignedURLWithRefDTO.model_validate_json(raws["successful"][0])
 
         validated_file = self._validate_file_for_upload(file_metadata)
 
@@ -389,7 +389,11 @@ class FileService:
                 detail=f"Failed to generate presigned URL for file with client_ref_id={file_metadata.client_ref_id}.",
             ) from exc
 
-        result = PresignedURLDTO(file_id=file_id, presigned_url=AnyHttpUrl(url))
+        result = PresignedURLWithRefDTO(
+            file_id=file_id,
+            presigned_url=AnyHttpUrl(url),
+            client_ref_id=file_metadata.client_ref_id,
+        )
 
         await self._redis_client.finalize_idempotency_key(
             scope=idem_scope,
@@ -406,7 +410,7 @@ class FileService:
         files_metadata: list[FileMetadataDTO],
         user_id: UUID,
         idempotency_key: UUID,
-    ) -> tuple[list[PresignedURLDTO], list[UploadFileErrorDTO]]:
+    ) -> tuple[list[PresignedURLWithRefDTO], list[UploadFileErrorDTO]]:
         """Получение presigned-url для загрузки нескольких файлов напрямую в S3.
 
         Принимает список метаданных файлов, валидирует каждый из них и генерирует
@@ -427,7 +431,7 @@ class FileService:
 
         Returns
         -------
-        tuple[list[PresignedURLDTO], list[UploadFileErrorDTO]]
+        tuple[list[PresignedURLWithRefDTO], list[UploadFileErrorDTO]]
             Кортеж из двух списков:
             - первый - успешно сгенерированные presigned URLs;
             - второй - ошибки для файлов, которые не прошли валидацию
@@ -446,7 +450,10 @@ class FileService:
         if not is_new:
             raws = json.loads(cached)
             return (
-                [PresignedURLDTO.model_validate_json(r) for r in raws["successful"]],
+                [
+                    PresignedURLWithRefDTO.model_validate_json(r)
+                    for r in raws["successful"]
+                ],
                 [UploadFileErrorDTO.model_validate_json(r) for r in raws["failed"]],
             )
 
@@ -491,7 +498,7 @@ class FileService:
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        successful: list[PresignedURLDTO] = []
+        successful: list[PresignedURLWithRefDTO] = []
         failed_file_ids: list[UUID] = []
 
         for file_id, metadata, result in zip(file_ids, valid_files, results):
@@ -507,7 +514,11 @@ class FileService:
                 )
             else:
                 successful.append(
-                    PresignedURLDTO(file_id=file_id, presigned_url=AnyHttpUrl(result))
+                    PresignedURLWithRefDTO(
+                        file_id=file_id,
+                        presigned_url=AnyHttpUrl(result),
+                        client_ref_id=metadata.client_ref_id,
+                    )
                 )
 
         if failed_file_ids:

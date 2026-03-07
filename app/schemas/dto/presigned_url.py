@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import AnyHttpUrl, BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel
 
 
 class PresignedURLDTO(BaseModel):
@@ -14,11 +14,21 @@ class PresignedURLDTO(BaseModel):
         Presigned URL на загрузку или получение файла.
     """
 
-    file_id: UUID = Field(
-        description="UUID загружаемого файла.",
-        examples=["ccdc1e34-8772-4537-bdba-5e45c4be5d7c"],
-    )
-    presigned_url: AnyHttpUrl = Field(
-        description="Presigned URL на загрузку или получение файла.",
-        examples=["https://amzn-s3-demo-bucket.s3.amazonaws.com"],
-    )
+    file_id: UUID
+    presigned_url: AnyHttpUrl
+
+
+class PresignedURLWithRefDTO(PresignedURLDTO):
+    """Модель представления подписанной ссылки с обратным `ref`.
+
+    Используется для представления подписанной ссылки
+    при запросе на загрузку файла на сервер.
+    Содержит `client_ref_id` для корреляции.
+
+    Attributes
+    ----------
+    client_ref_id: str
+        Произвольный клиентский идентификатор для корреляции результата.
+    """
+
+    client_ref_id: str
