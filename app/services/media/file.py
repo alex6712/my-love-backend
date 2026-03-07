@@ -366,7 +366,7 @@ class FileService:
         )
         if not is_new:
             raws = json.loads(cached)
-            return PresignedURLDTO.model_validate_json(raws["successful"])
+            return PresignedURLDTO.model_validate_json(raws["successful"][0])
 
         validated_file = self._validate_file_for_upload(file_metadata)
 
