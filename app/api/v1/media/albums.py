@@ -260,7 +260,7 @@ async def get_album(
         int,
         Query(
             ge=1,
-            le=100,
+            le=50,
             description="Количество возвращаемых элементов.",
         ),
     ] = 20,
