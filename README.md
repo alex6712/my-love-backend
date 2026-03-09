@@ -41,7 +41,7 @@ _Web-клиент: [My Love Web](https://github.com/alex6712/my-love-web)._
 
 ### Предварительные требования
 - Docker и Docker Compose (v2+)
-- Python 3.10+ (для локальной разработки)
+- Python 3.12+ (для локальной разработки)
 - OpenSSL
 
 ### Запуск в Docker (рекомендуется)
@@ -125,6 +125,7 @@ my-love-backend/                # FastAPI приложение
 │   ├── core/                   # Конфигурация, безопасность
 │   │   ├── dependencies/       # Зависимости для DI
 │   │   └── exceptions/         # Исключения приложения
+│   ├── handlers/               # Обработчики доменных исключений
 │   ├── infrastructure/         # Инфраструктурные классы
 │   ├── models/                 # SQLAlchemy модели
 │   ├── repositories/           # Репозитории для работы с БД
