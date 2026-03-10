@@ -126,6 +126,9 @@ my-love-backend/                # FastAPI приложение
 │   │   ├── dependencies/       # Зависимости для DI
 │   │   └── exceptions/         # Исключения приложения
 │   ├── handlers/               # Обработчики доменных исключений
+│   │   ├── client/
+│   │   ├── server/
+│   │   └── success/
 │   ├── infrastructure/         # Инфраструктурные классы
 │   ├── models/                 # SQLAlchemy модели
 │   ├── repositories/           # Репозитории для работы с БД
@@ -196,8 +199,8 @@ my-love-backend/                # FastAPI приложение
 
 | Метод | Путь | Описание | Авторизация |
 |-------|------|----------|-------------|
-| GET | `/v1/health` | Healthcheck | ❌ |
-| GET | `/v1/app_info` | Информация о приложении | ❌ |
+| GET | `/health` | Healthcheck | ❌ |
+| GET | `/app_info` | Информация о приложении | ❌ |
 | POST | `/v1/auth/register` | Регистрация | ❌ |
 | POST | `/v1/auth/login` | Вход в систему | ❌ |
 | GET | `/v1/auth/refresh` | Обновление токена | ✅ |
@@ -207,6 +210,9 @@ my-love-backend/                # FastAPI приложение
 | POST | `/v1/couples/{id}/accept` | Принятие запроса | ✅ |
 | POST | `/v1/couples/{id}/decline` | Отклонение запроса | ✅ |
 | GET | `/v1/couples/pending` | Список запросов | ✅ |
+| GET | `/v1/media/files/count` | Подсчёт количества файлов | ✅ |
+| POST | `/v1/media/files/upload` | Загрузить файл | ✅ |
+| GET | `/v1/media/files/{file_id}/download` | Скачать файл | ✅ |
 | GET | `/v1/media/albums` | Список альбомов | ✅ |
 | POST | `/v1/media/albums` | Создание альбома | ✅ |
 
