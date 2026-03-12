@@ -46,6 +46,30 @@ from app.schemas.dto.presigned_url import PresignedURLDTO, PresignedURLWithRefDT
 if TYPE_CHECKING:
     from types_aiobotocore_s3 import S3Client
 
+type UploadFilesResult = tuple[list[PresignedURLWithRefDTO], list[UploadFileErrorDTO]]
+"""Тип результата операции пакетной выгрузки файлов.
+
+Представляет собой кортеж из двух списков:
+- список успешно обработанных файлов с предварительно подписанными URL и обратными ссылками для корреляции;
+- список ошибок, возникших при выгрузке соответствующих файлов.
+
+Notes
+-----
+Используется для возврата результатов batch-операции загрузки файлов на сервер.
+"""
+
+type DownloadFilesResult = tuple[list[PresignedURLDTO], list[DownloadFileErrorDTO]]
+"""Тип результата операции пакетного скачивания файлов.
+
+Представляет собой кортеж из двух списков:
+- список успешно сгенерированных предварительно подписанных URL для скачивания файлов;
+- список ошибок, возникших при попытке получить URL для соответствующих файлов.
+
+Notes
+-----
+Используется для возврата результатов batch-операции получения ссылок на скачивание.
+"""
+
 
 class FileService:
     """Сервис работы с медиа-файлами.
@@ -410,7 +434,7 @@ class FileService:
         files_metadata: list[FileMetadataDTO],
         user_id: UUID,
         idempotency_key: UUID,
-    ) -> tuple[list[PresignedURLWithRefDTO], list[UploadFileErrorDTO]]:
+    ) -> UploadFilesResult:
         """Получение presigned-url для загрузки нескольких файлов напрямую в S3.
 
         Принимает список метаданных файлов, валидирует каждый из них и генерирует
@@ -431,7 +455,7 @@ class FileService:
 
         Returns
         -------
-        tuple[list[PresignedURLWithRefDTO], list[UploadFileErrorDTO]]
+        UploadFilesResult
             Кортеж из двух списков:
             - первый - успешно сгенерированные presigned URLs;
             - второй - ошибки для файлов, которые не прошли валидацию
@@ -711,7 +735,7 @@ class FileService:
 
     async def get_download_presigned_urls(
         self, files_uuids: list[UUID], user_id: UUID
-    ) -> tuple[list[PresignedURLDTO], list[DownloadFileErrorDTO]]:
+    ) -> DownloadFilesResult:
         """Генерирует presigned URL для скачивания файлов.
 
         Для каждого запрошенного файла проверяет доступность и генерирует
@@ -730,7 +754,7 @@ class FileService:
 
         Returns
         -------
-        tuple[list[PresignedURLDTO], list[DownloadFileErrorDTO]]
+        DownloadFilesResult
             Кортеж из двух списков:
 
             - ``successful`` - presigned URL для файлов, успешно прошедших
