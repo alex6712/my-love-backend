@@ -394,7 +394,7 @@ class FileService:
 
         validated_file = self._validate_file_for_upload(file_metadata)
 
-        object_key = self._generate_object_key(user_id, idempotency_key)
+        object_key = self._generate_object_key(user_id, uuid4())
         file_id = await self._file_repo.add_pending_file(
             validated_file, object_key, user_id
         )
@@ -502,8 +502,10 @@ class FileService:
             )
             return [], failed
 
+        batch_id = uuid4()
+
         object_keys = [
-            self._generate_object_key(user_id, idempotency_key) for _ in valid_files
+            self._generate_object_key(user_id, batch_id) for _ in valid_files
         ]
         file_ids = await self._file_repo.add_pending_files(
             valid_files, object_keys, user_id
