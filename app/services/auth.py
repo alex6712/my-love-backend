@@ -400,9 +400,5 @@ class AuthService:
                 detail="Signature of passed token has expired.",
                 token_type=token_type,
             )
-        except JWTError as e:
-            print(e)
-            raise damaged
-        except ValidationError as e:
-            print(e)
+        except JWTError, ValidationError:
             raise damaged
