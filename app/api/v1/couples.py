@@ -58,7 +58,7 @@ async def get_partner(
     PartnerResponse
         Ответ с вложенным DTO партнёра.
     """
-    partner = await services.couple.get_partner(payload["sub"])
+    partner = await services.couple.get_partner(payload.sub)
 
     return PartnerResponse(
         partner=partner,
@@ -114,7 +114,7 @@ async def create_couple_request(
     StandardResponse
         Ответ, подтверждающий успешную регистрацию приглашения в пару.
     """
-    await services.couple.create_couple_request(payload["sub"], body.partner_username)
+    await services.couple.create_couple_request(payload.sub, body.partner_username)
 
     return StandardResponse(detail="Couple request created successfully.")
 
@@ -164,7 +164,7 @@ async def accept_couple_request(
     StandardResponse
         Отчёт об успешном создании новой пары.
     """
-    await services.couple.accept_couple_request(couple_id, payload["sub"])
+    await services.couple.accept_couple_request(couple_id, payload.sub)
 
     return StandardResponse(detail="Couple register successfully.")
 
@@ -214,7 +214,7 @@ async def decline_couple_request(
     StandardResponse
         Отчёт об успешном отклонении запроса.
     """
-    await services.couple.decline_couple_request(couple_id, payload["sub"])
+    await services.couple.decline_couple_request(couple_id, payload.sub)
 
     return StandardResponse(detail="Couple register declined.")
 
@@ -260,7 +260,7 @@ async def get_couple_requests(
     CoupleRequestsResponse
         Список всех запросов на создание пары текущего пользователя.
     """
-    requests = await services.couple.get_couple_requests(payload["sub"])
+    requests = await services.couple.get_couple_requests(payload.sub)
 
     detail = "Couple requests not found."
     if len(requests) > 0:

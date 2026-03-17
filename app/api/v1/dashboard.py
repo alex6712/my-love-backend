@@ -61,7 +61,7 @@ async def get_dashboard(
     DashboardResponse
         Объект с агрегированными данными для главной страницы пользователя.
     """
-    user_id: UUID = payload["sub"]
+    user_id: UUID = payload.sub
 
     files_count = await services.file.count_files(user_id)
     notes_count = await services.note.count_notes(user_id)

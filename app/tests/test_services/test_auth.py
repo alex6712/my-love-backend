@@ -290,7 +290,7 @@ class TestAuthServiceValidateAccessToken:
 
         payload = await auth_service.validate_access_token(access_token)
 
-        assert payload["sub"] == user_id
+        assert payload.sub == user_id
 
     @pytest.mark.asyncio
     async def test_validate_revoked_token(

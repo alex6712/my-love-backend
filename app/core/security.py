@@ -3,7 +3,7 @@ import hmac
 import os
 import uuid
 from datetime import datetime, timedelta
-from typing import Any
+from uuid import UUID
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -12,7 +12,7 @@ from passlib.context import CryptContext
 
 from app.config import get_settings
 from app.core.exceptions.base import WeakServerSecretException
-from app.core.types import Payload
+from app.schemas.dto.payload import Payload
 
 settings = get_settings()
 
@@ -31,7 +31,7 @@ def _jwt_encode(payload: Payload) -> str:
         JSON Web Token.
     """
     return jwt.encode(
-        payload,
+        payload.to_jwt_payload(),
         key=settings.PRIVATE_SIGNATURE_KEY,  # type: ignore
         algorithm=settings.JWT_ALGORITHM,
     )
@@ -50,47 +50,50 @@ def jwt_decode(token: str) -> Payload:
     Payload
         Словарь с информацией из JWT.
     """
-    return jwt.decode(
-        token,
-        key=settings.PUBLIC_SIGNATURE_KEY,  # type: ignore
-        algorithms=[settings.JWT_ALGORITHM],
+    return Payload.model_validate(
+        jwt.decode(
+            token,
+            key=settings.PUBLIC_SIGNATURE_KEY,  # type: ignore
+            algorithms=[settings.JWT_ALGORITHM],
+        )
     )
 
 
 def create_jwt(
-    sub: str,
+    sub: UUID,
     iat: datetime,
     *,
     exp: datetime | None = None,
-    jti: str | None = None,
+    jti: UUID | None = None,
     iss: str = "my-love-backend",
     expires_delta: timedelta | None = None,
-    **claims: Any,
+    session_id: UUID,
 ) -> str:
     """Создаёт и возвращает подписанный JWT.
 
-    Формирует payload из переданных аргументов и кодирует его.
-    Значение `exp` должно быть задано одним из двух способов -
-    иначе выбрасывается `RuntimeError`.
+    Формирует payload из переданных аргументов и передаёт его в `_jwt_encode`.
+    Время истечения токена `exp` вычисляется одним из двух способов —
+    если ни один не передан, выбрасывается `RuntimeError`.
 
     Parameters
     ----------
-    sub : str
-        Субъект токена (`sub` claim), как правило - идентификатор пользователя.
+    sub : UUID
+        Субъект токена — идентификатор пользователя.
     iat : datetime
-        Время выпуска токена (`iat` claim).
+        Время выпуска токена.
     exp : datetime | None, optional
-        Точное время истечения токена (`exp` claim).
-    jti : str | None, optional
-        Уникальный идентификатор токена (`jti` claim).
-        По умолчанию генерируется автоматически через `uuid.uuid4()`.
+        Точное время истечения токена.
+        Игнорируется, если передан `expires_delta`.
+    jti : UUID | None, optional
+        Уникальный идентификатор токена.
+        Если не передан — генерируется автоматически через `uuid.uuid4()`.
     iss : str, optional
-        Издатель токена (`iss` claim). По умолчанию `"my-love-backend"`.
+        Издатель токена. По умолчанию `"my-love-backend"`.
     expires_delta : timedelta | None, optional
         Время жизни токена относительно `iat`.
-        Если передан вместе с `exp`, то `expires_delta` перезапишет `exp`.
-    **claims : Any
-        Дополнительные произвольные claims, которые будут добавлены в payload.
+        Имеет приоритет над `exp`, если передан.
+    session_id : UUID
+        Идентификатор сессии пользователя.
 
     Returns
     -------
@@ -100,10 +103,18 @@ def create_jwt(
     Raises
     ------
     RuntimeError
-        Если ни один из источников для `exp` не передан:
-        ни `exp`, ни `expires_delta`.
+        Если не передан ни `exp`, ни `expires_delta`.
+
+    Notes
+    -----
+    Если переданы оба аргумента `exp` и `expires_delta`,
+    приоритет имеет `expires_delta`.
     """
-    if not exp and not expires_delta:
+    if expires_delta is not None:
+        resolved_exp = iat + expires_delta
+    elif exp is not None:
+        resolved_exp = exp
+    else:
         raise RuntimeError(
             "There's no source to set the 'exp' value from!\n"
             "You can pass it via 'exp' argument directly or via"
@@ -111,13 +122,11 @@ def create_jwt(
         )
 
     if jti is None:
-        jti = str(uuid.uuid4())
+        jti = uuid.uuid4()
 
-    to_encode: Payload = {"sub": sub, "iat": iat, "exp": exp, "jti": jti, "iss": iss}
-    to_encode.update(claims)
-
-    if expires_delta:
-        to_encode.update({"exp": iat + expires_delta})
+    to_encode = Payload(
+        sub=sub, iat=iat, exp=resolved_exp, jti=jti, iss=iss, session_id=session_id
+    )
 
     return _jwt_encode(to_encode)
 

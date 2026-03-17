@@ -93,7 +93,7 @@ async def get_notes(
         в пределах заданной пагинации и общее количество найденных заметок.
     """
     notes, total = await services.note.get_notes(
-        note_type, offset, limit, order, payload["sub"]
+        note_type, offset, limit, order, payload.sub
     )
 
     return NotesResponse(
@@ -146,7 +146,7 @@ async def post_notes(
     StandardResponse
         Успешный ответ о создании новой заметки.
     """
-    await services.note.create_note(body.type, body.title, body.content, payload["sub"])
+    await services.note.create_note(body.type, body.title, body.content, payload.sub)
 
     return StandardResponse(detail="New note created successful.")
 
@@ -192,7 +192,7 @@ async def count(
         Объект ответа, содержащий общее количество доступных
         пользователю заметок.
     """
-    count = await services.note.count_notes(payload["sub"])
+    count = await services.note.count_notes(payload.sub)
 
     return CountResponse(count=count, detail=f"Found {count} note entries.")
 
@@ -251,7 +251,7 @@ async def patch_notes(
     await services.note.update_note(
         note_id,
         PatchNoteDTO.from_request_schema(body),
-        payload["sub"],
+        payload.sub,
     )
 
     return StandardResponse(detail="Note content updated successful.")
@@ -300,6 +300,6 @@ async def delete_notes(
     StandardResponse
         Успешный ответ об удалении заметки.
     """
-    await services.note.delete_note(note_id, payload["sub"])
+    await services.note.delete_note(note_id, payload.sub)
 
     return StandardResponse(detail="Note deleted successful.")

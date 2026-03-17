@@ -15,6 +15,8 @@ from app.api.v1 import api_v1_router
 from app.config import get_settings
 from app.core.docs import (
     AUTHORIZATION_ERROR_SCHEMA,
+    CHANGE_PASSWORD_ERROR_SCHEMA,
+    CHANGE_PASSWORD_VALIDATION_ERROR_SCHEMA,
     IDEMPOTENCY_CONFLICT_ERROR_SCHEMA,
     LOGIN_ERROR_SCHEMA,
     RATE_LIMIT_ERROR_SCHEMA,
@@ -176,14 +178,18 @@ def custom_openapi() -> dict[str, Any]:
         },
     )
 
+    # добавляем кастомные схемы ошибок в документацию, чтобы работали ref
     openapi_schema["components"]["responses"] = {
         "AuthorizationError": AUTHORIZATION_ERROR_SCHEMA,
+        "ChangePasswordError": CHANGE_PASSWORD_ERROR_SCHEMA,
+        "ChangePasswordValidationError": CHANGE_PASSWORD_VALIDATION_ERROR_SCHEMA,
         "IdempotencyConflictError": IDEMPOTENCY_CONFLICT_ERROR_SCHEMA,
         "LoginError": LOGIN_ERROR_SCHEMA,
         "RateLimitError": RATE_LIMIT_ERROR_SCHEMA,
         "RegisterError": REGISTER_ERROR_SCHEMA,
     }
 
+    # заменяем встроенные схемы на модифицированные (с code и detail)
     for path in openapi_schema["paths"].values():
         for method in path.values():
             if not (responses := method.get("responses", None)):

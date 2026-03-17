@@ -34,15 +34,18 @@ class UserSessionRepository(RepositoryInterface):
 
     async def add_user_session(
         self,
+        session_id: UUID,
         user_id: UUID,
         refresh_token_hash: str,
         expires_at: datetime,
         last_used_at: datetime | None,
-    ) -> UUID:
-        """Создаёт новую пользовательскую сессию.
+    ) -> bool:
+        """Сохраняет новую пользовательскую сессию в БД.
 
         Parameters
         ----------
+        session_id : UUID
+            Идентификатор сессии, сгенерированный на стороне сервиса.
         user_id : UUID
             Идентификатор пользователя, которому принадлежит сессия.
         refresh_token_hash : str
@@ -51,21 +54,22 @@ class UserSessionRepository(RepositoryInterface):
             Время истечения сессии.
         last_used_at : datetime | None
             Время последнего использования сессии.
-            Может быть ``None``, если сессия только что создана.
+            Передаётся `None`, если сессия только что создана.
 
         Returns
         -------
-        UUID
-            Идентификатор созданной сессии.
+        bool
+            `True` если сессия успешно создана, `False` в противном случае.
 
         Raises
         ------
-        RuntimeError
-            Если БД не вернула идентификатор после вставки.
+        IntegrityError
+            Если сессия с переданным `session_id` уже существует.
         """
-        session_id = await self.session.scalar(
+        created = await self.session.scalar(
             insert(UserSessionModel)
             .values(
+                id=session_id,
                 user_id=user_id,
                 refresh_token_hash=refresh_token_hash,
                 expires_at=expires_at,
@@ -74,12 +78,7 @@ class UserSessionRepository(RepositoryInterface):
             .returning(UserSessionModel.id)
         )
 
-        if not session_id:
-            raise RuntimeError(
-                "Unknown error is occurred while trying to create new user session."
-            )
-
-        return session_id
+        return created is not None
 
     async def get_user_session_by_id(self, session_id: UUID) -> UserSessionDTO | None:
         """Возвращает сессию по её идентификатору.
@@ -129,18 +128,18 @@ class UserSessionRepository(RepositoryInterface):
         new_refresh_token_hash: str,
         expires_at: datetime,
         last_used_at: datetime,
-    ) -> UUID | None:
-        """Обновляет данные сессии по хэшу токена обновления.
+    ) -> bool:
+        """Обновляет данные сессии по хэшу refresh-токена.
 
-        Используется, например, при ротации refresh-токена -
-        когда нужно заменить хэш и обновить время истечения и последнего использования.
+        Используется при ротации refresh-токена — заменяет хэш токена,
+        обновляет время истечения и последнего использования сессии.
 
         Parameters
         ----------
         old_refresh_token_hash : str
-            Старый хэш refresh-токена.
+            Хэш текущего refresh-токена, по которому ищется сессия.
         new_refresh_token_hash : str
-            Новый хэш refresh-токена.
+            Хэш нового refresh-токена, который заменит старый.
         expires_at : datetime
             Новое время истечения сессии.
         last_used_at : datetime
@@ -148,10 +147,11 @@ class UserSessionRepository(RepositoryInterface):
 
         Returns
         -------
-        UUID | None
-            Уникальный идентификатор сессии пользователя.
+        bool
+            `True` если сессия найдена и обновлена, `False` если сессия
+            с переданным хэшем не существует или уже неактивна.
         """
-        user_session_id = await self.session.scalar(
+        updated = await self.session.scalar(
             update(UserSessionModel)
             .where(UserSessionModel.refresh_token_hash == old_refresh_token_hash)
             .values(
@@ -162,7 +162,7 @@ class UserSessionRepository(RepositoryInterface):
             .returning(UserSessionModel.id)
         )
 
-        return user_session_id
+        return updated is not None
 
     async def delete_user_session_by_id(self, session_id: UUID) -> None:
         """Удаляет сессию по её идентификатору.

@@ -53,7 +53,28 @@ class _CredentialsException(AuthDomainException):
         self.credentials_type = credentials_type
 
 
-class IncorrectUsernameOrPasswordException(_CredentialsException):
+class _PasswordException(_CredentialsException):
+    """Базовое исключение для ошибок аутентификации по паролю.
+
+    Parameters
+    ----------
+    detail : str
+        Детальное сообщение об ошибке.
+    *args : Any
+        Стандартные аргументы исключения.
+
+    Notes
+    -----
+    Автоматически устанавливает ``credentials_type="password"``.
+    Используется как базовый класс для конкретных исключений,
+    связанных с паролем.
+    """
+
+    def __init__(self, detail: str, *args: Any):
+        super().__init__(detail, *args, credentials_type="password")
+
+
+class IncorrectUsernameOrPasswordException(_PasswordException):
     """Исключение при ошибке обработки запроса логина пользователя.
 
     Parameters
@@ -69,8 +90,64 @@ class IncorrectUsernameOrPasswordException(_CredentialsException):
     аутентифицировать пользователя по предоставленным учётным данным.
     """
 
-    def __init__(self, detail: str, *args: Any):
-        super().__init__(detail, *args, credentials_type="password")
+    pass
+
+
+class IncorrectPasswordException(_PasswordException):
+    """Исключение при неверном текущем пароле.
+
+    Parameters
+    ----------
+    detail : str
+        Детальное сообщение об ошибке.
+    *args : Any
+        Стандартные аргументы исключения.
+
+    Notes
+    -----
+    Используется при смене пароля, когда переданный текущий пароль
+    не совпадает с сохранённым.
+    """
+
+    pass
+
+
+class NewPasswordSameAsOldException(_PasswordException):
+    """Исключение при совпадении нового пароля со старым.
+
+    Parameters
+    ----------
+    detail : str
+        Детальное сообщение об ошибке.
+    *args : Any
+        Стандартные аргументы исключения.
+
+    Notes
+    -----
+    Используется при смене пароля, когда переданный новый пароль
+    совпадает с текущим сохранённым.
+    """
+
+    pass
+
+
+class PasswordUpdateFailedException(_PasswordException):
+    """Вызывается, если обновление пароля в БД не было применено.
+
+    Parameters
+    ----------
+    detail : str
+        Детальное сообщение об ошибке.
+    *args : Any
+        Стандартные аргументы исключения.
+
+    Notes
+    -----
+    Используется при смене пароля, когда запрос к БД
+    не затронул ни одной строки.
+    """
+
+    pass
 
 
 class _TokenException(_CredentialsException):

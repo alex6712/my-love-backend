@@ -41,6 +41,87 @@ RATE_LIMIT_ERROR_REF: dict[str, Any] = {
 }
 """Ссылка на схему ошибки превышения количества запросов внутри OAS."""
 
+
+def _get_password_validations_examples(filed_name: str) -> dict[str, Any]:
+    return {
+        "passwordMinLength": {
+            "description": "Пароль слишком короткий",
+            "value": {
+                "code": APICode.VALIDATION_ERROR,
+                "detail": [
+                    {
+                        "type": "value_error",
+                        "loc": ["body", filed_name],
+                        "msg": "Value error, Password must be at least 12 characters long.",
+                        "input": "a",
+                        "ctx": {"error": {}},
+                    }
+                ],
+            },
+        },
+        "uppercaseLetters": {
+            "description": "Пароль должен содержать хотя бы одну латинскую букву в верхнем регистре",
+            "value": {
+                "code": APICode.VALIDATION_ERROR,
+                "detail": [
+                    {
+                        "type": "value_error",
+                        "loc": ["body", filed_name],
+                        "msg": "Value error, Password must contain at least one uppercase letter.",
+                        "input": "aaaaaaaaaaaa",
+                        "ctx": {"error": {}},
+                    }
+                ],
+            },
+        },
+        "lowercaseLetters": {
+            "description": "Пароль должен содержать хотя бы одну латинскую букву в нижнем регистре",
+            "value": {
+                "code": APICode.VALIDATION_ERROR,
+                "detail": [
+                    {
+                        "type": "value_error",
+                        "loc": ["body", filed_name],
+                        "msg": "Value error, Password must contain at least one lowercase letter.",
+                        "input": "AAAAAAAAAAAA",
+                        "ctx": {"error": {}},
+                    }
+                ],
+            },
+        },
+        "oneDigit": {
+            "description": "Пароль должен содержать хотя бы одну цифру",
+            "value": {
+                "code": APICode.VALIDATION_ERROR,
+                "detail": [
+                    {
+                        "type": "value_error",
+                        "loc": ["body", filed_name],
+                        "msg": "Value error, Password must contain at least one digit.",
+                        "input": "AAAAAAaaaaaa",
+                        "ctx": {"error": {}},
+                    }
+                ],
+            },
+        },
+        "oneSpecialSymbol": {
+            "description": "Пароль должен содержать хотя бы один специальный символ",
+            "value": {
+                "code": APICode.VALIDATION_ERROR,
+                "detail": [
+                    {
+                        "type": "value_error",
+                        "loc": ["body", filed_name],
+                        "msg": "Value error, Password must contain at least one special character.",
+                        "input": "Aa1Aa2Aa3Aa4",
+                        "ctx": {"error": {}},
+                    }
+                ],
+            },
+        },
+    }
+
+
 REGISTER_ERROR_SCHEMA: dict[str, Any] = {
     "content": {
         "application/json": {
@@ -63,81 +144,7 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
                         ],
                     },
                 },
-                "passwordMinLength": {
-                    "description": "Пароль слишком короткий",
-                    "value": {
-                        "code": APICode.VALIDATION_ERROR,
-                        "detail": [
-                            {
-                                "type": "value_error",
-                                "loc": ["body", "password"],
-                                "msg": "Value error, Password must be at least 12 characters long.",
-                                "input": "a",
-                                "ctx": {"error": {}},
-                            }
-                        ],
-                    },
-                },
-                "uppercaseLetters": {
-                    "description": "Пароль должен содержать хотя бы одну латинскую букву в верхнем регистре",
-                    "value": {
-                        "code": APICode.VALIDATION_ERROR,
-                        "detail": [
-                            {
-                                "type": "value_error",
-                                "loc": ["body", "password"],
-                                "msg": "Value error, Password must contain at least one uppercase letter.",
-                                "input": "aaaaaaaaaaaa",
-                                "ctx": {"error": {}},
-                            }
-                        ],
-                    },
-                },
-                "lowercaseLetters": {
-                    "description": "Пароль должен содержать хотя бы одну латинскую букву в нижнем регистре",
-                    "value": {
-                        "code": APICode.VALIDATION_ERROR,
-                        "detail": [
-                            {
-                                "type": "value_error",
-                                "loc": ["body", "password"],
-                                "msg": "Value error, Password must contain at least one lowercase letter.",
-                                "input": "AAAAAAAAAAAA",
-                                "ctx": {"error": {}},
-                            }
-                        ],
-                    },
-                },
-                "oneDigit": {
-                    "description": "Пароль должен содержать хотя бы одну цифру",
-                    "value": {
-                        "code": APICode.VALIDATION_ERROR,
-                        "detail": [
-                            {
-                                "type": "value_error",
-                                "loc": ["body", "password"],
-                                "msg": "Value error, Password must contain at least one digit.",
-                                "input": "AAAAAAaaaaaa",
-                                "ctx": {"error": {}},
-                            }
-                        ],
-                    },
-                },
-                "oneSpecialSymbol": {
-                    "description": "Пароль должен содержать хотя бы один специальный символ",
-                    "value": {
-                        "code": APICode.VALIDATION_ERROR,
-                        "detail": [
-                            {
-                                "type": "value_error",
-                                "loc": ["body", "password"],
-                                "msg": "Value error, Password must contain at least one special character.",
-                                "input": "Aa1Aa2Aa3Aa4",
-                                "ctx": {"error": {}},
-                            }
-                        ],
-                    },
-                },
+                **_get_password_validations_examples("password"),
                 "groupError": {
                     "description": "Ошибки одновременно обнаружены и в username, и в пароле",
                     "value": {
@@ -192,6 +199,78 @@ LOGIN_ERROR_REF = {
     "$ref": "#/components/responses/LoginError",
 }
 """Ссылка на схему ошибки входа в систему внутри OAS."""
+
+CHANGE_PASSWORD_ERROR_SCHEMA: dict[str, Any] = {
+    "content": {
+        "application/json": {
+            "schema": {
+                "$ref": "#/components/schemas/StandardResponse",
+            },
+            "examples": {
+                "incorrectPassword": {
+                    "description": "Переданный аутентифицированным пользователем текущий пароль неверный",
+                    "value": {
+                        "code": APICode.INCORRECT_PASSWORD,
+                        "detail": "Current password is incorrect.",
+                    },
+                },
+                "newPasswordSameAsOld": {
+                    "description": "Переданный аутентифицированным пользователем новый пароль совпадает со старым",
+                    "value": {
+                        "code": APICode.NEW_PASSWORD_SAME_AS_OLD,
+                        "detail": "New password must differ from current.",
+                    },
+                },
+            },
+        }
+    },
+}
+"""OpenAPI пример ошибки при попытке сменить пароль пользователя."""
+
+CHANGE_PASSWORD_ERROR_REF = {
+    "description": "Передан неверный старый пароль или новый пароль совпадает со старым",
+    "$ref": "#/components/responses/ChangePasswordError",
+}
+"""Ссылка на схему ошибки смены пароля пользователя внутри OAS."""
+
+CHANGE_PASSWORD_VALIDATION_ERROR_SCHEMA: dict[str, Any] = {
+    "content": {
+        "application/json": {
+            "schema": {
+                "$ref": "#/components/schemas/StandardResponse",
+            },
+            "examples": {
+                **_get_password_validations_examples("new_password"),
+                "passwordDoNotMatch": {
+                    "description": "Переданный аутентифицированным пользователем новый пароль подтверждён неверно",
+                    "value": {
+                        "code": APICode.VALIDATION_ERROR,
+                        "detail": [
+                            {
+                                "type": "value_error",
+                                "loc": ["body"],
+                                "msg": "Value error, Passwords do not match",
+                                "input": {
+                                    "current_password": "SecureP@ss123!",
+                                    "new_password": "SecureP@ss222!",
+                                    "confirm_password": "SecureP@ss333!",
+                                },
+                                "ctx": {"error": {}},
+                            }
+                        ],
+                    },
+                },
+            },
+        }
+    },
+}
+"""OpenAPI пример ошибки валидации при попытке сменить пароль пользователя."""
+
+CHANGE_PASSWORD_VALIDATION_ERROR_REF = {
+    "description": "Новый пароль не прошёл валидацию или новый пароль подтверждён неверно",
+    "$ref": "#/components/responses/ChangePasswordValidationError",
+}
+"""Ссылка на схему ошибки валидации смены пароля пользователя внутри OAS."""
 
 AUTHORIZATION_ERROR_SCHEMA: dict[str, Any] = {
     "content": {

@@ -19,6 +19,12 @@ class APICode(StrEnum):
         Пустой PATCH-запрос.
     INCORRECT_USERNAME_PASSWORD
         Неверное имя пользователя или пароль.
+    INCORRECT_PASSWORD
+        Текущий пароль не совпадает с сохранённым в БД.
+    NEW_PASSWORD_SAME_AS_OLD
+        Новый пароль совпадает с текущим сохранённым в БД.
+    PASSWORD_UPDATE_FAILED
+        Обновление пароля не затронуло ни одной строки в БД.
     TOKEN_NOT_PASSED
         Токен не передан.
     INVALID_TOKEN
@@ -72,6 +78,15 @@ class APICode(StrEnum):
 
     INCORRECT_USERNAME_PASSWORD = "INCORRECT_USERNAME_PASSWORD"
     """Если по `username` не найден пользователь или `password` и хеш пароля в БД не совпадают."""
+
+    INCORRECT_PASSWORD = "INCORRECT_PASSWORD"
+    """Текущий пароль не совпадает с сохранённым в БД."""
+
+    NEW_PASSWORD_SAME_AS_OLD = "NEW_PASSWORD_SAME_AS_OLD"
+    """Новый пароль совпадает с текущим сохранённым в БД."""
+
+    PASSWORD_UPDATE_FAILED = "PASSWORD_UPDATE_FAILED"
+    """Обновление пароля не затронуло ни одной строки в БД."""
 
     TOKEN_NOT_PASSED = "TOKEN_NOT_PASSED"
     """Вызывается при условии, что JWT не передан в заголовках запроса."""

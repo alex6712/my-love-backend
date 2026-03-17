@@ -91,9 +91,7 @@ async def get_albums(
         Объект ответа, содержащий список доступных пользователю медиа альбомов
         в пределах заданной пагинации и общее количество найденных альбомов.
     """
-    albums, total = await services.album.get_albums(
-        offset, limit, order, payload["sub"]
-    )
+    albums, total = await services.album.get_albums(offset, limit, order, payload.sub)
 
     return AlbumsResponse(
         albums=albums, total=total, detail=f"Found {total} album entries."
@@ -150,7 +148,7 @@ async def post_albums(
         description=body.description,
         cover_url=body.cover_url,
         is_private=body.is_private,
-        created_by=payload["sub"],
+        created_by=payload.sub,
     )
 
     return StandardResponse(detail="New album created successfully.")
@@ -230,7 +228,7 @@ async def search_albums(
         Объект ответа, содержащий список найденных альбомов.
     """
     albums, total = await services.album.search_albums(
-        search_query, threshold, offset, limit, payload["sub"]
+        search_query, threshold, offset, limit, payload.sub
     )
 
     return AlbumsResponse(
@@ -304,7 +302,7 @@ async def get_album(
     AlbumResponse
         Подробная информация о конкретном медиа-альбоме.
     """
-    album = await services.album.get_album(album_id, offset, limit, payload["sub"])
+    album = await services.album.get_album(album_id, offset, limit, payload.sub)
 
     return AlbumResponse(
         album=album,
@@ -367,7 +365,7 @@ async def patch_album(
     await services.album.update_album(
         album_id,
         PatchAlbumDTO.from_request_schema(body),
-        payload["sub"],
+        payload.sub,
     )
 
     return StandardResponse(detail="Album info edited successfully.")
@@ -416,7 +414,7 @@ async def delete_album(
     StandardResponse
         Ответ о результате удаления медиа альбома.
     """
-    await services.album.delete_album(album_id, payload["sub"])
+    await services.album.delete_album(album_id, payload.sub)
 
     return StandardResponse(detail="Album entry deleted successfully.")
 
@@ -471,7 +469,7 @@ async def attach(
     StandardResponse
         Ответ о результате добавления файлов к альбому.
     """
-    await services.album.attach(album_id, body.files_uuids, payload["sub"])
+    await services.album.attach(album_id, body.files_uuids, payload.sub)
 
     return StandardResponse(detail="Files successfully attached to album.")
 
@@ -526,6 +524,6 @@ async def detach(
     StandardResponse
         Ответ о результате удаления файлов из альбома.
     """
-    await services.album.detach(album_id, body.files_uuids, payload["sub"])
+    await services.album.detach(album_id, body.files_uuids, payload.sub)
 
     return StandardResponse(detail="Files successfully detached from album.")

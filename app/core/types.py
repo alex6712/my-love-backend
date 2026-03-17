@@ -17,9 +17,6 @@ type Tokens = dict[TokenType, str]
 type MediaType = Literal["album", "file"]
 """Типы медиа-контента: альбом или отдельный файл."""
 
-type Payload = dict[str, Any]
-"""Универсальный словарь для произвольных данных запроса/ответа."""
-
 
 class Unset:
     """Sentinel-тип для различия между 'значение не передано' и None.

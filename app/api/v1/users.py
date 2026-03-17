@@ -52,7 +52,7 @@ async def get_me(
     UserResponse
         Ответ с вложенным DTO пользователя.
     """
-    user = await services.user.get_me(payload["sub"])
+    user = await services.user.get_me(payload.sub)
 
     return UserResponse(
         user=user,

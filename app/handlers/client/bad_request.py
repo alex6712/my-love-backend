@@ -2,6 +2,10 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
 from app.core.enums import APICode
+from app.core.exceptions.auth import (
+    IncorrectPasswordException,
+    NewPasswordSameAsOldException,
+)
 from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.couple import CoupleNotSelfException
 from app.core.exceptions.media import UnsupportedFileTypeException
@@ -35,6 +39,68 @@ async def couple_not_self_exception_handler(
     return JSONResponse(
         content=StandardResponse(
             code=APICode.COUPLE_NOT_SELF,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+@my_love_backend.exception_handler(IncorrectPasswordException)
+async def incorrect_password_exception_handler(
+    request: Request,
+    exc: IncorrectPasswordException,
+) -> JSONResponse:
+    """Обрабатывает исключения IncorrectPasswordException.
+
+    Возвращает ошибку 400 Bad Request, если переданный текущий пароль
+    не совпадает с сохранённым в БД при попытке смены пароля.
+
+    Parameters
+    ----------
+    request : Request
+        Объект запроса с информацией о входящем HTTP-запросе (не используется).
+    exc : IncorrectPasswordException
+        Экземпляр исключения, из которого получаются данные для более точного ответа.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 400.
+    """
+    return JSONResponse(
+        content=StandardResponse(
+            code=APICode.INCORRECT_PASSWORD,
+            detail=exc.detail,
+        ).model_dump(mode="json"),
+        status_code=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+@my_love_backend.exception_handler(NewPasswordSameAsOldException)
+async def new_password_same_as_old_exception_handler(
+    request: Request,
+    exc: NewPasswordSameAsOldException,
+) -> JSONResponse:
+    """Обрабатывает исключения NewPasswordSameAsOldException.
+
+    Возвращает ошибку 400 Bad Request, если переданный новый пароль
+    совпадает с текущим сохранённым в БД при попытке смены пароля.
+
+    Parameters
+    ----------
+    request : Request
+        Объект запроса с информацией о входящем HTTP-запросе (не используется).
+    exc : NewPasswordSameAsOldException
+        Экземпляр исключения, из которого получаются данные для более точного ответа.
+
+    Returns
+    -------
+    JSONResponse
+        Ответ с ошибкой 400.
+    """
+    return JSONResponse(
+        content=StandardResponse(
+            code=APICode.NEW_PASSWORD_SAME_AS_OLD,
             detail=exc.detail,
         ).model_dump(mode="json"),
         status_code=status.HTTP_400_BAD_REQUEST,

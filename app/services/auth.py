@@ -1,12 +1,17 @@
 from datetime import datetime, timedelta, timezone
-from uuid import UUID
+from math import ceil
+from uuid import uuid4
 
 from jose import ExpiredSignatureError, JWTError
+from pydantic import ValidationError
 
 from app.config import Settings
 from app.core.exceptions.auth import (
+    IncorrectPasswordException,
     IncorrectUsernameOrPasswordException,
     InvalidTokenException,
+    NewPasswordSameAsOldException,
+    PasswordUpdateFailedException,
     TokenNotPassedException,
     TokenRevokedException,
     TokenSignatureExpiredException,
@@ -19,11 +24,12 @@ from app.core.security import (
     jwt_decode,
     verify,
 )
-from app.core.types import Payload, Tokens, TokenType
+from app.core.types import Tokens, TokenType
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
 from app.repositories.user import UserRepository
 from app.repositories.user_session import UserSessionRepository
+from app.schemas.dto.payload import Payload
 
 
 class AuthService:
@@ -53,12 +59,10 @@ class AuthService:
         Обновляет пару токенов по валидному refresh-токену.
     logout(access_token)
         Выполняет выход пользователя из системы путем инвалидации JWT.
+    change_password(current_password, new_password, access_token)
+        Изменяет пароль пользователя.
     validate_access_token(access_token)
         Проверяет валидность access-токена.
-    _validate_token(token)
-        Проверяет подпись токена.
-    _get_jwt_pair(user)
-        Генерирует новую пару JWT.
     """
 
     def __init__(
@@ -120,36 +124,35 @@ class AuthService:
         """
         user = await self._user_repo.get_user_by_username(username)
 
-        credentials_exception = IncorrectUsernameOrPasswordException(
-            detail="Incorrect username or password."
-        )
-
-        if user is None:
-            raise credentials_exception
-
-        if not verify(password, user.password_hash):
-            raise credentials_exception
+        if user is None or not verify(password, user.password_hash):
+            raise IncorrectUsernameOrPasswordException(
+                detail="Incorrect username or password."
+            )
 
         current_time = datetime.now(timezone.utc)
         expires_at = current_time + timedelta(
             days=self._settings.REFRESH_TOKEN_LIFETIME_DAYS
         )
 
-        refresh_token = create_jwt(str(user.id), current_time, exp=expires_at)
+        session_id = uuid4()
 
-        session_id = await self._user_session_repo.add_user_session(
-            user.id, hash_token(refresh_token), expires_at, current_time
+        refresh_token = create_jwt(
+            user.id, current_time, exp=expires_at, session_id=session_id
+        )
+
+        await self._user_session_repo.add_user_session(
+            session_id, user.id, hash_token(refresh_token), expires_at, current_time
         )
 
         return {
             "access": create_jwt(
                 # перевод UUID в строку, т.к. этот объект не сериализуется
-                str(user.id),
+                user.id,
                 current_time,
                 expires_delta=timedelta(
                     minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES
                 ),
-                session_id=str(session_id),
+                session_id=session_id,
             ),
             "refresh": refresh_token,
         }
@@ -193,11 +196,11 @@ class AuthService:
         )
 
         new_refresh_token = create_jwt(
-            str(payload["sub"]), current_time, exp=expires_at
+            payload.sub, current_time, exp=expires_at, session_id=payload.session_id
         )
 
         # атомарное обновление хэша токена обновления
-        user_session_id = (
+        updated = (
             await self._user_session_repo.update_user_session_by_refresh_token_hash(
                 hash_token(refresh_token),
                 hash_token(new_refresh_token),
@@ -206,7 +209,7 @@ class AuthService:
             )
         )
 
-        if user_session_id is None:
+        if not updated:
             raise InvalidTokenException(
                 detail="There's no active session which token hash equals passed one's hash.",
                 token_type="refresh",
@@ -214,15 +217,45 @@ class AuthService:
 
         return {
             "access": create_jwt(
-                str(payload["sub"]),
+                payload.sub,
                 current_time,
                 expires_delta=timedelta(
                     minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES
                 ),
-                session_id=str(user_session_id),
+                session_id=payload.session_id,
             ),
             "refresh": new_refresh_token,
         }
+
+    async def _invalidate_token_and_session(
+        self, access_token: str, payload: Payload
+    ) -> None:
+        """Отзывает access токен и удаляет связанную сессию пользователя.
+
+        Parameters
+        ----------
+        access_token : str
+            Валидный access токен, который нужно инвалидировать.
+        payload : Payload
+            Декодированный payload токена. Должен содержать ключи `exp` и `session_id`.
+
+        Raises
+        ------
+        InvalidTokenException
+            Если в payload отсутствуют обязательные claims `exp` или `session_id`.
+        """
+        current_time = datetime.now(timezone.utc).timestamp()
+        ttl = ceil(payload.exp.timestamp() - current_time)
+
+        if ttl > 0:
+            await self._redis_client.revoke_token(token=access_token, ttl=ttl)
+
+        user_session = await self._user_session_repo.get_user_session_by_id(
+            payload.session_id
+        )
+
+        if user_session is not None:
+            await self._user_session_repo.delete_user_session_by_id(user_session.id)
 
     async def logout(self, access_token: str | None) -> None:
         """Выполняет выход пользователя из системы путем инвалидации JWT.
@@ -237,34 +270,68 @@ class AuthService:
         -------
         None
             Метод не возвращает значение при успешном выполнении.
+        """
+        payload = await self.validate_access_token(access_token)
+        assert access_token is not None
+
+        await self._invalidate_token_and_session(access_token, payload)
+
+    async def change_password(
+        self,
+        current_password: str,
+        new_password: str,
+        access_token: str | None,
+    ) -> None:
+        """Изменяет пароль пользователя.
+
+        Выполняет следующую последовательность действий:
+        - Валидирует access-токен и извлекает payload;
+        - Проверяет корректность текущего пароля;
+        - Проверяет, что новый пароль отличается от текущего;
+        - Обновляет хэш пароля в БД;
+        - Инвалидирует текущий токен и сессию.
+
+        Parameters
+        ----------
+        current_password : str
+            Текущий пароль пользователя для подтверждения операции.
+        new_password : str
+            Новый пароль пользователя.
+        access_token : str | None
+            Access-токен, полученный из заголовков запроса.
 
         Raises
         ------
-        InvalidTokenException
-            Возникает если подпись токена верна, но в payload нет ключа `exp`.
+        IncorrectPasswordException
+            Если текущий пароль введён неверно.
+        NewPasswordSameAsOldException
+            Если новый пароль совпадает с текущим.
+        PasswordUpdateFailedException
+            Если обновление пароля в БД не было применено.
         """
         payload = await self.validate_access_token(access_token)
-
         assert access_token is not None
 
-        if not all(payload.get(claim) for claim in ("exp", "session_id")):
-            raise InvalidTokenException(
-                detail="The passed token is damaged or poorly signed.",
-                token_type="access",
+        user = await self._user_repo.get_user_by_id(payload.sub)
+
+        if user is None or not verify(current_password, user.password_hash):
+            raise IncorrectPasswordException(detail="Current password is incorrect.")
+
+        if verify(new_password, user.password_hash):
+            raise NewPasswordSameAsOldException(
+                detail="New password must differ from current."
             )
 
-        current_time = datetime.now(timezone.utc).timestamp()
-        ttl = int(payload["exp"] - current_time)
-
-        if ttl > 0:
-            await self._redis_client.revoke_token(token=access_token, ttl=ttl)
-
-        user_session = await self._user_session_repo.get_user_session_by_id(
-            UUID(payload["session_id"])
+        updated = await self._user_repo.update_password_hash(
+            payload.sub, hash_(new_password)
         )
 
-        if user_session is not None:
-            await self._user_session_repo.delete_user_session_by_id(user_session.id)
+        if not updated:
+            raise PasswordUpdateFailedException(
+                detail="Failed to update password: no rows were affected."
+            )
+
+        await self._invalidate_token_and_session(access_token, payload)
 
     async def validate_access_token(self, access_token: str | None) -> Payload:
         """Проверяет валидность access-токена.
@@ -327,19 +394,15 @@ class AuthService:
         )
 
         try:
-            payload = jwt_decode(token)
-
-            if not all(payload.get(claim) for claim in ("sub", "iat", "exp", "jti")):
-                raise damaged
+            return jwt_decode(token)
         except ExpiredSignatureError:
             raise TokenSignatureExpiredException(
                 detail="Signature of passed token has expired.",
                 token_type=token_type,
             )
-        except JWTError:
+        except JWTError as e:
+            print(e)
             raise damaged
-
-        # перевод обратно из строки в объект UUID
-        payload["sub"] = UUID(payload["sub"])
-
-        return payload
+        except ValidationError as e:
+            print(e)
+            raise damaged

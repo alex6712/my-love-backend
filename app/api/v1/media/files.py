@@ -103,7 +103,7 @@ async def get_files(
         Объект ответа, содержащий список доступных пользователю медиа файлов
         в пределах заданной пагинации и общее количество найденных файлов.
     """
-    files, total = await services.file.get_files(offset, limit, order, payload["sub"])
+    files, total = await services.file.get_files(offset, limit, order, payload.sub)
 
     return FilesResponse(
         files=files, total=total, detail=f"Found {total} file entries."
@@ -151,7 +151,7 @@ async def count(
         Объект ответа, содержащий общее количество доступных
         пользователю медиа файлов.
     """
-    count = await services.file.count_files(payload["sub"])
+    count = await services.file.count_files(payload.sub)
 
     return CountResponse(count=count, detail=f"Found {count} file entries.")
 
@@ -210,7 +210,7 @@ async def upload(
     """
     url = await services.file.get_upload_presigned_url(
         FileMetadataDTO.model_validate(body.model_dump()),
-        payload["sub"],
+        payload.sub,
         idempotency_key,
     )
 
@@ -274,7 +274,7 @@ async def upload_batch(
     """
     successful, failed = await services.file.get_upload_presigned_urls(
         [FileMetadataDTO.model_validate(m.model_dump()) for m in body.files_metadata],
-        payload["sub"],
+        payload.sub,
         idempotency_key,
     )
 
@@ -332,7 +332,7 @@ async def upload_confirm(
     StandardResponse
         Успешный ответ о регистрации загруженного файла.
     """
-    await services.file.confirm_upload(body.file_id, payload["sub"])
+    await services.file.confirm_upload(body.file_id, payload.sub)
 
     return StandardResponse(detail="Upload confirmation is successful.")
 
@@ -386,7 +386,7 @@ async def download(
     """
     url = await services.file.get_download_presigned_url(
         file_id,
-        payload["sub"],
+        payload.sub,
     )
 
     return PresignedURLResponse(
@@ -444,7 +444,7 @@ async def download_batch(
     """
     successful, failed = await services.file.get_download_presigned_urls(
         body.files_uuids,
-        payload["sub"],
+        payload.sub,
     )
 
     return PresignedURLsBatchResponse(
@@ -509,7 +509,7 @@ async def patch_file(
     await services.file.update_file(
         file_id,
         PatchFileDTO.from_request_schema(body),
-        payload["sub"],
+        payload.sub,
     )
 
     return StandardResponse(detail="File info edited successfully.")
@@ -561,6 +561,6 @@ async def delete_file(
     StandardResponse
         Успешный ответ об удалении медиа-файла.
     """
-    await services.file.delete_file(file_id, payload["sub"])
+    await services.file.delete_file(file_id, payload.sub)
 
     return StandardResponse(detail="File deleted successfully.")

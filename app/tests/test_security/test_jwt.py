@@ -88,8 +88,8 @@ class TestJWTTokens:
 
         decoded = jwt_decode(token)
 
-        assert decoded["sub"] == payload["sub"]
-        assert decoded["test"] == payload["test"]
+        assert decoded["sub"] == payload.sub
+        assert decoded["test"] == payload.test
         assert "iat" in decoded
         assert "exp" in decoded
         assert "jti" in decoded
@@ -115,7 +115,7 @@ class TestJWTTokens:
         access_payload = jwt_decode(tokens["access"])
         refresh_payload = jwt_decode(tokens["refresh"])
 
-        assert access_payload["exp"] < refresh_payload["exp"]
+        assert access_payload.exp < refresh_payload.exp
 
     def test_jwt_pair_custom_expiration(self):
         """Пара JWT должна поддерживать кастомное время жизни."""
@@ -132,8 +132,8 @@ class TestJWTTokens:
         access_payload = jwt_decode(tokens["access"])
         refresh_payload = jwt_decode(tokens["refresh"])
 
-        access_exp = datetime.fromtimestamp(access_payload["exp"], tz=timezone.utc)
-        refresh_exp = datetime.fromtimestamp(refresh_payload["exp"], tz=timezone.utc)
+        access_exp = datetime.fromtimestamp(access_payload.exp, tz=timezone.utc)
+        refresh_exp = datetime.fromtimestamp(refresh_payload.exp, tz=timezone.utc)
 
         assert refresh_exp - access_exp > timedelta(days=6)
 

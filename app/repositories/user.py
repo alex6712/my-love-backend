@@ -31,8 +31,8 @@ class UserRepository(RepositoryInterface):
         Возвращает модель пользователя по его username.
     user_exists_by_username(username)
         Проверка на существование пользователя по его username.
-    update_refresh_token(user, refresh_token)
-        Перезаписывает токен обновления пользователя.
+    update_password_hash(user_id, password_hash)
+        Обновляет хэш пароля пользователя по его идентификатору.
     """
 
     def __init__(self, session: AsyncSession):
@@ -165,20 +165,30 @@ class UserRepository(RepositoryInterface):
             select(UserModel).where(UserModel.username == username)
         )
 
-    async def update_refresh_token_hash(
-        self, user_id: UUID, refresh_token_hash: str | None
-    ):
-        """Перезаписывает токен обновления пользователя.
+    async def update_password_hash(self, user_id: UUID, password_hash: str) -> bool:
+        """Обновляет хэш пароля пользователя по его идентификатору.
+
+        Выполняет обновление поля password_hash для указанного пользователя.
+        Если пользователь с переданным идентификатором не найден, обновление не происходит.
 
         Parameters
         ----------
         user_id : UUID
-            UUID пользователя, у которого необходимо изменить хеш токена.
-        refresh_token_hash : str | None
-            Новый токен обновления в хэшированном виде.
+            Уникальный идентификатор пользователя.
+
+        password_hash : str
+            Новый хэш пароля пользователя.
+
+        Returns
+        -------
+        bool
+            True, если пароль был успешно обновлён, иначе False.
         """
-        await self.session.execute(
+        updated = await self.session.scalar(
             update(UserModel)
             .where(UserModel.id == user_id)
-            .values(refresh_token_hash=refresh_token_hash)
+            .values(password_hash=password_hash)
+            .returning(UserModel.id)
         )
+
+        return updated is not None

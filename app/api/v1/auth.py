@@ -10,12 +10,20 @@ from app.core.dependencies.auth import (
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import (
     AUTHORIZATION_ERROR_REF,
+    CHANGE_PASSWORD_ERROR_REF,
+    CHANGE_PASSWORD_VALIDATION_ERROR_REF,
     LOGIN_ERROR_REF,
     RATE_LIMIT_ERROR_REF,
     REGISTER_ERROR_REF,
 )
-from app.core.rate_limiter import LOGIN_LIMIT, REFRESH_LIMIT, REGISTER_LIMIT, limiter
-from app.schemas.v1.requests.auth import RegisterRequest
+from app.core.rate_limiter import (
+    CHANGE_PASSWORD_LIMIT,
+    LOGIN_LIMIT,
+    REFRESH_LIMIT,
+    REGISTER_LIMIT,
+    limiter,
+)
+from app.schemas.v1.requests.auth import ChangePasswordRequest, RegisterRequest
 from app.schemas.v1.responses.standard import StandardResponse
 from app.schemas.v1.responses.tokens import TokensResponse
 
@@ -247,3 +255,70 @@ async def logout(
     await services.auth.logout(access_token)
 
     return StandardResponse(detail="User successfully logout.")
+
+
+@router.post(
+    "/change-password",
+    response_model=StandardResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Смена пароля пользователя.",
+    response_description="Пароль пользователя изменён успешно",
+    responses={
+        400: CHANGE_PASSWORD_ERROR_REF,
+        401: AUTHORIZATION_ERROR_REF,
+        422: CHANGE_PASSWORD_VALIDATION_ERROR_REF,
+        429: RATE_LIMIT_ERROR_REF,
+    },
+)
+@limiter.limit(CHANGE_PASSWORD_LIMIT)  # type: ignore
+async def change_password(
+    request: Request,
+    response: Response,
+    body: Annotated[
+        ChangePasswordRequest,
+        Body(description="Схема запроса на изменение пароля пользователя."),
+    ],
+    access_token: ExtractAccessTokenDependency,
+    services: ServiceManagerDependency,
+) -> StandardResponse:
+    """Смена пароля текущего пользователя.
+
+    Валидирует текущий пароль и заменяет его на новый.
+    Требует наличия действующего access token в заголовках запроса.
+
+    Parameters
+    ----------
+    request : Request
+        Объект HTTP-запроса. Требуется для работы slowapi.Limiter
+        при определении rate limit по IP-адресу клиента.
+    response : Response
+        Объект HTTP-ответа. Требуется для работы slowapi.Limiter
+        при инъекции заголовков X-RateLimit-*.
+    body : ChangePasswordRequest
+        Тело запроса, содержащее текущий и новый пароли пользователя.
+    access_token : ExtractAccessTokenDependency
+        Зависимость на получение токена доступа из заголовков запроса.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+
+        Гарантирует:
+        - Использование одного экземпляра Unit of Work в рамках запроса;
+        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
+        - Ленивую (lazy) инициализацию сервисов;
+        - Отсутствие повторных инстансов одного и того же сервиса
+          в пределах одного HTTP-запроса.
+
+    Returns
+    -------
+    StandardResponse
+        Стандартный ответ с подтверждением успешной смены пароля.
+    """
+    await services.auth.change_password(
+        body.current_password, body.new_password, access_token
+    )
+
+    return StandardResponse(detail="User's password successfully changed.")
