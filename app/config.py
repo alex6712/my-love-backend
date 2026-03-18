@@ -11,6 +11,7 @@ from pydantic import (
     EmailStr,
     PostgresDsn,
     RedisDsn,
+    SkipValidation,
     field_validator,
     model_validator,
 )
@@ -156,18 +157,23 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    PRIVATE_SIGNATURE_KEY: EllipticCurvePrivateKey | None = None
-    PUBLIC_SIGNATURE_KEY: EllipticCurvePublicKey | None = None
+    PRIVATE_SIGNATURE_KEY: SkipValidation[EllipticCurvePrivateKey] = None  # type: ignore
+    PUBLIC_SIGNATURE_KEY: SkipValidation[EllipticCurvePublicKey] = None  # type: ignore
 
     @model_validator(mode="after")
     def load_keys(self) -> "Settings":
         """Загружает приватный и публичный ключи после инициализации модели"""
         public_key_path = abspath("keys/public_key.pem")
 
-        with open(public_key_path, "rb") as key_file:
-            self.PUBLIC_SIGNATURE_KEY = serialization.load_pem_public_key(  # type: ignore
-                key_file.read()
-            )
+        with open(public_key_path, "rb") as public_key_file:
+            public_key = serialization.load_pem_public_key(public_key_file.read())
+
+            if not isinstance(public_key, EllipticCurvePublicKey):
+                raise ValueError(
+                    f"Expected EC public key, got {type(public_key).__name__}"
+                )
+
+        self.PUBLIC_SIGNATURE_KEY = public_key  # type: ignore
 
         if not self.PRIVATE_SIGNATURE_KEY_PASSWORD:
             raise ValueError(
@@ -176,21 +182,32 @@ class Settings(BaseSettings):
 
         private_key_path = abspath("keys/private_key.pem.enc")
 
-        with open(private_key_path, "rb") as key_file:
-            encrypted_key = key_file.read()
+        with open(private_key_path, "rb") as private_key_file:
             try:
                 private_key = serialization.load_pem_private_key(
-                    encrypted_key,
+                    private_key_file.read(),
                     password=self.PRIVATE_SIGNATURE_KEY_PASSWORD.encode("utf-8"),
                 )
             except Exception as e:
                 raise ValueError(f"Failed to decrypt private key: {e}")
 
-            self.PRIVATE_SIGNATURE_KEY = private_key  # type: ignore
+            if not isinstance(private_key, EllipticCurvePrivateKey):
+                raise ValueError(
+                    f"Expected EC private key, got {type(private_key).__name__}"
+                )
+
+        self.PRIVATE_SIGNATURE_KEY = private_key  # type: ignore
 
         return self
 
 
 @lru_cache
 def get_settings() -> Settings:
+    """Получение объекта настроек приложения.
+
+    Returns
+    -------
+    Settings
+        Глобальный объект настроек приложения.
+    """
     return Settings()  # type: ignore

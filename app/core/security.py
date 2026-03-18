@@ -8,6 +8,12 @@ from uuid import UUID
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    PublicFormat,
+)
 from jose import jwt
 from passlib.context import CryptContext
 
@@ -38,7 +44,11 @@ def _jwt_encode(payload: AnyTokenPayload) -> str:
     """
     return jwt.encode(
         payload.to_jwt_payload(),
-        key=settings.PRIVATE_SIGNATURE_KEY,  # type: ignore
+        key=settings.PRIVATE_SIGNATURE_KEY.private_bytes(
+            encoding=Encoding.PEM,
+            format=PrivateFormat.PKCS8,
+            encryption_algorithm=NoEncryption(),
+        ),
         algorithm=settings.JWT_ALGORITHM,
     )
 
@@ -66,7 +76,9 @@ def jwt_decode(token: str, token_type: TokenType) -> AnyTokenPayload:
     """
     decoded = jwt.decode(
         token,
-        key=settings.PUBLIC_SIGNATURE_KEY,  # type: ignore
+        key=settings.PUBLIC_SIGNATURE_KEY.public_bytes(
+            Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
+        ),
         algorithms=[settings.JWT_ALGORITHM],
     )
 
