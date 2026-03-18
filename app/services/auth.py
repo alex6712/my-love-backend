@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from math import ceil
+from typing import Literal, overload
 from uuid import uuid4
 
 from jose import ExpiredSignatureError, JWTError
@@ -24,43 +25,55 @@ from app.core.security import (
     jwt_decode,
     verify,
 )
-from app.core.types import Tokens, TokenType
+from app.core.types import TokenType
 from app.infrastructure.postgresql import UnitOfWork
 from app.infrastructure.redis import RedisClient
+from app.repositories.couple_request import CoupleRequestRepository
 from app.repositories.user import UserRepository
 from app.repositories.user_session import UserSessionRepository
-from app.schemas.dto.payload import Payload
+from app.schemas.dto.payload import (
+    AccessTokenPayload,
+    AnyTokenPayload,
+    RefreshTokenPayload,
+)
+from app.schemas.dto.token import Tokens
 
 
 class AuthService:
     """Сервис аутентификации и авторизации.
 
     Реализует бизнес-логику для:
-    - Регистрации и аутентификации пользователей;
-    - Генерации, валидации и обновления JWT;
-    - Управления токенами в базе данных.
+    - регистрации и аутентификации пользователей;
+    - генерации, валидации и обновления JWT;
+    - управления пользовательскими сессиями и токенами.
+
+    Использует:
+    - PostgreSQL для хранения пользователей и сессий;
+    - Redis для хранения отозванных access-токенов.
 
     Attributes
     ----------
     _redis_client : RedisClient
-        Клиент для работы с Redis.
+        Клиент для работы с Redis (blacklist access-токенов).
+    _couple_request_repo : CoupleRequestRepository
+        Репозиторий пар между пользователями.
     _user_repo : UserRepository
-        Репозиторий для операций с пользователями в БД.
+        Репозиторий пользователей.
     _user_session_repo : UserSessionRepository
-        Репозиторий для операций с сессиями пользователей.
+        Репозиторий пользовательских сессий (refresh-токены).
 
     Methods
     -------
     register(username, password)
-        Регистрирует пользователя в системе.
+        Регистрирует пользователя.
     login(username, password)
-        Аутентифицирует пользователя по логину/паролю.
+        Аутентифицирует пользователя и создаёт новую сессию.
     refresh(refresh_token)
-        Обновляет пару токенов по валидному refresh-токену.
+        Обновляет пару токенов (refresh rotation).
     logout(access_token)
-        Выполняет выход пользователя из системы путем инвалидации JWT.
+        Завершает текущую сессию пользователя.
     change_password(current_password, new_password, access_token)
-        Изменяет пароль пользователя.
+        Изменяет пароль пользователя и завершает сессию.
     validate_access_token(access_token)
         Проверяет валидность access-токена.
     """
@@ -71,6 +84,7 @@ class AuthService:
         self._redis_client = redis_client
         self._settings = settings
 
+        self._couple_request_repo = unit_of_work.get_repository(CoupleRequestRepository)
         self._user_repo = unit_of_work.get_repository(UserRepository)
         self._user_session_repo = unit_of_work.get_repository(UserSessionRepository)
 
@@ -129,6 +143,10 @@ class AuthService:
                 detail="Incorrect username or password."
             )
 
+        couple = await self._couple_request_repo.get_active_couple_by_partner_id(
+            user.id
+        )
+
         current_time = datetime.now(timezone.utc)
         expires_at = current_time + timedelta(
             days=self._settings.REFRESH_TOKEN_LIFETIME_DAYS
@@ -144,31 +162,32 @@ class AuthService:
             session_id, user.id, hash_token(refresh_token), expires_at, current_time
         )
 
-        return {
-            "access": create_jwt(
-                # перевод UUID в строку, т.к. этот объект не сериализуется
+        return Tokens(
+            access=create_jwt(
                 user.id,
                 current_time,
                 expires_delta=timedelta(
                     minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES
                 ),
                 session_id=session_id,
+                couple_id=couple.id if couple else None,
             ),
-            "refresh": refresh_token,
-        }
+            refresh=refresh_token,
+        )
 
     async def refresh(self, refresh_token: str | None) -> Tokens:
         """Обновляет пару токенов по валидному refresh-токену.
 
-        Выполняет следующую последовательность действий:
-        - Проверяет валидность и соответствие токена в БД;
-        - Генерирует новую пару токенов;
-        - Обновляет хеш refresh-токена в БД (инвалидируя предыдущий).
+        Выполняет:
+        - валидацию refresh-токена;
+        - проверку существования сессии и совпадения хеша токена;
+        - refresh rotation (инвалидация старого refresh-токена);
+        - генерацию новой пары токенов.
 
         Parameters
         ----------
         refresh_token : str | None
-            Токен обновления, полученный из headers.
+            Refresh-токен из заголовка Authorization.
 
         Returns
         -------
@@ -180,7 +199,7 @@ class AuthService:
         TokenNotPassedException
             Токен обновления не передан в заголовках запроса.
         InvalidTokenException
-            Не найден пользователь или несовпадение токена обновления и его хеша в БД.
+            Токен невалиден или не соответствует активной сессии.
         """
         if refresh_token is None:
             raise TokenNotPassedException(
@@ -189,6 +208,10 @@ class AuthService:
             )
 
         payload = self._validate_token(refresh_token, "refresh")
+
+        couple = await self._couple_request_repo.get_active_couple_by_partner_id(
+            payload.sub
+        )
 
         current_time = datetime.now(timezone.utc)
         expires_at = current_time + timedelta(
@@ -215,34 +238,43 @@ class AuthService:
                 token_type="refresh",
             )
 
-        return {
-            "access": create_jwt(
+        return Tokens(
+            access=create_jwt(
                 payload.sub,
                 current_time,
                 expires_delta=timedelta(
                     minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES
                 ),
                 session_id=payload.session_id,
+                couple_id=couple.id if couple else None,
             ),
-            "refresh": new_refresh_token,
-        }
+            refresh=new_refresh_token,
+        )
 
     async def _invalidate_token_and_session(
-        self, access_token: str, payload: Payload
+        self, access_token: str, payload: AnyTokenPayload
     ) -> None:
-        """Отзывает access токен и удаляет связанную сессию пользователя.
+        """Отзывает access-токен и удаляет связанную пользовательскую сессию.
+
+        Выполняет:
+        - добавление access-токена в blacklist (Redis) до истечения срока жизни;
+        - удаление пользовательской сессии по `session_id`.
 
         Parameters
         ----------
         access_token : str
-            Валидный access токен, который нужно инвалидировать.
-        payload : Payload
-            Декодированный payload токена. Должен содержать ключи `exp` и `session_id`.
+            Валидный access-токен.
+        payload : AnyTokenPayload
+            Декодированный payload токена (обязательно содержит `exp` и `session_id`).
+
+        Notes
+        -----
+        TTL для blacklist вычисляется на основе `exp` токена.
 
         Raises
         ------
         InvalidTokenException
-            Если в payload отсутствуют обязательные claims `exp` или `session_id`.
+            Если payload не содержит обязательных claims.
         """
         current_time = datetime.now(timezone.utc).timestamp()
         ttl = ceil(payload.exp.timestamp() - current_time)
@@ -258,18 +290,15 @@ class AuthService:
             await self._user_session_repo.delete_user_session_by_id(user_session.id)
 
     async def logout(self, access_token: str | None) -> None:
-        """Выполняет выход пользователя из системы путем инвалидации JWT.
+        """Завершает текущую сессию пользователя.
+
+        Выполняет валидацию access-токена, отзыв токена (blacklist)
+        и удаление связанной пользовательской сессии.
 
         Parameters
         ----------
         access_token : str | None
-            Валидный access токен пользователя, полученный при аутентификации.
-            Должен содержать актуальный payload с идентификатором пользователя (sub).
-
-        Returns
-        -------
-        None
-            Метод не возвращает значение при успешном выполнении.
+            Access-токен пользователя из заголовка Authorization.
         """
         payload = await self.validate_access_token(access_token)
         assert access_token is not None
@@ -333,25 +362,31 @@ class AuthService:
 
         await self._invalidate_token_and_session(access_token, payload)
 
-    async def validate_access_token(self, access_token: str | None) -> Payload:
+    async def validate_access_token(
+        self, access_token: str | None
+    ) -> AccessTokenPayload:
         """Проверяет валидность access-токена.
 
         Parameters
         ----------
-        access_token : srt
-            Токен доступа, полученный из headers.
+        access_token : str | None
+            Access-токен из заголовка Authorization.
 
         Returns
         -------
-        Payload
-            Расшифрованные данные токена.
+        AccessTokenPayload
+            Декодированный payload токена.
 
         Raises
         ------
         TokenNotPassedException
-            Токен доступа не передан в заголовках запроса.
+            Токен не передан.
         TokenRevokedException
-            Переданный токен доступа был отозван.
+            Токен был отозван (находится в blacklist).
+        InvalidTokenException
+            Токен невалиден или повреждён.
+        TokenSignatureExpiredException
+            Срок действия токена истёк.
         """
         if access_token is None:
             raise TokenNotPassedException(
@@ -364,41 +399,50 @@ class AuthService:
 
         return self._validate_token(access_token, "access")
 
+    @overload
     @staticmethod
-    def _validate_token(token: str, token_type: TokenType) -> Payload:
-        """Валидирует JWT (статический "приватный" метод).
+    def _validate_token(
+        token: str, token_type: Literal["access"]
+    ) -> AccessTokenPayload: ...
+
+    @overload
+    @staticmethod
+    def _validate_token(
+        token: str, token_type: Literal["refresh"]
+    ) -> RefreshTokenPayload: ...
+
+    @staticmethod
+    def _validate_token(token: str, token_type: TokenType) -> AnyTokenPayload:
+        """Валидирует JWT и возвращает его payload.
 
         Parameters
         ----------
         token : str
             JWT для валидации.
         token_type : TokenType
-            Тип обрабатываемого токена.
+            Тип токена (access или refresh).
 
         Returns
         -------
-        Payload
-            Полезная нагрузка токена.
+        AnyTokenPayload
+            Декодированный payload токена.
 
         Raises
         ------
-        InvalidTokenException
-            - Если не хватает хотя бы одной из обязательных claims в payload токена;
-            - При любых иных ошибках JWT.
         TokenSignatureExpiredException
-            Если подпись токена просрочена.
+            Срок действия токена истёк.
+        InvalidTokenException
+            Токен повреждён, некорректно подписан или содержит невалидный payload.
         """
-        damaged = InvalidTokenException(
-            detail="The passed token is damaged or poorly signed.",
-            token_type=token_type,
-        )
-
         try:
-            return jwt_decode(token)
+            return jwt_decode(token, token_type)
         except ExpiredSignatureError:
             raise TokenSignatureExpiredException(
                 detail="Signature of passed token has expired.",
                 token_type=token_type,
             )
         except JWTError, ValidationError:
-            raise damaged
+            raise InvalidTokenException(
+                detail="The passed token is damaged or poorly signed.",
+                token_type=token_type,
+            )

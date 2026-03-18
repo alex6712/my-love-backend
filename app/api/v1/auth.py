@@ -144,8 +144,8 @@ async def login(
 
     return TokensResponse(
         detail="Login successful.",
-        access_token=tokens["access"],
-        refresh_token=tokens["refresh"],
+        access_token=tokens.access,
+        refresh_token=tokens.refresh,
     )
 
 
@@ -202,8 +202,8 @@ async def refresh(
 
     return TokensResponse(
         detail="Refresh successful.",
-        access_token=tokens["access"],
-        refresh_token=tokens["refresh"],
+        access_token=tokens.access,
+        refresh_token=tokens.refresh,
     )
 
 

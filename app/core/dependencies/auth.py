@@ -11,7 +11,7 @@ from fastapi.security import (
 from app.config import get_settings
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.exceptions.auth import AuthDomainException
-from app.schemas.dto.payload import Payload
+from app.schemas.dto.payload import AccessTokenPayload
 
 SignInCredentialsDependency = Annotated[OAuth2PasswordRequestForm, Depends()]
 """Зависимость на получение реквизитов для входа в систему."""
@@ -57,7 +57,7 @@ ExtractRefreshTokenDependency = Annotated[str | None, Depends(dependency)]
 
 AuthDependencyCallable = Callable[
     [ExtractAccessTokenDependency, ServiceManagerDependency],
-    Coroutine[Any, Any, Payload | None],
+    Coroutine[Any, Any, AccessTokenPayload | None],
 ]
 """Тип вызываемого объекта зависимости аутентификации."""
 
@@ -91,7 +91,7 @@ def check_auth(strict: bool = True) -> AuthDependencyCallable:
     async def dependency(
         access_token: ExtractAccessTokenDependency,
         services: ServiceManagerDependency,
-    ) -> Payload | None:
+    ) -> AccessTokenPayload | None:
         """Внутренняя функция зависимости, выполняющая проверку токена.
 
         Parameters
@@ -103,7 +103,7 @@ def check_auth(strict: bool = True) -> AuthDependencyCallable:
 
         Returns
         -------
-        Payload | None
+        AccessTokenPayload | None
             Расшифрованные данные токена при успешной проверке.
             В мягком режиме при ошибке возвращается None.
 
@@ -130,7 +130,7 @@ def check_auth(strict: bool = True) -> AuthDependencyCallable:
 
 
 SoftAuthenticationDependency = Annotated[
-    Payload | None, Depends(check_auth(strict=False))
+    AccessTokenPayload | None, Depends(check_auth(strict=False))
 ]
 """Зависимость для мягкой проверки аутентификации.
 
@@ -138,7 +138,9 @@ SoftAuthenticationDependency = Annotated[
 так и неаутентифицированным пользователям.
 """
 
-StrictAuthenticationDependency = Annotated[Payload, Depends(check_auth(strict=True))]
+StrictAuthenticationDependency = Annotated[
+    AccessTokenPayload, Depends(check_auth(strict=True))
+]
 """Зависимость для строгой проверки аутентификации.
 
 Используется в защищённых эндпоинтах,

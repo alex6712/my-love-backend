@@ -3,6 +3,7 @@ import hmac
 import os
 import uuid
 from datetime import datetime, timedelta
+from typing import Any, Literal, overload
 from uuid import UUID
 
 from cryptography.hazmat.backends import default_backend
@@ -12,17 +13,22 @@ from passlib.context import CryptContext
 
 from app.config import get_settings
 from app.core.exceptions.base import WeakServerSecretException
-from app.schemas.dto.payload import Payload
+from app.core.types import UNSET, Maybe, TokenType, Unset
+from app.schemas.dto.payload import (
+    AccessTokenPayload,
+    AnyTokenPayload,
+    RefreshTokenPayload,
+)
 
 settings = get_settings()
 
 
-def _jwt_encode(payload: Payload) -> str:
+def _jwt_encode(payload: AnyTokenPayload) -> str:
     """Кодирует переданный словарь в JWT.
 
     Parameters
     ----------
-    payload : Payload
+    payload : AnyTokenPayload
         Словарь с данными для кодирования.
 
     Returns
@@ -37,7 +43,15 @@ def _jwt_encode(payload: Payload) -> str:
     )
 
 
-def jwt_decode(token: str) -> Payload:
+@overload
+def jwt_decode(token: str, token_type: Literal["access"]) -> AccessTokenPayload: ...
+
+
+@overload
+def jwt_decode(token: str, token_type: Literal["refresh"]) -> RefreshTokenPayload: ...
+
+
+def jwt_decode(token: str, token_type: TokenType) -> AnyTokenPayload:
     """Декодирует переданный JWT в словарь.
 
     Parameters
@@ -47,16 +61,19 @@ def jwt_decode(token: str) -> Payload:
 
     Returns
     -------
-    Payload
+    AnyTokenPayload
         Словарь с информацией из JWT.
     """
-    return Payload.model_validate(
-        jwt.decode(
-            token,
-            key=settings.PUBLIC_SIGNATURE_KEY,  # type: ignore
-            algorithms=[settings.JWT_ALGORITHM],
-        )
+    decoded = jwt.decode(
+        token,
+        key=settings.PUBLIC_SIGNATURE_KEY,  # type: ignore
+        algorithms=[settings.JWT_ALGORITHM],
     )
+
+    if token_type == "access":
+        return AccessTokenPayload.model_validate(decoded)
+
+    return RefreshTokenPayload.model_validate(decoded)
 
 
 def create_jwt(
@@ -68,6 +85,7 @@ def create_jwt(
     iss: str = "my-love-backend",
     expires_delta: timedelta | None = None,
     session_id: UUID,
+    couple_id: Maybe[UUID | None] = UNSET,
 ) -> str:
     """Создаёт и возвращает подписанный JWT.
 
@@ -94,6 +112,16 @@ def create_jwt(
         Имеет приоритет над `exp`, если передан.
     session_id : UUID
         Идентификатор сессии пользователя.
+    couple_id : Maybe[UUID | None], optional
+        Опциональный доменный claim, добавляемый только в access-токен.
+
+        Используется для передачи дополнительного контекста авторизации,
+        связанного с пользователем (идентификатора пары пользователя).
+
+        Поведение зависит от переданного значения:
+        - UNSET - claim не добавляется в payload (используется refresh-токен);
+        - UUID - claim добавляется с указанным значением;
+        - None - claim добавляется с null-значением.
 
     Returns
     -------
@@ -124,9 +152,19 @@ def create_jwt(
     if jti is None:
         jti = uuid.uuid4()
 
-    to_encode = Payload(
-        sub=sub, iat=iat, exp=resolved_exp, jti=jti, iss=iss, session_id=session_id
-    )
+    data: dict[str, Any] = {
+        "sub": sub,
+        "iat": iat,
+        "exp": resolved_exp,
+        "jti": jti,
+        "iss": iss,
+        "session_id": session_id,
+    }
+
+    if not isinstance(couple_id, Unset):
+        to_encode = AccessTokenPayload(**data, couple_id=couple_id)
+    else:
+        to_encode = RefreshTokenPayload(**data)
 
     return _jwt_encode(to_encode)
 

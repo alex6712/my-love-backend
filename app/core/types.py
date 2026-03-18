@@ -11,9 +11,6 @@ type CredentialsType = Literal["password", "token"]
 type TokenType = Literal["access", "refresh"]
 """Типы JWT-токенов: access (короткоживущий) и refresh (долгоживущий)."""
 
-type Tokens = dict[TokenType, str]
-"""Пара токенов доступа и обновления в виде словаря {token_type: token_value}."""
-
 type MediaType = Literal["album", "file"]
 """Типы медиа-контента: альбом или отдельный файл."""
 

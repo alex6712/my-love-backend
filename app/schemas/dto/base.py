@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from app.core.types import UNSET
+from app.core.types import Unset
 
 
 class BaseDTO(BaseModel):
@@ -82,7 +82,7 @@ class BasePatchDTO(BaseDTO):
         return {
             field: value
             for field, value in self.model_dump().items()
-            if value is not UNSET
+            if not isinstance(value, Unset)
         }
 
     def is_empty(self) -> bool:
