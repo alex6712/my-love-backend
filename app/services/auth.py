@@ -154,9 +154,7 @@ class AuthService:
 
         session_id = uuid4()
 
-        refresh_token = create_jwt(
-            user.id, current_time, exp=expires_at, session_id=session_id
-        )
+        refresh_token = create_jwt(user.id, current_time, session_id, exp=expires_at)
 
         await self._user_session_repo.add_user_session(
             session_id, user.id, hash_token(refresh_token), expires_at, current_time
@@ -166,10 +164,10 @@ class AuthService:
             access=create_jwt(
                 user.id,
                 current_time,
+                session_id,
                 expires_delta=timedelta(
                     minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES
                 ),
-                session_id=session_id,
                 couple_id=couple.id if couple else None,
             ),
             refresh=refresh_token,
@@ -219,7 +217,7 @@ class AuthService:
         )
 
         new_refresh_token = create_jwt(
-            payload.sub, current_time, exp=expires_at, session_id=payload.session_id
+            payload.sub, current_time, payload.session_id, exp=expires_at
         )
 
         # атомарное обновление хэша токена обновления
@@ -242,10 +240,10 @@ class AuthService:
             access=create_jwt(
                 payload.sub,
                 current_time,
+                payload.session_id,
                 expires_delta=timedelta(
                     minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES
                 ),
-                session_id=payload.session_id,
                 couple_id=couple.id if couple else None,
             ),
             refresh=new_refresh_token,

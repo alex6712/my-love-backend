@@ -79,12 +79,12 @@ def jwt_decode(token: str, token_type: TokenType) -> AnyTokenPayload:
 def create_jwt(
     sub: UUID,
     iat: datetime,
+    session_id: UUID,
     *,
     exp: datetime | None = None,
     jti: UUID | None = None,
     iss: str = "my-love-backend",
     expires_delta: timedelta | None = None,
-    session_id: UUID,
     couple_id: Maybe[UUID | None] = UNSET,
 ) -> str:
     """Создаёт и возвращает подписанный JWT.
@@ -99,6 +99,8 @@ def create_jwt(
         Субъект токена — идентификатор пользователя.
     iat : datetime
         Время выпуска токена.
+    session_id : UUID
+        Идентификатор сессии пользователя.
     exp : datetime | None, optional
         Точное время истечения токена.
         Игнорируется, если передан `expires_delta`.
@@ -110,8 +112,6 @@ def create_jwt(
     expires_delta : timedelta | None, optional
         Время жизни токена относительно `iat`.
         Имеет приоритет над `exp`, если передан.
-    session_id : UUID
-        Идентификатор сессии пользователя.
     couple_id : Maybe[UUID | None], optional
         Опциональный доменный claim, добавляемый только в access-токен.
 
