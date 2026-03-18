@@ -189,7 +189,7 @@ def hash_(
     scheme: str | None = None,
     category: str | None = None,
 ) -> str:
-    """Прокси для метода `CriptContext.hash()`.
+    """Прокси для метода `CryptContext.hash()`.
 
     Получает параметры, необходимые для выполнения хеширования, и возвращает результат.
 
@@ -221,7 +221,7 @@ def verify(
     scheme: str | None = None,
     category: str | None = None,
 ) -> bool:
-    """Прокси для метода `CriptContext.verify()`.
+    """Прокси для метода `CryptContext.verify()`.
 
     Проверяет переданный секрет на соответствие хешу.
 
