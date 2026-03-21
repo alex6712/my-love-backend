@@ -10,7 +10,7 @@ class _Payload(BaseModel):
     Attributes
     ----------
     sub : UUID
-        Субъект токена — идентификатор пользователя.
+        Субъект токена - идентификатор пользователя.
     iat : datetime
         Время выпуска токена (issued at).
     exp : datetime

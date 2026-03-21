@@ -46,7 +46,7 @@ class PresignedURLsBatchResponse[S, F](StandardResponse):
         Presigned URLs для файлов, которые были успешно обработаны.
     failed : list[F]
         Ошибки для файлов, которые не удалось обработать.
-        По умолчанию — пустой список.
+        По умолчанию - пустой список.
 
     See Also
     --------
@@ -68,7 +68,7 @@ type PresignedURLsUploadBatchResponse = PresignedURLsBatchResponse[
 Параметризованный псевдоним :class:`PresignedURLsBatchResponse`,
 где успешные результаты представлены как :class:`PresignedURLWithRefDTO`
 (содержит ``client_ref_id`` для корреляции с исходным запросом),
-а ошибки — как :class:`UploadFileErrorDTO`.
+а ошибки - как :class:`UploadFileErrorDTO`.
 """
 
 type PresignedURLsDownloadBatchResponse = PresignedURLsBatchResponse[
@@ -78,5 +78,5 @@ type PresignedURLsDownloadBatchResponse = PresignedURLsBatchResponse[
 
 Параметризованный псевдоним :class:`PresignedURLsBatchResponse`,
 где успешные результаты представлены как :class:`PresignedURLDTO`,
-а ошибки — как :class:`DownloadFileErrorDTO`.
+а ошибки - как :class:`DownloadFileErrorDTO`.
 """
