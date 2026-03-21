@@ -181,7 +181,7 @@ def create_jwt(
     return _jwt_encode(to_encode)
 
 
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+_pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 
 def hash_(
@@ -212,7 +212,7 @@ def hash_(
     str
         Хэш секрета в соответствии с установленной схемой и настройками.
     """
-    return pwd_context.hash(secret, scheme, category)
+    return _pwd_context.hash(secret, scheme, category)
 
 
 def verify(
@@ -246,7 +246,7 @@ def verify(
     bool
         `True`, если хеш секрета соответствует переданному секрету, в ином случае `False`.
     """
-    return pwd_context.verify(secret, hashed, scheme, category)
+    return _pwd_context.verify(secret, hashed, scheme, category)
 
 
 def hash_token(
