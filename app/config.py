@@ -85,9 +85,9 @@ class Settings(BaseSettings):
         Базовое время жизни Presigned URL на загрузку файлов.
     PRIVATE_SIGNATURE_KEY_PASSWORD: str
         Пароль для дешифровки приватного ключа кодирования JWT.
-    PRIVATE_SIGNATURE_KEY : EllipticCurvePrivateKey | None
+    PRIVATE_SIGNATURE_KEY : EllipticCurvePrivateKey
         Приватный ключ подписи JWT.
-    PUBLIC_SIGNATURE_KEY : EllipticCurvePublicKey | None
+    PUBLIC_SIGNATURE_KEY : EllipticCurvePublicKey
         Публичный ключ подписи JWT.
     JWT_ALGORITHM : str
         Алгоритм кодирования JWT.
