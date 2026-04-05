@@ -164,14 +164,24 @@ class UserSessionRepository(RepositoryInterface):
 
         return updated is not None
 
-    async def delete_user_session_by_id(self, session_id: UUID) -> None:
+    async def delete_user_session_by_id(self, session_id: UUID) -> bool:
         """Удаляет сессию по её идентификатору.
 
         Parameters
         ----------
         session_id : UUID
             Идентификатор удаляемой сессии.
+
+        Returns
+        -------
+        bool
+            `True` если сессия найдена и удалена, `False` если сессия
+            с переданным хэшем не существует.
         """
-        await self.session.execute(
-            delete(UserSessionModel).where(UserSessionModel.id == session_id)
+        deleted = await self.session.scalar(
+            delete(UserSessionModel)
+            .where(UserSessionModel.id == session_id)
+            .returning(UserSessionModel.id)
         )
+
+        return deleted is not None

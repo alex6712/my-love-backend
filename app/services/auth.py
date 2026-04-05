@@ -152,9 +152,9 @@ class AuthService:
             days=self._settings.REFRESH_TOKEN_LIFETIME_DAYS
         )
 
-        session_id = uuid4()
-
-        refresh_token = create_jwt(user.id, current_time, session_id, exp=expires_at)
+        refresh_token = create_jwt(
+            user.id, current_time, session_id := uuid4(), exp=expires_at
+        )
 
         await self._user_session_repo.add_user_session(
             session_id, user.id, hash_token(refresh_token), expires_at, current_time
@@ -268,11 +268,6 @@ class AuthService:
         Notes
         -----
         TTL для blacklist вычисляется на основе `exp` токена.
-
-        Raises
-        ------
-        InvalidTokenException
-            Если payload не содержит обязательных claims.
         """
         current_time = datetime.now(timezone.utc).timestamp()
         ttl = ceil(payload.exp.timestamp() - current_time)
@@ -280,12 +275,7 @@ class AuthService:
         if ttl > 0:
             await self._redis_client.revoke_token(token=access_token, ttl=ttl)
 
-        user_session = await self._user_session_repo.get_user_session_by_id(
-            payload.session_id
-        )
-
-        if user_session is not None:
-            await self._user_session_repo.delete_user_session_by_id(user_session.id)
+        _ = await self._user_session_repo.delete_user_session_by_id(payload.session_id)
 
     async def logout(self, access_token: str | None) -> None:
         """Завершает текущую сессию пользователя.

@@ -107,7 +107,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
     yield
 
     await async_postgresql_engine.dispose()
-
     await redis_client.disconnect()
 
 
