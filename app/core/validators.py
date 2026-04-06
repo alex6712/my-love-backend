@@ -13,42 +13,6 @@ USERNAME_PATTERN: re.Pattern[str] = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
 PASSWORD_MIN_LENGTH: int = 12
 """Минимальная длина пароля в символах."""
 
-COMMON_PASSWORDS: frozenset[str] = frozenset(
-    {
-        "password",
-        "123456",
-        "12345678",
-        "qwerty",
-        "abc123",
-        "password123",
-        "admin",
-        "root",
-        "letmein",
-        "welcome",
-        "monkey",
-        "dragon",
-        "master",
-        "123456789",
-        "12345",
-        "1234567",
-        "sunshine",
-        "princess",
-        "football",
-        "iloveyou",
-        "admin123",
-        "test",
-        "guest",
-        "login",
-        "pass",
-        "secret",
-    }
-)
-"""Множество часто используемых и легко угадываемых паролей.
-
-Используется для предотвращения выбора паролей из списка
-наиболее распространённых паролей по данным различных утечек.
-"""
-
 
 def validate_password_strength(value: str) -> str:
     """Проверяет пароль на соответствие требованиям безопасности.
@@ -59,7 +23,6 @@ def validate_password_strength(value: str) -> str:
     - Наличие символов нижнего регистра (a-z)
     - Наличие цифр (0-9)
     - Наличие специальных символов (!@#$%^&* и т.д.)
-    - Отсутствие в списке часто используемых паролей
 
     Parameters
     ----------
@@ -92,9 +55,6 @@ def validate_password_strength(value: str) -> str:
 
     if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]", value):
         raise ValueError("Password must contain at least one special character.")
-
-    if value.lower() in COMMON_PASSWORDS:
-        raise ValueError("Password is too common and easily guessable.")
 
     return value
 

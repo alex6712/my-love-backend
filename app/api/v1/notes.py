@@ -148,7 +148,7 @@ async def post_notes(
     """
     await services.note.create_note(body.type, body.title, body.content, payload.sub)
 
-    return StandardResponse(detail="New note created successful.")
+    return StandardResponse(detail="New note created successfully.")
 
 
 @router.get(
@@ -254,7 +254,7 @@ async def patch_notes(
         payload.sub,
     )
 
-    return StandardResponse(detail="Note content updated successful.")
+    return StandardResponse(detail="Note content updated successfully.")
 
 
 @router.delete(
@@ -302,4 +302,4 @@ async def delete_notes(
     """
     await services.note.delete_note(note_id, payload.sub)
 
-    return StandardResponse(detail="Note deleted successful.")
+    return StandardResponse(detail="Note deleted successfully.")
