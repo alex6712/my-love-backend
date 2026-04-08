@@ -250,59 +250,67 @@ class AuthService:
         )
 
     async def _invalidate_token_and_session(
-        self, access_token: str, payload: AnyTokenPayload
+        self,
+        payload: AnyTokenPayload,
+        token_type: TokenType,
     ) -> None:
-        """Отзывает access-токен и удаляет связанную пользовательскую сессию.
+        """Инвалидирует токен и связанную пользовательскую сессию.
 
         Выполняет:
-        - добавление access-токена в blacklist (Redis) до истечения срока жизни;
+        - добавление `jti` токена в Redis blacklist с TTL;
         - удаление пользовательской сессии по `session_id`.
 
         Parameters
         ----------
-        access_token : str
-            Валидный access-токен.
         payload : AnyTokenPayload
-            Декодированный payload токена (обязательно содержит `exp` и `session_id`).
+            Валидированный payload токена.
+
+            Обязательные поля:
+            - jti : UUID - идентификатор токена;
+            - exp : datetime - время истечения;
+            - session_id : UUID - идентификатор сессии.
+        token_type : TokenType
+            Тип токена (access или refresh).
 
         Notes
         -----
-        TTL для blacklist вычисляется на основе `exp` токена.
+        TTL рассчитывается как разница между `exp` и текущим временем.
+        Если TTL <= 0, токен считается уже истёкшим и не добавляется в blacklist.
         """
-        current_time = datetime.now(timezone.utc).timestamp()
-        ttl = ceil(payload.exp.timestamp() - current_time)
+        current_ts = datetime.now(timezone.utc).timestamp()
+        ttl = ceil(payload.exp.timestamp() - current_ts)
 
         if ttl > 0:
-            await self._redis_client.revoke_token(token=access_token, ttl=ttl)
+            await self._redis_client.revoke_token(
+                jti=payload.jti,
+                ttl=ttl,
+                token_type=token_type,
+            )
 
-        _ = await self._user_session_repo.delete_user_session_by_id(payload.session_id)
+        await self._user_session_repo.delete_user_session_by_id(payload.session_id)
 
-    async def logout(self, access_token: str | None) -> None:
+    async def logout(self, payload: AccessTokenPayload) -> None:
         """Завершает текущую сессию пользователя.
 
-        Выполняет валидацию access-токена, отзыв токена (blacklist)
+        Выполняет отзыв токена (blacklist)
         и удаление связанной пользовательской сессии.
 
         Parameters
         ----------
-        access_token : str | None
-            Access-токен пользователя из заголовка Authorization.
+        payload : AccessTokenPayload
+            Полезная нагрузка (payload) access-токена текущего пользователя.
         """
-        payload = await self.validate_access_token(access_token)
-        assert access_token is not None
-
-        await self._invalidate_token_and_session(access_token, payload)
+        await self._invalidate_token_and_session(payload, "access")
 
     async def change_password(
         self,
         current_password: str,
         new_password: str,
-        access_token: str | None,
+        payload: AccessTokenPayload,
     ) -> None:
         """Изменяет пароль пользователя.
 
         Выполняет следующую последовательность действий:
-        - Валидирует access-токен и извлекает payload;
         - Проверяет корректность текущего пароля;
         - Проверяет, что новый пароль отличается от текущего;
         - Обновляет хэш пароля в БД;
@@ -326,9 +334,6 @@ class AuthService:
         PasswordUpdateFailedException
             Если обновление пароля в БД не было применено.
         """
-        payload = await self.validate_access_token(access_token)
-        assert access_token is not None
-
         user = await self._user_repo.get_user_by_id(payload.sub)
 
         if user is None or not verify(current_password, user.password_hash):
@@ -348,7 +353,7 @@ class AuthService:
                 detail="Failed to update password: no rows were affected."
             )
 
-        await self._invalidate_token_and_session(access_token, payload)
+        await self._invalidate_token_and_session(payload, "access")
 
     async def validate_access_token(
         self, access_token: str | None
@@ -382,10 +387,12 @@ class AuthService:
                 token_type="access",
             )
 
-        if await self._redis_client.is_token_revoked(access_token):
+        payload = self._validate_token(access_token, "access")
+
+        if await self._redis_client.is_token_revoked(payload.jti):
             raise TokenRevokedException(detail="Access token has been revoked.")
 
-        return self._validate_token(access_token, "access")
+        return payload
 
     @overload
     @staticmethod

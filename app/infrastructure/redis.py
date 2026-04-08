@@ -5,21 +5,24 @@ import redis.asyncio as redis
 
 from app.config import get_settings
 from app.core.enums import IdempotencyStatus
+from app.core.types import TokenType
 from app.schemas.dto.idempotency_key import IdempotencyKeyDTO
 
 settings = get_settings()
 
 
 class RedisClient:
-    """Клиент для работы с Redis.
+    """Инфраструктурный клиент для работы с Redis.
 
-    Создаёт пул подключений, из которого можно получить клиент Redis,
-    и предоставляет методы для работы с ним.
+    Предоставляет единый интерфейс для работы с Redis в рамках приложения:
+    - blacklist токенов (revocation);
+    - кэширование счётчиков;
+    - идемпотентность;
+    - другие вспомогательные механизмы.
 
-    Attributes
-    ----------
-    _pool : redis.ConnectionPool | None
-        Пул подключений Redis.
+    Несмотря на то, что клиент объединяет несколько доменов, каждая группа
+    методов логически изолирована (token blacklist, counters, idempotency).
+    При росте проекта может быть вынесена в отдельные сервисы/репозитории.
 
     Methods
     -------
@@ -102,56 +105,99 @@ class RedisClient:
 
         return redis.Redis(connection_pool=self._pool)
 
-    async def revoke_token(self, token: str, ttl: int) -> None:
-        """Добавляет токен в черный список.
-
-        Добавляет токен в Redis с ключом "blacklist:access_token:{token}",
-        где {token} - это сам токен. Тем самым делая токен недействительным.
+    def _build_blacklist_key(self, jti: UUID, token_type: TokenType) -> str:
+        """Формирует ключ для хранения информации об отозванном токене.
 
         Parameters
         ----------
-        token : str
-            Токен, который нужно добавить в черный список.
-        ttl : int
-            Оставшееся время жизни токена в секундах.
+        jti : UUID
+            Уникальный идентификатор токена (JWT ID).
+        token_type : TokenType
+            Тип токена (access / refresh).
 
         Returns
         -------
-        None
-            Токен добавлен в черный список.
+        str
+            Redis-ключ вида:
+            "blacklist:{token_type}:{jti}"
         """
-        await self.client.setex(f"blacklist:access_token:{token}", ttl, "1")
+        return f"blacklist:{token_type}:{jti}"
 
-    async def is_token_revoked(self, token: str) -> bool:
-        """Проверяет, находится ли токен в черном списке.
+    async def revoke_token(
+        self,
+        jti: UUID,
+        ttl: int,
+        token_type: TokenType = "access",
+    ) -> None:
+        """Добавляет токен в blacklist по его `jti`.
 
-        Проверяет, находится ли токен в Redis с ключом "blacklist:access_token:{token}",
-        где {token} - это сам токен. Если токен найден, то он считается недействительным.
+        Вместо хранения полного JWT-токена сохраняется только его идентификатор.
+        Это снижает связность системы и повышает безопасность.
+
+        TTL записи должен соответствовать оставшемуся времени жизни токена,
+        чтобы Redis автоматически удалил запись после его истечения.
 
         Parameters
         ----------
-        token : str
-            Токен, который нужно проверить.
+        jti : UUID
+            Уникальный идентификатор токена (JWT ID).
+        ttl : int
+            Оставшееся время жизни токена в секундах.
+        token_type : TokenType
+            Тип токена (access или refresh).
+        """
+        key = self._build_blacklist_key(jti, token_type)
+        await self.client.setex(key, ttl, "1")
+
+    async def is_token_revoked(
+        self,
+        jti: UUID,
+        token_type: TokenType = "access",
+    ) -> bool:
+        """Проверяет, отозван ли токен.
+
+        Токен считается недействительным, если его `jti` присутствует
+        в Redis blacklist.
+
+        Parameters
+        ----------
+        jti : UUID
+            Уникальный идентификатор токена (JWT ID).
+        token_type : TokenType
+            Тип токена (access или refresh).
 
         Returns
         -------
         bool
-            True, если токен находится в черном списке, иначе False.
+            True, если токен отозван, иначе False.
         """
-        return await self.client.exists(f"blacklist:access_token:{token}") == 1
+        key = self._build_blacklist_key(jti, token_type)
+        return await self.client.exists(key) == 1
 
-    async def delete_token(self, token: str) -> None:
-        """Удаление токена из черного списка.
+    async def restore_token(
+        self,
+        jti: UUID,
+        token_type: TokenType = "access",
+    ) -> None:
+        """Удаляет токен из blacklist.
 
-        Удаляет токен из Redis с ключом "blacklist:access_token:{token}",
-        где {token} - это сам токен.
+        Используется в редких сценариях:
+        - rollback операций;
+        - исправление ошибок отзыва токена;
+        - тестирование.
+
+        В нормальном процессе не требуется, так как TTL автоматически
+        очищает записи.
 
         Parameters
         ----------
-        token : str
-            Токен, который нужно удалить из черного списка.
+        jti : UUID
+            Уникальный идентификатор токена (JWT ID).
+        token_type : TokenType
+            Тип токена (access или refresh).
         """
-        await self.client.delete(f"blacklist:access_token:{token}")
+        key = self._build_blacklist_key(jti, token_type)
+        await self.client.delete(key)
 
     @staticmethod
     def _count_key(scope: str, user_id: UUID) -> str:

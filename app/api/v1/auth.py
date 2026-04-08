@@ -3,9 +3,9 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Request, Response, status
 
 from app.core.dependencies.auth import (
-    ExtractAccessTokenDependency,
     ExtractRefreshTokenDependency,
     SignInCredentialsDependency,
+    StrictAuthenticationDependency,
 )
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import (
@@ -161,8 +161,8 @@ async def login(
 async def refresh(
     request: Request,
     response: Response,
-    refresh_token: ExtractRefreshTokenDependency,
     services: ServiceManagerDependency,
+    refresh_token: ExtractRefreshTokenDependency,
 ) -> TokensResponse:
     """Обновление пары JWT-токенов.
 
@@ -177,8 +177,6 @@ async def refresh(
     response : Response
         Объект HTTP-ответа. Требуется для работы slowapi.Limiter
         при инъекции заголовков X-RateLimit-*.
-    refresh_token : ExtractRefreshTokenDependency
-        Зависимость на получение токена обновления из заголовков запроса.
     services : ServiceManager
         Менеджер сервисов уровня запроса (request-scoped).
 
@@ -192,6 +190,8 @@ async def refresh(
         - Ленивую (lazy) инициализацию сервисов;
         - Отсутствие повторных инстансов одного и того же сервиса
           в пределах одного HTTP-запроса.
+    refresh_token : ExtractRefreshTokenDependency
+        Зависимость на получение токена обновления из заголовков запроса.
 
     Returns
     -------
@@ -216,8 +216,8 @@ async def refresh(
     responses={401: AUTHORIZATION_ERROR_REF},
 )
 async def logout(
-    access_token: ExtractAccessTokenDependency,
     services: ServiceManagerDependency,
+    payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Завершение текущей сессии пользователя.
 
@@ -226,8 +226,6 @@ async def logout(
 
     Parameters
     ----------
-    access_token : ExtractAccessTokenDependency
-        Access token, извлеченный из заголовков запроса.
     services : ServiceManager
         Менеджер сервисов уровня запроса (request-scoped).
 
@@ -241,6 +239,9 @@ async def logout(
         - Ленивую (lazy) инициализацию сервисов;
         - Отсутствие повторных инстансов одного и того же сервиса
           в пределах одного HTTP-запроса.
+    payload : AccessTokenPayload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
 
     Returns
     -------
@@ -252,7 +253,7 @@ async def logout(
     - Access token должен быть валидным на момент выполнения запроса
     - После выполнения запроса refresh token становится недействительным
     """
-    await services.auth.logout(access_token)
+    await services.auth.logout(payload)
 
     return StandardResponse(detail="User successfully logout.")
 
@@ -278,8 +279,8 @@ async def change_password(
         ChangePasswordRequest,
         Body(description="Схема запроса на изменение пароля пользователя."),
     ],
-    access_token: ExtractAccessTokenDependency,
     services: ServiceManagerDependency,
+    payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Смена пароля текущего пользователя.
 
@@ -296,8 +297,6 @@ async def change_password(
         при инъекции заголовков X-RateLimit-*.
     body : ChangePasswordRequest
         Тело запроса, содержащее текущий и новый пароли пользователя.
-    access_token : ExtractAccessTokenDependency
-        Зависимость на получение токена доступа из заголовков запроса.
     services : ServiceManager
         Менеджер сервисов уровня запроса (request-scoped).
 
@@ -311,6 +310,9 @@ async def change_password(
         - Ленивую (lazy) инициализацию сервисов;
         - Отсутствие повторных инстансов одного и того же сервиса
           в пределах одного HTTP-запроса.
+    payload : AccessTokenPayload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
 
     Returns
     -------
@@ -318,7 +320,7 @@ async def change_password(
         Стандартный ответ с подтверждением успешной смены пароля.
     """
     await services.auth.change_password(
-        body.current_password, body.new_password, access_token
+        body.current_password, body.new_password, payload
     )
 
     return StandardResponse(detail="User's password successfully changed.")
