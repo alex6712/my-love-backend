@@ -249,10 +249,18 @@ class AuthService:
             refresh=new_refresh_token,
         )
 
+    @overload
     async def _invalidate_token_and_session(
-        self,
-        payload: AnyTokenPayload,
-        token_type: TokenType,
+        self, payload: AccessTokenPayload, token_type: Literal["access"]
+    ) -> None: ...
+
+    @overload
+    async def _invalidate_token_and_session(
+        self, payload: RefreshTokenPayload, token_type: Literal["refresh"]
+    ) -> None: ...
+
+    async def _invalidate_token_and_session(
+        self, payload: AnyTokenPayload, token_type: TokenType
     ) -> None:
         """Инвалидирует токен и связанную пользовательскую сессию.
 
@@ -282,9 +290,7 @@ class AuthService:
 
         if ttl > 0:
             await self._redis_client.revoke_token(
-                jti=payload.jti,
-                ttl=ttl,
-                token_type=token_type,
+                jti=payload.jti, ttl=ttl, token_type=token_type
             )
 
         await self._user_session_repo.delete_user_session_by_id(payload.session_id)
@@ -303,10 +309,7 @@ class AuthService:
         await self._invalidate_token_and_session(payload, "access")
 
     async def change_password(
-        self,
-        current_password: str,
-        new_password: str,
-        payload: AccessTokenPayload,
+        self, current_password: str, new_password: str, payload: AccessTokenPayload
     ) -> None:
         """Изменяет пароль пользователя.
 
