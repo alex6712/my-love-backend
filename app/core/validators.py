@@ -3,14 +3,14 @@ from typing import Annotated
 
 from pydantic import AfterValidator
 
-USERNAME_PATTERN: re.Pattern[str] = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
+USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
 """Регулярное выражение для проверки формата имени пользователя.
 
 Разрешает от 3 до 32 символов, включая латинские буквы (верхний и нижний регистр),
 цифры, нижнее подчёркивание и дефис.
 """
 
-PASSWORD_MIN_LENGTH: int = 12
+PASSWORD_MIN_LENGTH = 12
 """Минимальная длина пароля в символах."""
 
 
