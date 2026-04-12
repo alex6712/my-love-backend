@@ -1,9 +1,10 @@
 from uuid import UUID
 
+from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.user import UserNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
 from app.repositories.user import UserRepository
-from app.schemas.dto.user import UserDTO
+from app.schemas.dto.user import PatchProfileDTO, UserDTO
 
 
 class UserService:
@@ -48,3 +49,33 @@ class UserService:
             raise UserNotFoundException(f"User with id={user_id} not found.")
 
         return UserDTO.model_validate(user)
+
+    async def update_profile(
+        self, patch_profile_dto: PatchProfileDTO, user_id: UUID
+    ) -> None:
+        """Частичное обновление атрибутов профиля пользователя по его UUID.
+
+        Передаёт данные в репозиторий для обновления профиля пользователя.
+        Обновляет только явно переданные поля (не равные `UNSET`).
+
+        Parameters
+        ----------
+        patch_profile_dto : PatchProfileDTO
+            DTO с полями для обновления. Содержит только явно переданные поля.
+        user_id : UUID
+            UUID пользователя, чей профиль требуется обновить.
+
+        Raises
+        ------
+        NothingToUpdateException
+            Не было передано ни одного поля на обновление.
+        UserNotFoundException
+            Если пользователь с указанным идентификатором не найден.
+        """
+        if patch_profile_dto.is_empty():
+            raise NothingToUpdateException(detail="No fields provided for update.")
+
+        updated = await self._user_repo.update_user_by_id(patch_profile_dto, user_id)
+
+        if not updated:
+            raise UserNotFoundException(f"User with id={user_id} not found.")

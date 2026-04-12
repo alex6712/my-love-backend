@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import UserModel
 from app.repositories.interface import RepositoryInterface
-from app.schemas.dto.user import UserWithCredentialsDTO
+from app.schemas.dto.user import PatchProfileDTO, UserWithCredentialsDTO
 
 
 class UserRepository(RepositoryInterface):
@@ -188,6 +188,37 @@ class UserRepository(RepositoryInterface):
             update(UserModel)
             .where(UserModel.id == user_id)
             .values(password_hash=password_hash)
+            .returning(UserModel.id)
+        )
+
+        return updated is not None
+
+    async def update_user_by_id(
+        self, patch_profile_dto: PatchProfileDTO, user_id: UUID
+    ) -> bool:
+        """Обновление атрибутов профиля пользователя в базе данных.
+
+        Выполняет SQL-запрос UPDATE для изменения атрибутов профиля
+        пользователя, фильтруя записи по идентификатору пользователя.
+
+        Parameters
+        ----------
+        patch_profile_dto : PatchProfileDTO
+            DTO с полями для обновления. Только явно переданные поля
+            попадают в SET-часть запроса через `to_update_values()`.
+        user_id : UUID
+            UUID пользователя, чей профиль требуется обновить.
+
+        Returns
+        -------
+        bool
+            True, если запись была обновлена, False - если пользователь
+            с указанным идентификатором не найден.
+        """
+        updated = await self.session.scalar(
+            update(UserModel)
+            .where(UserModel.id == user_id)
+            .values(**patch_profile_dto.to_update_values())
             .returning(UserModel.id)
         )
 

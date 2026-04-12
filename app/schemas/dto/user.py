@@ -1,4 +1,5 @@
-from app.schemas.dto.base import BaseSQLModelDTO
+from app.core.types import UNSET, Maybe
+from app.schemas.dto.base import BasePatchDTO, BaseSQLModelDTO
 
 
 class UserDTO(BaseSQLModelDTO):
@@ -58,3 +59,19 @@ class PartnerDTO(UserDTO):
     """
 
     pass
+
+
+class PatchProfileDTO(BasePatchDTO):
+    """DTO для частичного обновления профиля пользователя.
+
+    Attributes
+    ----------
+    first_name : Maybe[str]
+        Новое реальное имя пользователя. Если `UNSET` - поле не изменяется.
+        Временно не обрабатывается.
+    avatar_url : Maybe[str]
+        Новый URL аватара пользователя. Если `UNSET` - поле не изменяется.
+    """
+
+    # first_name: Maybe[str] = UNSET
+    avatar_url: Maybe[str] = UNSET
