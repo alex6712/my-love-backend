@@ -62,7 +62,7 @@ AuthDependencyCallable = Callable[
 """Тип вызываемого объекта зависимости аутентификации."""
 
 
-def check_auth(strict: bool = True) -> AuthDependencyCallable:
+def check_auth(strict: bool) -> AuthDependencyCallable:
     """Фабрика для создания зависимостей аутентификации.
 
     Генерирует зависимости FastAPI с гибким поведением при ошибках
@@ -71,9 +71,9 @@ def check_auth(strict: bool = True) -> AuthDependencyCallable:
 
     Parameters
     ----------
-    strict : bool, optional
+    strict : bool
         Режим обработки ошибок:
-        - True (по умолчанию): строгий режим - исключение пробрасывается.
+        - True: строгий режим - исключение пробрасывается.
         - False: мягкий режим - при ошибке возвращается None.
 
     Returns
