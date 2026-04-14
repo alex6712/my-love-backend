@@ -95,7 +95,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
         try:
             await s3_client.head_bucket(Bucket=settings.MINIO_BUCKET_NAME)
         except ClientError as e:
-            error_code: str = e.response.get("Error", {}).get("Code", "")
+            error_code = e.response.get("Error", {}).get("Code", "")
 
             if error_code in ("404", "NoSuchBucket"):
                 await s3_client.create_bucket(Bucket=settings.MINIO_BUCKET_NAME)

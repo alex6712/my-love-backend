@@ -22,6 +22,8 @@ class UserService:
     -------
     get_me(user_id)
         Получение информации о текущем пользователе.
+    update_profile(patch_profile_dto, user_id)
+        Частичное обновление атрибутов профиля пользователя по его UUID.
     """
 
     def __init__(self, unit_of_work: UnitOfWork):

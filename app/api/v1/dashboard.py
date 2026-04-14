@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from fastapi import APIRouter, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
@@ -18,8 +16,8 @@ router = APIRouter(
     "",
     response_model=DashboardResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение сводной информации для главной страницы",
-    response_description="Количество фото и заметок пользователя",
+    summary="Получение сводной информации для главной страницы.",
+    response_description="Количество файлов и заметок пользователя",
 )
 async def get_dashboard(
     services: ServiceManagerDependency,
@@ -28,14 +26,15 @@ async def get_dashboard(
     """Получение агрегированных данных для главной страницы приложения.
 
     Этот эндпоинт возвращает:
-    - Количество всех доступных пользователю медиа-файлов (`photos_count`);
+    - Количество всех доступных пользователю медиа-файлов (`files_count`);
     - Количество заметок пользователя (`notes_count`).
 
-    Данные формируются путём параллельного вызова методов соответствующих сервисов,
-    чтобы минимизировать задержку:
+    Данные формируются путём последовательного вызова методов соответствующих сервисов:
     - `services.file.count_files(user_id)` - возвращает количество медиа-файлов,
-      включая файлы партнёра. Используется кэш Redis при наличии.
+        включая файлы партнёра.
     - `services.note.count_notes(user_id)` - возвращает количество заметок пользователя.
+
+    Используется кэш Redis при наличии (cash hit).
 
     Parameters
     ----------
@@ -45,13 +44,6 @@ async def get_dashboard(
         Предоставляет доступ к бизнес-сервисам приложения
         (например, auth, user, note, file и др.) через единый
         контейнер зависимостей.
-
-        Гарантирует:
-        - Использование одного экземпляра Unit of Work в рамках запроса;
-        - Единый доступ к инфраструктурным зависимостям (Redis, S3 и др.);
-        - Ленивую (lazy) инициализацию сервисов;
-        - Отсутствие повторных инстансов одного и того же сервиса
-          в пределах одного HTTP-запроса.
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -61,7 +53,7 @@ async def get_dashboard(
     DashboardResponse
         Объект с агрегированными данными для главной страницы пользователя.
     """
-    user_id: UUID = payload.sub
+    user_id = payload.sub
 
     files_count = await services.file.count_files(user_id)
     notes_count = await services.note.count_notes(user_id)
