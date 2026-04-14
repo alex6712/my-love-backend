@@ -83,11 +83,11 @@ class CoupleRequestRepository(RepositoryInterface):
         """
         couple = await self.session.scalar(
             select(CoupleRequestModel).where(
-                CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
                 or_(
                     CoupleRequestModel.initiator_id == user_id,
                     CoupleRequestModel.recipient_id == user_id,
                 ),
+                CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
             )
         )
 
@@ -174,11 +174,11 @@ class CoupleRequestRepository(RepositoryInterface):
                 selectinload(CoupleRequestModel.recipient),
             )
             .where(
-                CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
                 or_(
                     CoupleRequestModel.initiator_id.in_(partner_ids),
                     CoupleRequestModel.recipient_id.in_(partner_ids),
                 ),
+                CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
             )
         )
 
@@ -251,8 +251,8 @@ class CoupleRequestRepository(RepositoryInterface):
                 selectinload(CoupleRequestModel.recipient),
             )
             .where(
-                CoupleRequestModel.status == CoupleRequestStatus.PENDING,
                 CoupleRequestModel.recipient_id == recipient_id,
+                CoupleRequestModel.status == CoupleRequestStatus.PENDING,
             )
         )
 

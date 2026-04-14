@@ -14,6 +14,21 @@ if TYPE_CHECKING:
 
 class AlbumModel(BaseModel):
     __tablename__ = "albums"
+    __table_args__ = (
+        Index(
+            "idx_album_title_trgm",
+            "title",
+            postgresql_using="gin",
+            postgresql_ops={"title": "gin_trgm_ops"},
+        ),
+        Index(
+            "idx_album_description_trgm",
+            "description",
+            postgresql_using="gin",
+            postgresql_ops={"description": "gin_trgm_ops"},
+        ),
+        {"comment": "Созданные пользователями альбомы медиа"},
+    )
 
     title: Mapped[str] = mapped_column(
         String(64),
@@ -57,22 +72,6 @@ class AlbumModel(BaseModel):
         cascade="all, delete-orphan",
         viewonly=True,
         lazy="select",
-    )
-
-    __table_args__ = (
-        Index(
-            "idx_album_title_trgm",
-            title,
-            postgresql_using="gin",
-            postgresql_ops={"title": "gin_trgm_ops"},
-        ),
-        Index(
-            "idx_album_description_trgm",
-            description,
-            postgresql_using="gin",
-            postgresql_ops={"description": "gin_trgm_ops"},
-        ),
-        {"comment": "Созданные пользователями альбомы медиа"},
     )
 
     def __repr__(self, **_) -> str:

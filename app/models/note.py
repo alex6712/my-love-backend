@@ -33,7 +33,7 @@ class NoteModel(BaseModel):
         nullable=False,
         comment="Заголовок пользовательской заметки",
     )
-    content: Mapped[str] = mapped_column(
+    content: Mapped[str | None] = mapped_column(
         Text(),
         nullable=True,
         comment="Содержимое пользовательской заметки",

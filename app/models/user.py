@@ -29,7 +29,7 @@ class UserModel(BaseModel):
         nullable=False,
         comment="Хэш пароля (Argon2id через Passlib)",
     )
-    avatar_url: Mapped[str] = mapped_column(
+    avatar_url: Mapped[str | None] = mapped_column(
         String(512),
         nullable=True,
         comment="URL аватара пользователя",

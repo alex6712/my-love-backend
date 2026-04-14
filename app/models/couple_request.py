@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, ForeignKey
+from sqlalchemy import CheckConstraint, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime, Uuid
 from sqlalchemy.types import Enum as SAEnum
@@ -18,21 +18,24 @@ class CoupleRequestModel(BaseModel):
     __tablename__ = "couple_requests"
     __table_args__ = (
         CheckConstraint("initiator_id <> recipient_id", name="ck_couple_not_self"),
-        {"comment": "Сведения о парах между пользователями в приложении"},
+        UniqueConstraint("initiator_id", "recipient_id", name="uq_couple_request"),
+        Index("ix_couple_request_recipient_status", "recipient_id", "status"),
+        Index("ix_couple_request_initiator_status", "initiator_id", "status"),
+        {
+            "comment": "Сведения о запросах на создание пар между пользователями в приложении"
+        },
     )
 
     initiator_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
-        primary_key=True,
         comment="UUID пользователя-инициатора",
     )
     recipient_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
-        primary_key=True,
         comment="UUID пользователя-реципиента",
     )
     status: Mapped[CoupleRequestStatus] = mapped_column(
@@ -43,10 +46,9 @@ class CoupleRequestModel(BaseModel):
         ),
         default=CoupleRequestStatus.PENDING,
         nullable=False,
-        index=True,
         comment="Статус пары между пользователями",
     )
-    accepted_at: Mapped[datetime] = mapped_column(
+    accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         comment="Дата и время принятия приглашения",
