@@ -1,7 +1,8 @@
 from datetime import date, datetime
 
 from app.core.enums import CoupleRequestStatus
-from app.schemas.dto.base import BaseSQLModelDTO
+from app.core.types import UNSET, Maybe
+from app.schemas.dto.base import BasePatchDTO, BaseSQLModelDTO
 from app.schemas.dto.user import PartnerDTO
 
 
@@ -43,3 +44,16 @@ class CoupleDTO(BaseSQLModelDTO):
     user_low: PartnerDTO
     user_high: PartnerDTO
     relationship_started_on: date | None
+
+
+class PatchCoupleDTO(BasePatchDTO):
+    """DTO для частичного обновления данных о паре.
+
+    Attributes
+    ----------
+    relationship_started_on : Maybe[date | None]
+        Новая реальная дата начала отношений (или None для сброса значения).
+        Если `UNSET` - поле не изменяется.
+    """
+
+    relationship_started_on: Maybe[date | None] = UNSET

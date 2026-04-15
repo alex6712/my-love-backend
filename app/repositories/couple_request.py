@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select, update
@@ -298,6 +299,7 @@ class CoupleRequestRepository(RepositoryInterface):
         couple_request_id: UUID,
         recipient_id: UUID,
         new_status: CoupleRequestStatus,
+        accepted_at: datetime,
     ) -> bool:
         """Обновление статуса входящего запроса на создание пары.
 
@@ -312,6 +314,8 @@ class CoupleRequestRepository(RepositoryInterface):
             UUID пользователя-реципиента.
         new_status : CoupleRequestStatus
             Новый статус запроса.
+        accepted_at : datetime
+            Дата и время принятия запроса.
 
         Returns
         -------
@@ -326,7 +330,7 @@ class CoupleRequestRepository(RepositoryInterface):
                 CoupleRequestModel.recipient_id == recipient_id,
                 CoupleRequestModel.status == CoupleRequestStatus.PENDING,
             )
-            .values(status=new_status)
+            .values(status=new_status, accepted_at=accepted_at)
             .returning(CoupleRequestModel.id)
         )
 

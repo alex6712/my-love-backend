@@ -1,8 +1,9 @@
 from datetime import datetime
+from textwrap import dedent
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime, Uuid
 from sqlalchemy.types import Enum as SAEnum
@@ -18,9 +19,33 @@ class CoupleRequestModel(BaseModel):
     __tablename__ = "couple_requests"
     __table_args__ = (
         CheckConstraint("initiator_id <> recipient_id", name="ck_couple_not_self"),
-        UniqueConstraint("initiator_id", "recipient_id", name="uq_couple_request"),
-        Index("ix_couple_request_recipient_status", "recipient_id", "status"),
-        Index("ix_couple_request_initiator_status", "initiator_id", "status"),
+        CheckConstraint(
+            dedent(
+                """
+                (status = 'ACCEPTED' AND accepted_at IS NOT NULL)
+                OR
+                (status != 'ACCEPTED' AND accepted_at IS NULL)
+                """
+            ).strip(),
+            name="ck_accepted_at_consistency",
+        ),
+        Index(
+            "uq_couple_request_pending",
+            text("LEAST(initiator_id, recipient_id)"),
+            text("GREATEST(initiator_id, recipient_id)"),
+            unique=True,
+            postgresql_where=text("status = 'PENDING'"),
+        ),
+        Index(
+            "ix_couple_request_recipient_status",
+            "recipient_id",
+            postgresql_where=text("status = 'PENDING'"),
+        ),
+        Index(
+            "ix_couple_request_initiator_status",
+            "initiator_id",
+            postgresql_where=text("status = 'PENDING'"),
+        ),
         {
             "comment": "Сведения о запросах на создание пар между пользователями в приложении"
         },

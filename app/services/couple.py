@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.core.enums import CoupleRequestStatus
@@ -9,6 +10,7 @@ from app.core.exceptions.couple import (
 )
 from app.core.exceptions.user import UserNotFoundException
 from app.infrastructure.postgresql import UnitOfWork
+from app.repositories.couple import CoupleRepository
 from app.repositories.couple_request import CoupleRequestRepository
 from app.repositories.user import UserRepository
 from app.schemas.dto.couple import CoupleRequestDTO
@@ -25,8 +27,10 @@ class CoupleService:
     ----------
     _user_repo : UserRepository
         Репозиторий для операций с пользователями в БД.
-    _couple_request_repo : CoupleRequestRepository
+    _couple_repo : CoupleRepository
         Репозиторий для операций с парами пользователей в БД.
+    _couple_request_repo : CoupleRequestRepository
+        Репозиторий для операций с запросами на создание пар пользователей в БД.
 
     Methods
     -------
@@ -38,6 +42,7 @@ class CoupleService:
 
     def __init__(self, unit_of_work: UnitOfWork):
         self._user_repo = unit_of_work.get_repository(UserRepository)
+        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
         self._couple_request_repo = unit_of_work.get_repository(CoupleRequestRepository)
 
     async def get_partner(self, user_id: UUID) -> PartnerDTO | None:
@@ -61,15 +66,15 @@ class CoupleService:
     async def create_couple_request(
         self, initiator_id: UUID, recipient_username: str
     ) -> None:
-        """Создание приглашения к регистрации новой пары.
+        """Создание запрос на создание новой пары между пользователями.
 
         Выполняет несколько проверок, а именно:
-        - оба переданных UUID должны быть уникальными;
-        - существуют ли пользователи с переданными UUID;
+        - пользователь-реципиент с переданным username должен существовать;
+        - пользователь-реципиент не может быть пользователем-инициатором;
         - состоят ли пользователи в паре или в других парах;
-        - уже отправлено подобное приглашение.
+        - уже отправлен подобный запрос.
 
-        Если все проверки пройдены успешно, создаёт приглашение.
+        Если все проверки пройдены успешно, создаёт запрос.
 
         Parameters
         ----------
@@ -85,9 +90,9 @@ class CoupleService:
         CoupleNotSelfException
             Если переданы два совпадающих UUID.
         CoupleAlreadyExistsException
-            Если по переданным UUID найдена пара.
+            Если хотя бы один из пользователей уже состоит в паре.
         CoupleRequestAlreadyExistsException
-            Если уже отправлено подобное приглашение.
+            Если уже отправлен подобный запрос.
         """
         recipient_user = await self._user_repo.get_user_by_username(recipient_username)
         if recipient_user is None:
@@ -115,6 +120,20 @@ class CoupleService:
             raise CoupleAlreadyExistsException(
                 detail=f"User with username={recipient_username} is already in couple!",
             )
+
+        # if couples := await self._couple_repo.get_couples_by_users_ids(
+        #     initiator_id, recipient_id
+        # ):
+        #     users_ids: set[UUID] = set()
+        #     for couple in couples:
+        #         users_ids.update([couple.user_low.id, couple.user_high.id])
+
+        #     if initiator_id in users_ids:
+        #         raise CoupleAlreadyExistsException(detail="You're already in couple!")
+
+        #     raise CoupleAlreadyExistsException(
+        #         detail=f"User with username={recipient_username} is already in couple!",
+        #     )
 
         if await self._couple_request_repo.find_existing_request(
             initiator_id, recipient_id
@@ -174,7 +193,7 @@ class CoupleService:
             )
 
         updated = await self._couple_request_repo.update_request_status_by_id_and_recipient_id(
-            couple_id, user_id, CoupleRequestStatus.ACCEPTED
+            couple_id, user_id, CoupleRequestStatus.ACCEPTED, datetime.now(timezone.utc)
         )
 
         if not updated:
@@ -202,7 +221,7 @@ class CoupleService:
             Если запрос с переданным UUID не найден в запросах к текущему пользователю.
         """
         updated = await self._couple_request_repo.update_request_status_by_id_and_recipient_id(
-            couple_id, user_id, CoupleRequestStatus.DECLINED
+            couple_id, user_id, CoupleRequestStatus.DECLINED, datetime.now(timezone.utc)
         )
 
         if not updated:
