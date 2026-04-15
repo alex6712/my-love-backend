@@ -12,7 +12,7 @@ from app.schemas.dto.user import PartnerDTO
 
 
 class CoupleRequestRepository(RepositoryInterface):
-    """Репозиторий пар между пользователями.
+    """Репозиторий запросов на создание пар между пользователями.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
     Реализует основные CRUD операции с парами пользователей.
@@ -25,7 +25,7 @@ class CoupleRequestRepository(RepositoryInterface):
     Methods
     -------
     add_couple_request(initiator_id, recipient_id)
-        Регистрация пары между пользователями.
+        Создание запроса на регистрацию пары между пользователями.
     get_partner_by_user_id(user_id)
         Получение информации о партнёре пользователя.
     get_active_couple_by_partner_id(partner_id)
@@ -44,10 +44,10 @@ class CoupleRequestRepository(RepositoryInterface):
         super().__init__(session)
 
     def add_couple_request(self, initiator_id: UUID, recipient_id: UUID) -> None:
-        """Создание приглашения на регистрацию пары между пользователями.
+        """Создание запроса на регистрацию пары между пользователями.
 
-        Добавляет в базу данных запись о новой паре между пользователями,
-        изначально эта пара имеет статус `Couple.Status.PENDING`, пока реципиент не подтвердит
+        Добавляет в базу данных запись о новом запросе на создание пары между пользователями.
+        Изначально этот запрос имеет статус `Couple.Status.PENDING`, пока реципиент не подтвердит
         приглашение инициатора.
 
         Parameters

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from app.core.enums import CoupleRequestStatus
 from app.schemas.dto.base import BaseSQLModelDTO
@@ -6,7 +6,8 @@ from app.schemas.dto.user import PartnerDTO
 
 
 class CoupleRequestDTO(BaseSQLModelDTO):
-    """DTO для представления пары между пользователями приложения.
+    """DTO для представления запроса на создание пары между
+    пользователями приложения.
 
     Attributes
     ----------
@@ -24,3 +25,21 @@ class CoupleRequestDTO(BaseSQLModelDTO):
     recipient: PartnerDTO
     status: CoupleRequestStatus
     accepted_at: datetime | None
+
+
+class CoupleDTO(BaseSQLModelDTO):
+    """DTO для представления пары между пользователями приложения.
+
+    Attributes
+    ----------
+    user_low : PartnerDTO
+        DTO пользователя с меньшим UUID в паре.
+    user_high : PartnerDTO
+        DTO пользователя с большим UUID в паре.
+    relationship_started_on : date | None
+        Реальная дата начала отношений.
+    """
+
+    user_low: PartnerDTO
+    user_high: PartnerDTO
+    relationship_started_on: date | None
