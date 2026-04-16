@@ -2,7 +2,6 @@ import asyncio
 from uuid import UUID
 
 from sqlalchemy import delete, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import NoteType, SortOrder
@@ -37,9 +36,6 @@ class NoteRepository(SharedResourceRepository):
     delete_note_by_id(note_id)
         Удаляет запись о пользовательской заметке из базы данных по её UUID.
     """
-
-    def __init__(self, session: AsyncSession):
-        super().__init__(session)
 
     def add_note(
         self,

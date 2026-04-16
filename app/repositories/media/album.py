@@ -2,7 +2,6 @@ import asyncio
 from uuid import UUID
 
 from sqlalchemy import and_, case, delete, func, insert, or_, select, text, update
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import SortOrder
@@ -43,9 +42,6 @@ class AlbumRepository(SharedResourceRepository):
 
     _LIKE_ESCAPE_CHAR = "\\"
     """Символы экранирования для операции LIKE (и ILIKE)."""
-
-    def __init__(self, session: AsyncSession):
-        super().__init__(session)
 
     def add_album(
         self,

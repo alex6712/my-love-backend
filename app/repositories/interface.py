@@ -23,7 +23,7 @@ class RepositoryInterface(ABC):
     """
 
     def __init__(self, session: AsyncSession):
-        self.session: AsyncSession = session
+        self.session = session
 
     @staticmethod
     def _build_count_query(

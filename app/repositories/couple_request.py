@@ -1,15 +1,19 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import insert, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import CoupleRequestStatus
+from app.core.exceptions.couple import (
+    CoupleNotSelfException,
+    CoupleRequestAlreadyExistsException,
+)
+from app.infrastructure.postgresql import get_constraint_name
 from app.models.couple_request import CoupleRequestModel
 from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.couple import CoupleRequestDTO
-from app.schemas.dto.user import PartnerDTO
 
 
 class CoupleRequestRepository(RepositoryInterface):
@@ -27,24 +31,13 @@ class CoupleRequestRepository(RepositoryInterface):
     -------
     add_couple_request(initiator_id, recipient_id)
         Создание запроса на регистрацию пары между пользователями.
-    get_partner_by_user_id(user_id)
-        Получение информации о партнёре пользователя.
-    get_active_couple_by_partner_id(partner_id)
-        Получение DTO пары по UUID одного из партнёров.
-    get_active_couples_by_partner_ids(*partner_ids)
-        Получение списка активных пар по UUID нескольких партнёров.
-    find_existing_request(initiator_id, recipient_id)
-        Поиск существующего запроса на создание пары.
     get_pending_requests_for_recipient(recipient_id)
         Получение входящих запросов для пользователя.
     update_request_status_by_id_and_recipient_id(couple_request_id, recipient_id, new_status)
         Обновление статуса входящего запроса на создание пары.
     """
 
-    def __init__(self, session: AsyncSession):
-        super().__init__(session)
-
-    def add_couple_request(self, initiator_id: UUID, recipient_id: UUID) -> None:
+    async def add_couple_request(self, initiator_id: UUID, recipient_id: UUID) -> None:
         """Создание запроса на регистрацию пары между пользователями.
 
         Добавляет в базу данных запись о новом запросе на создание пары между пользователями.
@@ -58,99 +51,27 @@ class CoupleRequestRepository(RepositoryInterface):
         recipient_id : UUID
             UUID пользователя-реципиента.
         """
-        self.session.add(
-            CoupleRequestModel(
-                initiator_id=initiator_id,
-                recipient_id=recipient_id,
-                status=CoupleRequestStatus.PENDING,
+        try:
+            await self.session.scalar(
+                insert(CoupleRequestModel).values(
+                    initiator_id=initiator_id,
+                    recipient_id=recipient_id,
+                    status=CoupleRequestStatus.PENDING,
+                )
             )
-        )
+        except IntegrityError as e:
+            constraint = get_constraint_name(e)
 
-    async def get_partner_id_by_user_id(self, user_id: UUID) -> UUID | None:
-        """Получение UUID партнёра пользователя.
+            if constraint == "uq_couple_request_pending":
+                raise CoupleRequestAlreadyExistsException(
+                    detail=f"Pending request from {initiator_id} to {recipient_id} already exists!"
+                ) from e
+            elif constraint == "ck_couple_not_self":
+                raise CoupleNotSelfException(
+                    detail="Cannot register couple with yourself!"
+                ) from e
 
-        Получает UUID пользователя, после чего ищет в БД запись
-        о паре пользователей и возвращает UUID партнёра пользователя.
-
-        Parameters
-        ----------
-        user_id : UUID
-            UUID пользователя в системе.
-
-        Returns
-        -------
-        UUID | None
-            UUID партнёра пользователя или None, если пользователь не в паре.
-        """
-        couple = await self.session.scalar(
-            select(CoupleRequestModel).where(
-                or_(
-                    CoupleRequestModel.initiator_id == user_id,
-                    CoupleRequestModel.recipient_id == user_id,
-                ),
-                CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
-            )
-        )
-
-        if couple is None:
-            return None
-
-        return (
-            couple.initiator_id
-            if couple.recipient_id == user_id
-            else couple.recipient_id
-        )
-
-    async def get_partner_by_user_id(self, user_id: UUID) -> PartnerDTO | None:
-        """Получение информации о партнёре пользователя.
-
-        Получает UUID пользователя, загружает информацию о паре,
-        в которой этот пользователь состоит и возвращает DTO партнёра.
-
-        Parameters
-        ----------
-        user_id : UUID
-            UUID пользователя в системе.
-
-        Returns
-        -------
-        PartnerDTO | None
-            Сохранённая о партнёре пользователя информация:
-            - PartnerDTO если партнёр найден;
-            - None если партнёр не найден.
-        """
-        couple = await self.get_active_couple_by_partner_id(user_id)
-
-        if couple is None:
-            return None
-
-        return couple.initiator if couple.recipient.id == user_id else couple.recipient
-
-    async def get_active_couple_by_partner_id(
-        self, partner_id: UUID
-    ) -> CoupleRequestDTO | None:
-        """Получение DTO пары по UUID одного из партнёров.
-
-        Parameters
-        ----------
-        partner_id : UUID
-            UUID пользователя.
-
-        Returns
-        -------
-        CoupleRequestDTO | None
-            DTO пары между пользователем и его партнёром,
-            None - если пользователь не состоит в паре.
-
-        Raises
-        ------
-        MultipleActiveCouplesException
-            Если для пользователя найдено более одной активной пары
-            (нарушение целостности данных).
-        """
-        couples = await self.get_active_couples_by_partner_ids(partner_id)
-
-        return couples[0] if couples else None
+            raise
 
     async def get_active_couples_by_partner_ids(
         self, *partner_ids: UUID
@@ -184,48 +105,6 @@ class CoupleRequestRepository(RepositoryInterface):
         )
 
         return [CoupleRequestDTO.model_validate(request) for request in result.all()]
-
-    async def find_existing_request(
-        self, initiator_id: UUID, recipient_id: UUID
-    ) -> CoupleRequestDTO | None:
-        """Поиск существующего запроса на создание пары.
-
-        Получает на вход UUID инициатора и реципиента. Возвращает
-        DTO приглашения или None.
-
-        Parameters
-        ----------
-        initiator_id : UUID
-            UUID пользователя-инициатора.
-        recipient_id : UUID
-            UUID пользователя-реципиента.
-
-        Returns
-        -------
-        CoupleRequestDTO | None
-            DTO запроса на создание пары или None, если такого не имеется.
-        """
-        request = await self.session.scalar(
-            select(CoupleRequestModel)
-            .options(
-                selectinload(CoupleRequestModel.initiator),
-                selectinload(CoupleRequestModel.recipient),
-            )
-            .where(
-                or_(
-                    and_(
-                        CoupleRequestModel.initiator_id == initiator_id,
-                        CoupleRequestModel.recipient_id == recipient_id,
-                    ),
-                    and_(
-                        CoupleRequestModel.initiator_id == recipient_id,
-                        CoupleRequestModel.recipient_id == initiator_id,
-                    ),
-                )
-            )
-        )
-
-        return CoupleRequestDTO.model_validate(request) if request else None
 
     async def get_pending_requests_for_recipient(
         self, recipient_id: UUID

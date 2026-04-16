@@ -2,7 +2,6 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import delete, insert, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user_session import UserSessionModel
 from app.repositories.interface import RepositoryInterface
@@ -28,9 +27,6 @@ class UserSessionRepository(RepositoryInterface):
     delete_user_session_by_id(session_id)
         Удаляет сессию по её идентификатору.
     """
-
-    def __init__(self, session: AsyncSession):
-        super().__init__(session)
 
     async def add_user_session(
         self,

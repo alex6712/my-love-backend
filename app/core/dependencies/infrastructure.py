@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Annotated, Any, AsyncGenerator
 
 from fastapi import Depends
 
-from app.infrastructure.postgresql import UnitOfWork
+from app.infrastructure.postgresql.uow import UnitOfWork
 from app.infrastructure.redis import RedisClient, redis_client
 from app.infrastructure.s3 import get_s3_client as _get_s3_client
 

@@ -9,7 +9,7 @@ from app.core.dependencies.infrastructure import (
     UnitOfWorkDependency,
 )
 from app.core.dependencies.settings import SettingsDependency
-from app.infrastructure.postgresql import UnitOfWork
+from app.infrastructure.postgresql.uow import UnitOfWork
 from app.infrastructure.redis import RedisClient
 from app.services.auth import AuthService
 from app.services.couple import CoupleService

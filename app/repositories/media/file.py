@@ -2,7 +2,6 @@ import asyncio
 from uuid import UUID
 
 from sqlalchemy import delete, insert, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import FileStatus, SortOrder
@@ -45,9 +44,6 @@ class FileRepository(SharedResourceRepository):
     delete_pending_files_by_ids(file_ids)
         Удаляет записи медиа-файлов со статусом `FileStatus.PENDING` по их идентификаторам.
     """
-
-    def __init__(self, session: AsyncSession):
-        super().__init__(session)
 
     async def add_pending_file(
         self, file_metadata: FileMetadataDTO, object_key: str, created_by: UUID

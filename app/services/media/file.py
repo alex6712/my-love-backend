@@ -30,9 +30,9 @@ from app.core.exceptions.media import (
     UnsupportedFileTypeException,
     UploadNotCompletedException,
 )
-from app.infrastructure.postgresql import UnitOfWork
+from app.infrastructure.postgresql.uow import UnitOfWork
 from app.infrastructure.redis import RedisClient
-from app.repositories.couple_request import CoupleRequestRepository
+from app.repositories.couple import CoupleRepository
 from app.repositories.media import FileRepository
 from app.schemas.dto.file import (
     DownloadFileErrorDTO,
@@ -87,7 +87,7 @@ class FileService:
         Асинхронный клиент для операций с файлами в S3 хранилище.
     _settings : Settings
         Настройки приложения.
-    _couple_request_repo : CoupleRequestRepository
+    _couple_repo : CoupleRepository
         Репозиторий для операций с парами пользователей в БД.
     _file_repo : FileRepository
         Репозиторий для операций с файлами в БД.
@@ -137,7 +137,7 @@ class FileService:
         self._s3_client = s3_client
         self._settings = settings
 
-        self._couple_request_repo = unit_of_work.get_repository(CoupleRequestRepository)
+        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
         self._file_repo = unit_of_work.get_repository(FileRepository)
 
     @staticmethod
@@ -311,7 +311,7 @@ class FileService:
         tuple[list[FileDTO], int]
             Кортеж из списка файлов и общего количества.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         return await self._file_repo.get_files_by_creator(
             offset, limit, order, user_id, partner_id
@@ -338,7 +338,7 @@ class FileService:
         if cached is not None:
             return cached
 
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
         count = await self._file_repo.count_files_by_creator(user_id, partner_id)
 
         await self._redis_client.set_count(
@@ -713,7 +713,7 @@ class FileService:
             Статус файла в БД не распознан бизнес-логикой. Сигнализирует
             о баге или рассинхроне схемы БД с кодом приложения.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         file = await self._file_repo.get_file_by_id(file_id, user_id, partner_id)
 
@@ -763,7 +763,7 @@ class FileService:
             валидацию и генерацию ссылки;
             - ``failed`` - ошибки для файлов, которые не удалось обработать.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         files = {
             file.id: file

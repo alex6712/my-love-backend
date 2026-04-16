@@ -26,9 +26,9 @@ from app.core.security import (
     verify,
 )
 from app.core.types import TokenType
-from app.infrastructure.postgresql import UnitOfWork
+from app.infrastructure.postgresql.uow import UnitOfWork
 from app.infrastructure.redis import RedisClient
-from app.repositories.couple_request import CoupleRequestRepository
+from app.repositories.couple import CoupleRepository
 from app.repositories.user import UserRepository
 from app.repositories.user_session import UserSessionRepository
 from app.schemas.dto.payload import (
@@ -55,7 +55,7 @@ class AuthService:
     ----------
     _redis_client : RedisClient
         Клиент для работы с Redis (blacklist access-токенов).
-    _couple_request_repo : CoupleRequestRepository
+    _couple_repo : CoupleRepository
         Репозиторий пар между пользователями.
     _user_repo : UserRepository
         Репозиторий пользователей.
@@ -84,7 +84,7 @@ class AuthService:
         self._redis_client = redis_client
         self._settings = settings
 
-        self._couple_request_repo = unit_of_work.get_repository(CoupleRequestRepository)
+        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
         self._user_repo = unit_of_work.get_repository(UserRepository)
         self._user_session_repo = unit_of_work.get_repository(UserSessionRepository)
 
@@ -143,9 +143,7 @@ class AuthService:
                 detail="Incorrect username or password."
             )
 
-        couple = await self._couple_request_repo.get_active_couple_by_partner_id(
-            user.id
-        )
+        couple = await self._couple_repo.get_couple_by_user_id(user.id)
 
         current_time = datetime.now(timezone.utc)
         expires_at = current_time + timedelta(
@@ -207,9 +205,7 @@ class AuthService:
 
         payload = self._validate_token(refresh_token, "refresh")
 
-        couple = await self._couple_request_repo.get_active_couple_by_partner_id(
-            payload.sub
-        )
+        couple = await self._couple_repo.get_couple_by_user_id(payload.sub)
 
         current_time = datetime.now(timezone.utc)
         expires_at = current_time + timedelta(

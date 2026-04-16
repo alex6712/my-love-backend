@@ -3,8 +3,8 @@ from uuid import UUID
 from app.core.enums import SortOrder
 from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.media import MediaNotFoundException
-from app.infrastructure.postgresql import UnitOfWork
-from app.repositories.couple_request import CoupleRequestRepository
+from app.infrastructure.postgresql.uow import UnitOfWork
+from app.repositories.couple import CoupleRepository
 from app.repositories.media import AlbumRepository, FileRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO, PatchAlbumDTO
 
@@ -23,7 +23,7 @@ class AlbumService:
         Репозиторий для операций с альбомами в базе данных.
     _file_repo : FileRepository
         Репозиторий для операций с файлами в базе данных.
-    _couple_request_repo : CoupleRequestRepository
+    _couple_repo : CoupleRepository
         Репозиторий для операций с парами пользователей в БД.
 
     Methods
@@ -49,7 +49,7 @@ class AlbumService:
     def __init__(self, unit_of_work: UnitOfWork):
         self._album_repo = unit_of_work.get_repository(AlbumRepository)
         self._file_repo = unit_of_work.get_repository(FileRepository)
-        self._couple_request_repo = unit_of_work.get_repository(CoupleRequestRepository)
+        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
 
     def create_album(
         self,
@@ -107,7 +107,7 @@ class AlbumService:
         tuple[list[AlbumDTO], int]
             Кортеж из списка альбомов и общего количества.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         return await self._album_repo.get_albums_by_creator(
             offset, limit, order, user_id, partner_id
@@ -145,7 +145,7 @@ class AlbumService:
         tuple[list[AlbumDTO], int]
             Кортеж из списка найденных альбомов и общего количества.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         return await self._album_repo.search_albums_by_trigram(
             search_query, threshold, offset, limit, user_id, partner_id
@@ -182,7 +182,7 @@ class AlbumService:
             В случае если альбом по переданному UUID не существует или
             текущий пользователь не имеет прав на просмотр этого альбома.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         album = await self._album_repo.get_album_with_items_by_id(
             album_id, offset, limit, user_id, partner_id
@@ -221,7 +221,7 @@ class AlbumService:
         MediaNotFoundException
             Если альбом не найден или пользователь не является его создателем.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         if patch_album_dto.is_empty():
             raise NothingToUpdateException(detail="No fields provided for update.")
@@ -291,7 +291,7 @@ class AlbumService:
         MediaNotFoundException
             Если альбом не существует или не все медиа-файлы найдены.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         album = await self._album_repo.get_album_by_id(album_id, user_id, partner_id)
 
@@ -354,7 +354,7 @@ class AlbumService:
         MediaNotFoundException
             Если альбом не существует или не все медиа-файлы найдены.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
 
         album = await self._album_repo.get_album_by_id(album_id, user_id, partner_id)
 

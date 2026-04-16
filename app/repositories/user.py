@@ -1,7 +1,6 @@
 from uuid import UUID
 
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import UserModel
 from app.repositories.interface import RepositoryInterface
@@ -34,9 +33,6 @@ class UserRepository(RepositoryInterface):
     update_password_hash(user_id, password_hash)
         Обновляет хэш пароля пользователя по его идентификатору.
     """
-
-    def __init__(self, session: AsyncSession):
-        super().__init__(session)
 
     def add_user(self, username: str, password_hash: str) -> None:
         """Добавляет в базу данных новую запись о пользователе.

@@ -1,12 +1,15 @@
 from uuid import UUID
 
-from sqlalchemy import or_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import insert, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions.couple import CoupleAlreadyExistsException
+from app.infrastructure.postgresql import get_constraint_name
 from app.models.couple import CoupleModel
 from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.couple import CoupleDTO, PatchCoupleDTO
+from app.schemas.dto.user import PartnerDTO
 
 
 class CoupleRepository(RepositoryInterface):
@@ -32,10 +35,7 @@ class CoupleRepository(RepositoryInterface):
         Обновление атрибутов пары между пользователями в базе данных.
     """
 
-    def __init__(self, session: AsyncSession):
-        super().__init__(session)
-
-    def add_couple(self, user_low_id: UUID, user_high_id: UUID) -> None:
+    async def add_couple(self, user_low_id: UUID, user_high_id: UUID) -> None:
         """Создание записи о зарегистрированной паре между пользователями.
 
         Добавляет в базу данных запись о новой паре между пользователями.
@@ -49,9 +49,41 @@ class CoupleRepository(RepositoryInterface):
         user_high_id : UUID
             UUID пользователя-реципиента.
         """
-        self.session.add(
-            CoupleModel(user_low_id=user_low_id, user_high_id=user_high_id)
+        try:
+            await self.session.execute(
+                insert(CoupleModel).values(
+                    user_low_id=user_low_id,
+                    user_high_id=user_high_id,
+                )
+            )
+        except IntegrityError as e:
+            constraint = get_constraint_name(e)
+
+            if constraint == "uq_couple_pair":
+                raise CoupleAlreadyExistsException(
+                    detail=f"Couple between {user_low_id} and {user_high_id} already exists!"
+                ) from e
+
+            raise
+
+    async def get_couple_by_user_id(self, user_id: UUID) -> CoupleDTO | None:
+        couple = await self.session.scalar(
+            select(CoupleModel)
+            .options(
+                selectinload(
+                    CoupleModel.user_low,
+                    CoupleModel.user_high,
+                )
+            )
+            .where(
+                or_(
+                    CoupleModel.user_low_id == user_id,
+                    CoupleModel.user_high_id == user_id,
+                )
+            )
         )
+
+        return CoupleDTO.model_validate(couple) if couple else None
 
     async def get_couples_by_partners_ids(self, *partners_ids: UUID) -> list[CoupleDTO]:
         """Получение списка пар по UUID нескольких партнёров.
@@ -82,6 +114,31 @@ class CoupleRepository(RepositoryInterface):
         )
 
         return [CoupleDTO.model_validate(couple) for couple in couples.all()]
+
+    async def get_partner_by_user_id(self, user_id: UUID) -> PartnerDTO | None:
+        """Получение информации о партнёре пользователя.
+
+        Получает UUID пользователя, загружает информацию о паре,
+        в которой этот пользователь состоит и возвращает DTO партнёра.
+
+        Parameters
+        ----------
+        user_id : UUID
+            UUID пользователя в системе.
+
+        Returns
+        -------
+        PartnerDTO | None
+            Сохранённая о партнёре пользователя информация:
+            - PartnerDTO если партнёр найден;
+            - None если партнёр не найден.
+        """
+        couple = await self.get_couple_by_user_id(user_id)
+
+        if couple is None:
+            return None
+
+        return couple.user_low if couple.user_high.id == user_id else couple.user_high
 
     async def get_partner_id_by_user_id(self, user_id: UUID) -> UUID | None:
         """Получение UUID партнёра пользователя.
