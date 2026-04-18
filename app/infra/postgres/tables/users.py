@@ -1,4 +1,5 @@
-from sqlalchemy import Boolean, Column, Index, String, Table, UniqueConstraint, text
+from sqlalchemy import Column, Index, Table, UniqueConstraint, text
+from sqlalchemy.types import Boolean, String
 
 from app.infra.postgres.tables import base_columns, metadata
 

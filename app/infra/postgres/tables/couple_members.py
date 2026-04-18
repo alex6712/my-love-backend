@@ -2,11 +2,10 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     ForeignKey,
-    SmallInteger,
     Table,
     UniqueConstraint,
 )
-from sqlalchemy.types import Uuid
+from sqlalchemy.types import SmallInteger, Uuid
 
 from app.infra.postgres.tables import base_columns, metadata
 

@@ -6,11 +6,13 @@ from sqlalchemy.exc import IntegrityError
 from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.infra.postgres import get_constraint_name
 from app.infra.postgres.tables import users_table
-from app.repositories.interface import RepositoryInterface
-from app.schemas.dto.user import CreateUserDTO, PatchProfileDTO, UserWithCredentialsDTO
+from app.repositories.interface import PublicRepositoryInterface
+from app.schemas.dto.user import CreateUserDTO, UpdateUserDTO, UserWithCredentialsDTO
 
 
-class UserRepository(RepositoryInterface[CreateUserDTO]):
+class UserRepository(
+    PublicRepositoryInterface[CreateUserDTO, UpdateUserDTO, UserWithCredentialsDTO]
+):
     """Репозиторий пользователя.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
@@ -18,31 +20,27 @@ class UserRepository(RepositoryInterface[CreateUserDTO]):
 
     Attributes
     ----------
-    session : AsyncSession
-        Объект асинхронной сессии запроса.
+    connection : AsyncConnection
+        Объект асинхронного подключения запроса.
 
     Methods
     -------
-    add_user(user_info)
+    create(create_dto)
         Добавляет в базу данных новую запись о пользователе.
-    get_user_by_id(user_id)
-        Возвращает модель пользователя по его id.
-    user_exists_by_id(user_id)
-        Проверка на существование пользователя по его UUID.
-    get_user_by_username(username)
-        Возвращает модель пользователя по его username.
-    user_exists_by_username(username)
-        Проверка на существование пользователя по его username.
-    update_password_hash(user_id, password_hash)
-        Обновляет хэш пароля пользователя по его идентификатору.
+    get_by_id(record_id)
+        Возвращает DTO пользователя по его id.
+    get_by_username(username)
+        Возвращает DTO пользователя по его username.
+    update(record_id, update_dto)
+        Обновляет данные пользователя по его идентификатору.
     """
 
-    async def create(self, data: CreateUserDTO) -> None:
+    async def create(self, create_dto: CreateUserDTO) -> UserWithCredentialsDTO:
         """Добавляет в базу данных новую запись о пользователе.
 
         Parameters
         ----------
-        data : CreateUserDTO
+        create_dto : CreateUserDTO
             Необходимые для создания записи данные о пользователе.
 
         Raises
@@ -51,76 +49,45 @@ class UserRepository(RepositoryInterface[CreateUserDTO]):
            Пользователь с переданным username уже существует.
         """
         try:
-            await self.connection.execute(
-                insert(users_table).values(**data.to_create_values())
+            result = await self.connection.execute(
+                insert(users_table)
+                .values(**create_dto.to_create_values())
+                .returning(users_table)
             )
+            row = result.mappings().one()
         except IntegrityError as e:
             constraint = get_constraint_name(e)
 
             if constraint == "uq_users_username":
                 raise UsernameAlreadyExistsException(
-                    detail=f"User with username={data.username} already exists."
+                    detail=f"User with username={create_dto.username} already exists."
                 ) from e
 
             raise
 
-    async def get_user_by_id(self, user_id: UUID) -> UserWithCredentialsDTO | None:
+        return UserWithCredentialsDTO.model_validate(row)
+
+    async def get_by_id(self, record_id: UUID) -> UserWithCredentialsDTO | None:
         """Возвращает DTO пользователя по его id.
 
         Parameters
         ----------
-        user_id : UUID
+        record_id : UUID
             UUID пользователя.
 
         Returns
         -------
-        UserDTO | None
+        UserWithCredentialsDTO | None
             DTO записи пользователя, None - если пользователь с таким UUID не найден.
         """
-        user = await self._get_user_by_id(user_id)
-
-        return UserWithCredentialsDTO.model_validate(user) if user else None
-
-    async def user_exists_by_id(self, user_id: UUID) -> bool:
-        """Проверка на существование пользователя по его UUID.
-
-        Получает на вход UUID пользователя, проверяет, существует ли такой
-        пользователь в базе данных.
-
-        Parameters
-        ----------
-        user_id : UUID
-            UUID пользователя для проверки.
-
-        Returns
-        -------
-        bool
-            Результат проверки:
-            - True если пользователь существует;
-            - False если пользователь не найден.
-        """
-        return await self._get_user_by_id(user_id) is not None
-
-    async def _get_user_by_id(self, user_id: UUID) -> UserModel | None:
-        """Возвращает модель пользователя по его id.
-
-        Parameters
-        ----------
-        user_id : UUID
-            UUID пользователя.
-
-        Returns
-        -------
-        UserModel | None
-            SQL модель записи пользователя, если пользователь не найден - None.
-        """
-        return await self.session.scalar(
-            select(UserModel).where(UserModel.id == user_id)
+        result = await self.connection.execute(
+            select(users_table).where(users_table.c.id == record_id)
         )
+        row = result.mappings().first()
 
-    async def get_user_by_username(
-        self, username: str
-    ) -> UserWithCredentialsDTO | None:
+        return UserWithCredentialsDTO.model_validate(row) if row else None
+
+    async def get_by_username(self, username: str) -> UserWithCredentialsDTO | None:
         """Возвращает DTO пользователя по его username.
 
         Parameters
@@ -130,105 +97,39 @@ class UserRepository(RepositoryInterface[CreateUserDTO]):
 
         Returns
         -------
-        UserDTO | None
+        UserWithCredentialsDTO | None
             DTO записи пользователя, None - если пользователь не найден.
         """
-        user = await self._get_user_by_username(username)
-
-        return UserWithCredentialsDTO.model_validate(user) if user else None
-
-    async def user_exists_by_username(self, username: str) -> bool:
-        """Проверка на существование пользователя по его username.
-
-        Получает на вход username пользователя, проверяет, существует ли такой
-        пользователь в базе данных.
-
-        Parameters
-        ----------
-        username : str
-            username пользователя для проверки.
-
-        Returns
-        -------
-        bool
-            Результат проверки:
-            - True если пользователь существует;
-            - False если пользователь не найден.
-        """
-        return await self._get_user_by_username(username) is not None
-
-    async def _get_user_by_username(self, username: str) -> UserModel | None:
-        """Возвращает модель пользователя по его username.
-
-        Parameters
-        ----------
-        username : str
-            Логин пользователя, уникальное имя.
-
-        Returns
-        -------
-        UserModel | None
-            SQL модель записи пользователя, если пользователь не найден - None.
-        """
-        return await self.session.scalar(
-            select(UserModel).where(UserModel.username == username)
+        result = await self.connection.execute(
+            select(users_table).where(users_table.c.username == username)
         )
+        row = result.mappings().first()
 
-    async def update_password_hash(self, user_id: UUID, password_hash: str) -> bool:
-        """Обновляет хэш пароля пользователя по его идентификатору.
+        return UserWithCredentialsDTO.model_validate(row) if row else None
 
-        Выполняет обновление поля password_hash для указанного пользователя.
-        Если пользователь с переданным идентификатором не найден, обновление не происходит.
-
-        Parameters
-        ----------
-        user_id : UUID
-            Уникальный идентификатор пользователя.
-
-        password_hash : str
-            Новый хэш пароля пользователя.
-
-        Returns
-        -------
-        bool
-            True, если пароль был успешно обновлён, иначе False.
-        """
-        updated = await self.session.scalar(
-            update(UserModel)
-            .where(UserModel.id == user_id)
-            .values(password_hash=password_hash)
-            .returning(UserModel.id)
-        )
-
-        return updated is not None
-
-    async def update_user_by_id(
-        self, patch_profile_dto: PatchProfileDTO, user_id: UUID
-    ) -> bool:
-        """Обновление атрибутов профиля пользователя в базе данных.
-
-        Выполняет SQL-запрос UPDATE для изменения атрибутов профиля
-        пользователя, фильтруя записи по идентификатору пользователя.
+    async def update(
+        self, record_id: UUID, update_dto: UpdateUserDTO
+    ) -> UserWithCredentialsDTO | None:
+        """Обновляет данные пользователя по его идентификатору.
 
         Parameters
         ----------
-        patch_profile_dto : PatchProfileDTO
-            DTO с полями для обновления. Только явно переданные поля
-            попадают в SET-часть запроса через `to_update_values()`.
-        user_id : UUID
-            UUID пользователя, чей профиль требуется обновить.
+        record_id : UUID
+            Идентификатор обновляемого пользователя.
+        update_dto : UpdateUserDTO
+            Новые данные пользователя.
 
         Returns
         -------
-        bool
-            True, если запись была обновлена, False - если пользователь
-            с указанным идентификатором не найден.
+        UserWithCredentialsDTO | None
+            DTO обновлённого пользователя или None, если пользователь не найден.
         """
-        updated = await self.session.scalar(
-            update(UserModel)
-            .where(UserModel.id == user_id)
-            .values(**patch_profile_dto.to_update_values())
-            .returning(UserModel.id)
+        result = await self.connection.execute(
+            update(users_table)
+            .where(users_table.c.id == record_id)
+            .values(**update_dto.to_update_values())
+            .returning(users_table)
         )
+        row = result.mappings().first()
 
-        return updated is not None
+        return UserWithCredentialsDTO.model_validate(row) if row else None

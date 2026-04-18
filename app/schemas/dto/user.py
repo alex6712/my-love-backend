@@ -66,8 +66,8 @@ class CreateUserDTO(BaseCreateDTO):
     password_hash: str
 
 
-class PatchProfileDTO(BaseUpdateDTO):
-    """DTO для частичного обновления профиля пользователя.
+class UpdateUserDTO(BaseUpdateDTO):
+    """DTO для частичного обновления пользователя.
 
     Attributes
     ----------
@@ -76,7 +76,10 @@ class PatchProfileDTO(BaseUpdateDTO):
         Временно не обрабатывается.
     avatar_url : Maybe[str]
         Новый URL аватара пользователя. Если `UNSET` - поле не изменяется.
+    password_hash : Maybe[str]
+        Новый хэшированный пароль пользователя. Если `UNSET` - поле не изменяется.
     """
 
     # first_name: Maybe[str] = UNSET
     avatar_url: Maybe[str] = UNSET
+    password_hash: Maybe[str] = UNSET

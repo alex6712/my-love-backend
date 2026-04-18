@@ -4,7 +4,7 @@ from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.user import UserNotFoundException
 from app.infra.postgres.uow import UnitOfWork
 from app.repositories.user import UserRepository
-from app.schemas.dto.user import PatchProfileDTO, UserDTO
+from app.schemas.dto.user import UpdateUserDTO, UserDTO
 
 
 class UserService:
@@ -53,7 +53,7 @@ class UserService:
         return UserDTO.model_validate(user)
 
     async def update_profile(
-        self, patch_profile_dto: PatchProfileDTO, user_id: UUID
+        self, patch_profile_dto: UpdateUserDTO, user_id: UUID
     ) -> None:
         """Частичное обновление атрибутов профиля пользователя по его UUID.
 
@@ -62,7 +62,7 @@ class UserService:
 
         Parameters
         ----------
-        patch_profile_dto : PatchProfileDTO
+        patch_profile_dto : UpdateUserDTO
             DTO с полями для обновления. Содержит только явно переданные поля.
         user_id : UUID
             UUID пользователя, чей профиль требуется обновить.

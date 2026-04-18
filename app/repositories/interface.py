@@ -2,20 +2,65 @@ from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar
 from uuid import UUID
 
-from sqlalchemy import Column, Select, Table, func, select
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import Column, Label, RowMapping, Select, Table, func, select
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.sql.elements import ColumnElement, UnaryExpression
 
 from app.core.enums import SortOrder
-from app.schemas.dto.base import BaseCreateDTO
+from app.infra.postgres.tables import users_table
+from app.schemas.dto.base import BaseCreateDTO, BaseSQLCoreDTO, BaseUpdateDTO
 
 CreateDTO = TypeVar("CreateDTO", bound=BaseCreateDTO)
+UpdateDTO = TypeVar("UpdateDTO", bound=BaseUpdateDTO)
+EntityDTO = TypeVar("EntityDTO", bound=BaseSQLCoreDTO)
 
 
-class RepositoryInterface(ABC, Generic[CreateDTO]):
-    """Интерфейс репозитория.
+class AccessContext(BaseModel):
+    """Контекст доступа к записи с ограниченной видимостью.
 
-    Реализация паттерна Репозиторий. Является интерфейсом доступа к данным (DAO).
+    Используется для атомарной проверки прав владения при мутациях
+    и фильтрации выборок. Условие доступа включается непосредственно
+    в WHERE-clause запроса, исключая TOCTOU.
+
+    Attributes
+    ----------
+    creator_id : UUID
+        Идентификатор пользователя, выполняющего запрос.
+    partner_id : UUID | None
+        Идентификатор партнёра пользователя. Если передан,
+        доступ распространяется и на его записи.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    creator_id: UUID
+    partner_id: UUID | None = None
+
+    def as_where_clause(self, created_by_col: Column[UUID]) -> ColumnElement[bool]:
+        """Строит WHERE-условие для фильтрации записей по правам доступа.
+
+        Parameters
+        ----------
+        created_by_col : Column[UUID]
+            Колонка таблицы, содержащая идентификатор создателя записи.
+
+        Returns
+        -------
+        ColumnElement[bool]
+            SQLAlchemy-выражение, готовое к использованию в `.where()`.
+        """
+        if self.partner_id is not None:
+            return created_by_col.in_([self.creator_id, self.partner_id])
+        return created_by_col == self.creator_id
+
+
+class RepositoryInterface(ABC):
+    """Базовый класс всех репозиториев.
+
+    Реализует паттерн Repository (DAO). Хранит подключение к базе данных
+    и предоставляет вспомогательные методы для построения запросов,
+    общие для всех репозиториев.
 
     Attributes
     ----------
@@ -23,32 +68,22 @@ class RepositoryInterface(ABC, Generic[CreateDTO]):
         Объект асинхронного подключения запроса.
     """
 
-    def __init__(self, connection: AsyncConnection):
+    def __init__(self, connection: AsyncConnection) -> None:
         self.connection = connection
-
-    @abstractmethod
-    async def create(self, data: CreateDTO) -> None:
-        """Создаёт новую запись.
-
-        Parameters
-        ----------
-        data : CreateDTO
-            Данные для создания записи.
-        """
-        ...
 
     @staticmethod
     def _build_count_query(
         table: Table, *where_clauses: ColumnElement[bool]
     ) -> Select[tuple[int]]:
-        """Создаёт запрос подсчёта записей для пользователя и его партнёра.
+        """Создаёт запрос подсчёта записей.
 
         Parameters
         ----------
         table : Table
-            Объект таблицы для подсчёта.
+            Таблица, по которой выполняется подсчёт.
         where_clauses : ColumnElement[bool]
-            Условие WHERE для фильтрации.
+            Условия WHERE для фильтрации. Если не переданы,
+            возвращается запрос без фильтрации.
 
         Returns
         -------
@@ -78,42 +113,343 @@ class RepositoryInterface(ABC, Generic[CreateDTO]):
         Returns
         -------
         UnaryExpression[Any]
-            Выражение сортировки по переданной колонке в заданном направлении.
+            Выражение сортировки в заданном направлении.
         """
         return column.desc() if order == SortOrder.DESC else column.asc()
 
 
-class SharedAccessMixin:
-    """Миксин для фильтрации записей по создателю на уровне репозитория.
+class CreateMixin(ABC, Generic[CreateDTO, EntityDTO]):
+    """Миксин операции создания записи.
 
-    Предназначен для наследования в репозиториях, работающих с таблицами,
-    имеющими колонку `created_by`. Предоставляет вспомогательный метод
-    для построения SQL-условий, ограничивающих выборку записями конкретного
-    пользователя или его партнёра.
+    Attributes
+    ----------
+    CreateDTO : TypeVar
+        Тип DTO для создания записи.
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
     """
 
-    @staticmethod
-    def _build_shared_clause(
-        created_by_column: Column[UUID], user_id: UUID, partner_id: UUID | None = None
-    ) -> ColumnElement[bool]:
-        """Строит WHERE-условие для фильтрации записей по создателю.
+    @abstractmethod
+    async def create(self, create_dto: CreateDTO) -> EntityDTO:
+        """Создаёт новую запись.
 
         Parameters
         ----------
-        created_by_column : Column[UUID]
-            Колонка модели, содержащая UUID создателя записи.
-        user_id : UUID
-            UUID пользователя, чьи записи должны попасть в выборку.
-        partner_id : UUID | None, optional
-            UUID партнёра. Если передан, выборка расширяется до записей,
-            созданных как пользователем, так и его партнёром.
+        create_dto : CreateDTO
+            Данные для создания записи.
 
         Returns
         -------
-        ColumnElement[bool]
-            SQLAlchemy-выражение, готовое к использованию в `.where()`.
+        EntityDTO
+            Доменное DTO созданной записи.
         """
-        if partner_id:
-            return created_by_column.in_([user_id, partner_id])
+        ...
 
-        return created_by_column == user_id
+
+class OwnedCreateMixin(ABC, Generic[CreateDTO, EntityDTO]):
+    """Миксин операции создания записи с явной привязкой к владельцу.
+
+    Предназначен для сущностей с ограниченной видимостью, у которых
+    поле created_by не входит в схему запроса и извлекается отдельно
+    из payload токена на уровне сервиса.
+
+    Attributes
+    ----------
+    CreateDTO : TypeVar
+        Тип DTO для создания записи.
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def create(self, create_dto: CreateDTO, created_by: UUID) -> EntityDTO:
+        """Создаёт новую запись с привязкой к владельцу.
+
+        Parameters
+        ----------
+        create_dto : CreateDTO
+            Данные для создания записи.
+        created_by : UUID
+            Идентификатор пользователя, создающего запись.
+            Передаётся явно, так как извлекается из payload токена,
+            а не из схемы запроса.
+
+        Returns
+        -------
+        EntityDTO
+            Доменное DTO созданной записи.
+        """
+        ...
+
+
+class ReadMixin(ABC, Generic[EntityDTO]):
+    """Миксин операции чтения записи по идентификатору.
+
+    Attributes
+    ----------
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def get_by_id(self, record_id: UUID) -> EntityDTO | None:
+        """Возвращает запись по идентификатору.
+
+        Parameters
+        ----------
+        record_id : UUID
+            Идентификатор записи для получения.
+
+        Returns
+        -------
+        EntityDTO | None
+            Доменное DTO найденной записи или None, если запись не найдена.
+        """
+        ...
+
+
+class OwnedReadMixin(ABC, Generic[EntityDTO]):
+    """Миксин операции чтения записи с проверкой прав доступа.
+
+    Предназначен для сущностей с ограниченной видимостью. Условие доступа
+    из AccessContext включается непосредственно в WHERE-clause запроса,
+    исключая TOCTOU.
+
+    Attributes
+    ----------
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def get_by_id(
+        self, record_id: UUID, access_ctx: AccessContext
+    ) -> EntityDTO | None:
+        """Возвращает запись по идентификатору при наличии прав доступа.
+
+        Намеренно не разграничивает отсутствие записи и отказ в доступе —
+        это предотвращает раскрытие факта существования чужих записей.
+
+        Parameters
+        ----------
+        record_id : UUID
+            Идентификатор запрашиваемой записи.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+
+        Returns
+        -------
+        EntityDTO | None
+            Доменное DTO найденной записи или None, если запись
+            не найдена либо доступ запрещён.
+        """
+        ...
+
+
+class UpdateMixin(ABC, Generic[UpdateDTO, EntityDTO]):
+    """Миксин операции обновления записи без проверки прав доступа.
+
+    Предназначен для публичных сущностей, не имеющих ограничений
+    на изменение по принадлежности.
+
+    Attributes
+    ----------
+    UpdateDTO : TypeVar
+        Тип DTO для обновления записи.
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def update(self, record_id: UUID, update_dto: UpdateDTO) -> EntityDTO | None:
+        """Обновляет запись по идентификатору.
+
+        Parameters
+        ----------
+        record_id : UUID
+            Идентификатор обновляемой записи.
+        update_dto : UpdateDTO
+            Новые данные для записи.
+
+        Returns
+        -------
+        EntityDTO | None
+            Доменное DTO обновлённой записи или None, если запись не найдена.
+        """
+        ...
+
+
+class OwnedUpdateMixin(ABC, Generic[UpdateDTO, EntityDTO]):
+    """Миксин операции обновления записи с проверкой прав доступа.
+
+    Предназначен для сущностей с ограниченной видимостью. Условие доступа
+    из AccessContext включается непосредственно в WHERE-clause запроса,
+    обеспечивая атомарность проверки и обновления (исключает TOCTOU).
+
+    Attributes
+    ----------
+    UpdateDTO : TypeVar
+        Тип DTO для обновления записи.
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def update(
+        self,
+        record_id: UUID,
+        update_dto: UpdateDTO,
+        access_ctx: AccessContext,
+    ) -> EntityDTO | None:
+        """Обновляет запись при наличии прав доступа.
+
+        Намеренно не разграничивает отсутствие записи и отказ в доступе —
+        это предотвращает раскрытие факта существования чужих записей.
+
+        Parameters
+        ----------
+        record_id : UUID
+            Идентификатор обновляемой записи.
+        update_dto : UpdateDTO
+            Новые данные для записи.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+
+        Returns
+        -------
+        EntityDTO | None
+            Доменное DTO обновлённой записи или None, если запись
+            не найдена либо доступ запрещён.
+        """
+        ...
+
+
+class DeleteMixin(ABC):
+    """Миксин операции удаления записи без проверки прав доступа.
+
+    Предназначен для публичных сущностей или административных операций,
+    не требующих проверки принадлежности.
+    """
+
+    @abstractmethod
+    async def delete(self, record_id: UUID) -> bool:
+        """Удаляет запись по идентификатору.
+
+        Parameters
+        ----------
+        record_id : UUID
+            Идентификатор удаляемой записи.
+
+        Returns
+        -------
+        bool
+            True, если запись была удалена. False, если запись не найдена.
+        """
+        ...
+
+
+class OwnedDeleteMixin(ABC):
+    """Миксин операции удаления записи с проверкой прав доступа.
+
+    Предназначен для сущностей с ограниченной видимостью. Условие доступа
+    из AccessContext включается непосредственно в WHERE-clause запроса,
+    обеспечивая атомарность проверки и удаления (исключает TOCTOU).
+    """
+
+    @abstractmethod
+    async def delete(self, record_id: UUID, access_ctx: AccessContext) -> bool:
+        """Удаляет запись при наличии прав доступа.
+
+        Намеренно не разграничивает отсутствие записи и отказ в доступе —
+        это предотвращает раскрытие факта существования чужих записей.
+
+        Parameters
+        ----------
+        record_id : UUID
+            Идентификатор удаляемой записи.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+
+        Returns
+        -------
+        bool
+            True, если запись была удалена. False, если запись не найдена
+            либо доступ запрещён.
+        """
+        ...
+
+
+class PublicRepositoryInterface(
+    RepositoryInterface,
+    CreateMixin[CreateDTO, EntityDTO],
+    ReadMixin[EntityDTO],
+    UpdateMixin[UpdateDTO, EntityDTO],
+    DeleteMixin,
+    Generic[CreateDTO, UpdateDTO, EntityDTO],
+):
+    """Интерфейс репозитория для публичных сущностей.
+
+    Предназначен для сущностей без ограничений доступа по владельцу.
+    Объединяет полный набор CRUD-операций без проверки принадлежности.
+    """
+
+    pass
+
+
+class OwnedRepositoryInterface(
+    RepositoryInterface,
+    OwnedCreateMixin[CreateDTO, EntityDTO],
+    OwnedReadMixin[EntityDTO],
+    OwnedUpdateMixin[UpdateDTO, EntityDTO],
+    OwnedDeleteMixin,
+    Generic[CreateDTO, UpdateDTO, EntityDTO],
+):
+    """Интерфейс репозитория для сущностей с ограниченным доступом.
+
+    Предназначен для сущностей, видимых только владельцу и его партнёру.
+    Объединяет полный набор CRUD-операций с атомарной проверкой
+    принадлежности через AccessContext.
+    """
+
+    @staticmethod
+    def _creator_columns() -> list[Label[Any]]:
+        """Возвращает лейблированные колонки пользователя для JOIN-запросов.
+
+        Используется для избежания конфликта имён при джойне с таблицами,
+        содержащими аналогичные базовые колонки (id, created_at).
+
+        Returns
+        -------
+        list[Label[Any]]
+            Список лейблированных колонок users_table.
+        """
+        return [
+            users_table.c.id.label("creator_id"),
+            users_table.c.created_at.label("creator_created_at"),
+            users_table.c.username.label("creator_username"),
+            users_table.c.avatar_url.label("creator_avatar_url"),
+            users_table.c.is_active.label("creator_is_active"),
+        ]
+
+    @staticmethod
+    def _extract_creator(row: RowMapping) -> dict[str, Any]:
+        """Извлекает данные создателя из плоской строки JOIN-результата.
+
+        Parameters
+        ----------
+        row : RowMapping
+            Плоская строка результата запроса с лейблированными
+            колонками пользователя.
+
+        Returns
+        -------
+        dict[str, Any]
+            Словарь с данными создателя, готовый для вложенной валидации DTO.
+        """
+        return {
+            "id": row["creator_id"],
+            "created_at": row["creator_created_at"],
+            "username": row["creator_username"],
+            "avatar_url": row["creator_avatar_url"],
+            "is_active": row["creator_is_active"],
+        }

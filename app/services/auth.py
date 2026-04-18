@@ -36,7 +36,7 @@ from app.schemas.dto.payload import (
     RefreshTokenPayload,
 )
 from app.schemas.dto.token import Tokens
-from app.schemas.dto.user import CreateUserDTO
+from app.schemas.dto.user import CreateUserDTO, UpdateUserDTO
 
 
 class AuthService:
@@ -133,7 +133,7 @@ class AuthService:
         IncorrectUsernameOrPasswordException
             Не найден пользователь или несовпадение пароля и его хеша в БД.
         """
-        user = await self._user_repo.get_user_by_username(username)
+        user = await self._user_repo.get_by_username(username)
 
         if user is None or not verify(password, user.password_hash):
             raise IncorrectUsernameOrPasswordException(
@@ -330,7 +330,7 @@ class AuthService:
         PasswordUpdateFailedException
             Если обновление пароля в БД не было применено.
         """
-        user = await self._user_repo.get_user_by_id(payload.sub)
+        user = await self._user_repo.get_by_id(payload.sub)
 
         if user is None or not verify(current_password, user.password_hash):
             raise IncorrectPasswordException(detail="Current password is incorrect.")
@@ -340,8 +340,8 @@ class AuthService:
                 detail="New password must differ from current."
             )
 
-        updated = await self._user_repo.update_password_hash(
-            payload.sub, hash_(new_password)
+        updated = await self._user_repo.update(
+            payload.sub, UpdateUserDTO(password_hash=hash_(new_password))
         )
 
         if not updated:

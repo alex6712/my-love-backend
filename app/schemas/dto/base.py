@@ -142,6 +142,9 @@ class BaseUpdateDTO(BaseRequestDTO):
     {'title': 'Новый заголовок', 'content': None}
     """
 
+    def __init__(self):
+        self._cached_values: dict[str, Any] | None = None
+
     @classmethod
     def from_request_schema(cls, request_schema: BaseModel) -> Self:
         """Создаёт DTO из Pydantic-схемы запроса, сохраняя информацию о переданных полях.
@@ -170,20 +173,42 @@ class BaseUpdateDTO(BaseRequestDTO):
         """
         return cls._from_schema(request_schema, exclude_unset=True)
 
-    def to_update_values(self) -> dict[str, Any]:
-        """Возвращает словарь только из явно переданных полей.
+    def _build_update_values(self) -> dict[str, Any]:
+        """Формирует словарь значений для операции обновления.
+
+        Исключает поля, которые не были явно переданы пользователем
+        (имеют значение `UNSET`). Поля, переданные со значением `None`,
+        сохраняются и включаются в результирующий словарь.
 
         Returns
         -------
         dict[str, Any]
-            Словарь вида {field_name: value} без полей со значением `UNSET`.
-            Может содержать None, если поле явно передано как None.
+            Словарь вида {field_name: value}, содержащий только явно
+            переданные поля. Используется для формирования UPDATE-запроса.
         """
         return {
             field: value
             for field, value in self.model_dump().items()
             if not isinstance(value, Unset)
         }
+
+    def to_update_values(self) -> dict[str, Any]:
+        """Возвращает закэшированный словарь значений для обновления.
+
+        При первом вызове формирует словарь через `_build_update_values`,
+        после чего повторно использует сохранённый результат.
+
+        Returns
+        -------
+        dict[str, Any]
+            Словарь вида {field_name: value}, содержащий только явно
+            переданные поля (без значений `UNSET`). Может содержать `None`,
+            если поле было явно передано с таким значением.
+        """
+        if self._cached_values is None:
+            self._cached_values = self._build_update_values()
+
+        return self._cached_values
 
     def is_empty(self) -> bool:
         """Проверяет, что ни одно поле не было явно передано.

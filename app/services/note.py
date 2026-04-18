@@ -7,7 +7,7 @@ from app.infra.postgres.uow import UnitOfWork
 from app.infra.redis import RedisClient
 from app.repositories.couple import CoupleRepository
 from app.repositories.note import NoteRepository
-from app.schemas.dto.note import NoteDTO, PatchNoteDTO
+from app.schemas.dto.note import CreateNoteDTO, NoteDTO, UpdateNoteDTO
 
 
 class NoteService:
@@ -49,9 +49,7 @@ class NoteService:
         self._note_repo = unit_of_work.get_repository(NoteRepository)
         self._couple_repo = unit_of_work.get_repository(CoupleRepository)
 
-    async def create_note(
-        self, type: NoteType, title: str, content: str, created_by: UUID
-    ) -> None:
+    async def create_note(self, create_dto: CreateNoteDTO, user_id: UUID) -> None:
         """Создание новой пользовательской заметки.
 
         Создаёт новую заметку по переданным данным.
@@ -65,12 +63,11 @@ class NoteService:
             Заголовок пользовательской заметки
         content : str
             Содержимое пользовательской заметки.
-        created_by : UUID
+        user_id : UUID
             UUID пользователя, создающего заметку.
         """
-        self._note_repo.add_note(type, title, content, created_by)
-
-        await self._redis_client.increment_count("notes", created_by)
+        await self._note_repo.create(create_dto, user_id)
+        await self._redis_client.increment_count("notes", create_dto.created_by)
 
     async def get_notes(
         self,
@@ -141,7 +138,7 @@ class NoteService:
         return count
 
     async def update_note(
-        self, note_id: UUID, patch_note_dto: PatchNoteDTO, user_id: UUID
+        self, note_id: UUID, patch_note_dto: UpdateNoteDTO, user_id: UUID
     ) -> None:
         """Частичное обновление атрибутов заметки по её UUID.
 
@@ -153,7 +150,7 @@ class NoteService:
         ----------
         note_id : UUID
             UUID заметки к изменению.
-        patch_note_dto : PatchNoteDTO
+        patch_note_dto : UpdateNoteDTO
             DTO с полями для обновления. Содержит только явно переданные поля.
         user_id : UUID
             UUID пользователя, инициирующего изменение заметки.

@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Date, Table
+from sqlalchemy import Column, Table
+from sqlalchemy.types import Date
 
 from app.infra.postgres.tables import base_columns, metadata
 

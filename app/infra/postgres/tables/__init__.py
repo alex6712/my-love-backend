@@ -7,6 +7,7 @@ from sqlalchemy.types import DateTime, Uuid
 from app.infra.postgres.tables.couple_members import couple_members_table
 from app.infra.postgres.tables.couple_requests import couple_requests_table
 from app.infra.postgres.tables.couples import couples_table
+from app.infra.postgres.tables.notes import notes_table
 from app.infra.postgres.tables.users import users_table
 
 metadata = MetaData()
@@ -67,5 +68,6 @@ __all__ = [
     "couple_members_table",
     "couple_requests_table",
     "couples_table",
+    "notes_table",
     "users_table",
 ]

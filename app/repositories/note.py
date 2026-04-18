@@ -1,16 +1,16 @@
 import asyncio
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import NoteType, SortOrder
-from app.models.note import NoteModel
-from app.repositories.interface import SharedResourceRepository
-from app.schemas.dto.note import NoteDTO, PatchNoteDTO
+from app.infra.postgres.tables import notes_table, users_table
+from app.repositories.interface import AccessContext, OwnedRepositoryInterface
+from app.schemas.dto.note import CreateNoteDTO, NoteDTO, UpdateNoteDTO
 
 
-class NoteRepository(SharedResourceRepository):
+class NoteRepository(OwnedRepositoryInterface[CreateNoteDTO, UpdateNoteDTO, NoteDTO]):
     """Репозиторий пользовательских заметок.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
@@ -37,67 +37,50 @@ class NoteRepository(SharedResourceRepository):
         Удаляет запись о пользовательской заметке из базы данных по её UUID.
     """
 
-    def add_note(
-        self,
-        type: NoteType,
-        title: str,
-        content: str,
-        created_by: UUID,
-    ) -> None:
-        """Создание новой пользовательской заметки.
-
-        Добавляет в базу данных запись о новой пользовательской заметке
-        и устанавливает переданные атрибуты.
-
-        Parameters
-        ----------
-        type : NoteType
-            Тип пользовательской заметки.
-        title : str
-            Заголовок пользовательской заметки.
-        content : str
-            Содержимое пользовательской заметки
-        created_by : UUID
-            UUID пользователя, загрузившего заметку.
-        """
-        self.session.add(
-            NoteModel(
-                type=type,
-                title=title,
-                content=content,
+    async def create(self, create_dto: CreateNoteDTO, created_by: UUID) -> NoteDTO:
+        result = await self.connection.execute(
+            insert(notes_table)
+            .values(
+                **create_dto.to_create_values(),
                 created_by=created_by,
             )
+            .returning(notes_table)
         )
+        row = result.mappings().one()
 
-    async def get_note_by_id(
-        self, note_id: UUID, user_id: UUID, partner_id: UUID | None = None
+        return NoteDTO.model_validate(row)
+
+    async def get_by_id(
+        self, record_id: UUID, access_ctx: AccessContext
     ) -> NoteDTO | None:
         """Возвращает DTO пользовательской заметки по её id.
 
         Parameters
         ----------
-        note_id : UUID
+        record_id : UUID
             UUID пользовательской заметки.
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя.
+        access_ctx : AccessContext
+            Контекст ограниченного доступа к записи.
 
         Returns
         -------
         NoteDTO | None
-            DTO записи заметки или None, если заметка не найден.
+            DTO записи заметки или None, если заметка не найдена.
         """
-        note = await self.session.scalar(
-            select(NoteModel)
-            .options(selectinload(NoteModel.creator))
+        result = await self.connection.execute(
+            select(notes_table, *self._creator_columns())
+            .join(users_table, notes_table.c.created_by == users_table.c.id)
             .where(
-                NoteModel.id == note_id,
-                self._build_shared_clause(NoteModel, user_id, partner_id),
+                notes_table.c.id == record_id,
+                access_ctx.as_where_clause(notes_table.c.created_by),
             )
         )
+        row = result.mappings().first()
 
-        return NoteDTO.model_validate(note) if note else None
+        if row is None:
+            return None
+
+        return NoteDTO.model_validate({**row, "creator": self._extract_creator(row)})
 
     async def get_notes_by_creator(
         self,
@@ -179,7 +162,7 @@ class NoteRepository(SharedResourceRepository):
     async def update_note_by_id(
         self,
         note_id: UUID,
-        patch_note_dto: PatchNoteDTO,
+        patch_note_dto: UpdateNoteDTO,
         user_id: UUID,
         partner_id: UUID | None = None,
     ) -> bool:
@@ -193,7 +176,7 @@ class NoteRepository(SharedResourceRepository):
         ----------
         note_id : UUID
             UUID заметки к изменению.
-        patch_note_dto : PatchNoteDTO
+        patch_note_dto : UpdateNoteDTO
             DTO с полями для обновления. Только явно переданные поля
             попадают в SET-часть запроса через `to_update_values()`.
         user_id : UUID

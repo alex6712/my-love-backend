@@ -7,7 +7,7 @@ from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.core.enums import NoteType, SortOrder
-from app.schemas.dto.note import PatchNoteDTO
+from app.schemas.dto.note import CreateNoteDTO, UpdateNoteDTO
 from app.schemas.v1.requests.notes import CreateNoteRequest, PatchNoteRequest
 from app.schemas.v1.responses.notes import NotesResponse
 from app.schemas.v1.responses.standard import CountResponse, StandardResponse
@@ -132,7 +132,9 @@ async def post_notes(
     StandardResponse
         Успешный ответ о создании новой заметки.
     """
-    await services.note.create_note(body.type, body.title, body.content, payload.sub)
+    await services.note.create_note(
+        CreateNoteDTO.from_request_schema(body), payload.sub
+    )
 
     return StandardResponse(detail="New note created successfully.")
 
@@ -222,7 +224,7 @@ async def patch_notes(
     """
     await services.note.update_note(
         note_id,
-        PatchNoteDTO.from_request_schema(body),
+        UpdateNoteDTO.from_request_schema(body),
         payload.sub,
     )
 

@@ -1,6 +1,8 @@
+from uuid import UUID
+
 from app.core.enums import NoteType
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BaseSQLCoreDTO, BaseUpdateDTO
+from app.schemas.dto.base import BaseCreateDTO, BaseSQLCoreDTO, BaseUpdateDTO
 from app.schemas.dto.user import CreatorDTO
 
 
@@ -26,7 +28,14 @@ class NoteDTO(BaseSQLCoreDTO):
     creator: CreatorDTO
 
 
-class PatchNoteDTO(BaseUpdateDTO):
+class CreateNoteDTO(BaseCreateDTO):
+    type: NoteType
+    title: str
+    content: str
+    created_by: UUID
+
+
+class UpdateNoteDTO(BaseUpdateDTO):
     """DTO для частичного обновления заметки.
 
     Attributes
