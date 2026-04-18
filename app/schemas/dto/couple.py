@@ -2,11 +2,11 @@ from datetime import date, datetime
 
 from app.core.enums import CoupleRequestStatus
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BasePatchDTO, BaseSQLModelDTO
+from app.schemas.dto.base import BaseSQLCoreDTO, BaseUpdateDTO
 from app.schemas.dto.user import PartnerDTO
 
 
-class CoupleRequestDTO(BaseSQLModelDTO):
+class CoupleRequestDTO(BaseSQLCoreDTO):
     """DTO для представления запроса на создание пары между
     пользователями приложения.
 
@@ -28,7 +28,7 @@ class CoupleRequestDTO(BaseSQLModelDTO):
     accepted_at: datetime | None
 
 
-class CoupleDTO(BaseSQLModelDTO):
+class CoupleDTO(BaseSQLCoreDTO):
     """DTO для представления пары между пользователями приложения.
 
     Attributes
@@ -46,7 +46,7 @@ class CoupleDTO(BaseSQLModelDTO):
     relationship_started_on: date | None
 
 
-class PatchCoupleDTO(BasePatchDTO):
+class PatchCoupleDTO(BaseUpdateDTO):
     """DTO для частичного обновления данных о паре.
 
     Attributes

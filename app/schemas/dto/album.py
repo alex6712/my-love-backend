@@ -1,10 +1,10 @@
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BasePatchDTO, BaseSQLModelDTO
+from app.schemas.dto.base import BaseSQLCoreDTO, BaseUpdateDTO
 from app.schemas.dto.file import FileDTO
 from app.schemas.dto.user import CreatorDTO
 
 
-class AlbumDTO(BaseSQLModelDTO):
+class AlbumDTO(BaseSQLCoreDTO):
     """DTO для представления медиа альбома.
 
     Attributes
@@ -48,7 +48,7 @@ class AlbumWithItemsDTO(AlbumDTO):
     total: int
 
 
-class PatchAlbumDTO(BasePatchDTO):
+class PatchAlbumDTO(BaseUpdateDTO):
     """DTO для частичного обновления альбома.
 
     Attributes

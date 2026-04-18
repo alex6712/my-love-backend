@@ -13,7 +13,7 @@ from app.core.exceptions.auth import (
 )
 from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.core.security import create_jwt_pair, hash_
-from app.infrastructure.postgresql.uow import UnitOfWork
+from app.infra.postgres.uow import UnitOfWork
 from app.services.auth import AuthService
 
 

@@ -17,7 +17,6 @@ from app.core.exceptions.auth import (
     TokenRevokedException,
     TokenSignatureExpiredException,
 )
-from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.core.security import (
     create_jwt,
     hash_,
@@ -26,8 +25,8 @@ from app.core.security import (
     verify,
 )
 from app.core.types import TokenType
-from app.infrastructure.postgresql.uow import UnitOfWork
-from app.infrastructure.redis import RedisClient
+from app.infra.postgres.uow import UnitOfWork
+from app.infra.redis import RedisClient
 from app.repositories.couple import CoupleRepository
 from app.repositories.user import UserRepository
 from app.repositories.user_session import UserSessionRepository
@@ -37,6 +36,7 @@ from app.schemas.dto.payload import (
     RefreshTokenPayload,
 )
 from app.schemas.dto.token import Tokens
+from app.schemas.dto.user import CreateUserDTO
 
 
 class AuthService:
@@ -103,12 +103,9 @@ class AuthService:
         UsernameAlreadyExistsException
            Пользователь с переданным username уже существует.
         """
-        if await self._user_repo.user_exists_by_username(username):
-            raise UsernameAlreadyExistsException(
-                detail=f"User with username={username} already exists."
-            )
-
-        self._user_repo.add_user(username, hash_(password))
+        await self._user_repo.create(
+            CreateUserDTO(username=username, password_hash=hash_(password))
+        )
 
     async def login(self, username: str, password: str) -> Tokens:
         """Аутентифицирует пользователя и возвращает JWT.

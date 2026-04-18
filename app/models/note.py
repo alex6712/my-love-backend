@@ -49,7 +49,7 @@ class NoteModel(BaseModel):
         "UserModel",
         back_populates="notes",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
     )
 
     def __repr__(self, **_) -> str:

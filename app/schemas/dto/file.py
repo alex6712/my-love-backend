@@ -3,7 +3,7 @@ from uuid import UUID
 
 from app.core.enums import DownloadFileErrorCode, FileStatus, UploadFileErrorCode
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BaseDTO, BaseErrorDTO, BasePatchDTO, BaseSQLModelDTO
+from app.schemas.dto.base import BaseDTO, BaseErrorDTO, BaseSQLCoreDTO, BaseUpdateDTO
 from app.schemas.dto.user import CreatorDTO
 
 
@@ -37,7 +37,7 @@ class FileMetadataDTO(InternalFileMetadataDTO):
     client_ref_id: str
 
 
-class FileDTO(BaseSQLModelDTO, InternalFileMetadataDTO):
+class FileDTO(BaseSQLCoreDTO, InternalFileMetadataDTO):
     """DTO для представления медиа-файла.
 
     Attributes
@@ -59,7 +59,7 @@ class FileDTO(BaseSQLModelDTO, InternalFileMetadataDTO):
     creator: CreatorDTO
 
 
-class PatchFileDTO(BasePatchDTO):
+class PatchFileDTO(BaseUpdateDTO):
     """DTO для частичного обновления медиа-файла.
 
     Attributes

@@ -7,7 +7,7 @@ from app.core.exceptions.couple import (
     CoupleRequestNotFoundException,
 )
 from app.core.exceptions.user import UserNotFoundException
-from app.infrastructure.postgresql.uow import UnitOfWork
+from app.infra.postgres.uow import UnitOfWork
 from app.repositories.couple import CoupleRepository
 from app.repositories.couple_request import CoupleRequestRepository
 from app.repositories.user import UserRepository

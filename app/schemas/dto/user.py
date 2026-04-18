@@ -1,8 +1,8 @@
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BasePatchDTO, BaseSQLModelDTO
+from app.schemas.dto.base import BaseCreateDTO, BaseSQLCoreDTO, BaseUpdateDTO
 
 
-class UserDTO(BaseSQLModelDTO):
+class UserDTO(BaseSQLCoreDTO):
     """DTO для представления пользователя системы.
 
     Attributes
@@ -61,7 +61,12 @@ class PartnerDTO(UserDTO):
     pass
 
 
-class PatchProfileDTO(BasePatchDTO):
+class CreateUserDTO(BaseCreateDTO):
+    username: str
+    password_hash: str
+
+
+class PatchProfileDTO(BaseUpdateDTO):
     """DTO для частичного обновления профиля пользователя.
 
     Attributes

@@ -16,9 +16,9 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config import Settings, get_settings
-from app.core.dependencies.infrastructure import get_redis_client, get_s3_client
+from app.core.dependencies.infra import get_redis_client, get_s3_client
 from app.core.security import create_jwt_pair, hash_
-from app.infrastructure.redis import RedisClient
+from app.infra.redis import RedisClient
 from app.main import my_love_backend
 from app.models.base import BaseModel
 from app.models.user import UserModel

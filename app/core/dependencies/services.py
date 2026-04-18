@@ -3,14 +3,14 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import Depends
 
 from app.config import Settings
-from app.core.dependencies.infrastructure import (
+from app.core.dependencies.infra import (
     RedisClientDependency,
     S3ClientDependency,
     UnitOfWorkDependency,
 )
 from app.core.dependencies.settings import SettingsDependency
-from app.infrastructure.postgresql.uow import UnitOfWork
-from app.infrastructure.redis import RedisClient
+from app.infra.postgres.uow import UnitOfWork
+from app.infra.redis import RedisClient
 from app.services.auth import AuthService
 from app.services.couple import CoupleService
 from app.services.media import AlbumService, FileService

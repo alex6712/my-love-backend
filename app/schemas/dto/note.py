@@ -1,10 +1,10 @@
 from app.core.enums import NoteType
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BasePatchDTO, BaseSQLModelDTO
+from app.schemas.dto.base import BaseSQLCoreDTO, BaseUpdateDTO
 from app.schemas.dto.user import CreatorDTO
 
 
-class NoteDTO(BaseSQLModelDTO):
+class NoteDTO(BaseSQLCoreDTO):
     """DTO для представления пользовательских заметок.
 
     Attributes
@@ -26,7 +26,7 @@ class NoteDTO(BaseSQLModelDTO):
     creator: CreatorDTO
 
 
-class PatchNoteDTO(BasePatchDTO):
+class PatchNoteDTO(BaseUpdateDTO):
     """DTO для частичного обновления заметки.
 
     Attributes

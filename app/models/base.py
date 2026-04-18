@@ -26,7 +26,10 @@ class BaseModel(AsyncAttrs, DeclarativeBase):
         comment="Дата и время создания записи",
     )
 
-    def __repr__(self, **kwargs: dict[str, Any]) -> str:
-        values: str = "".join(f"{key}={value}, " for key, value in kwargs.items())
+    def __repr__(self, **kwargs: Any) -> str:
+        values = [f"id={self.id}"]
+        values.extend(f"{key}={value}" for key, value in kwargs.items())
+        values.append(f"created_at={self.created_at}")
 
-        return f"<{self.__class__.__name__}(id={self.id}, {values}created_at={self.created_at})>"
+        attributes = ", ".join(values)
+        return f"<{self.__class__.__name__}({attributes})>"

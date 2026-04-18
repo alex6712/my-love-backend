@@ -18,8 +18,108 @@ class BaseDTO(BaseModel):
     pass
 
 
-class BasePatchDTO(BaseDTO):
-    """Базовый DTO для частичного обновления сущностей.
+class BaseSQLCoreDTO(BaseDTO):
+    """Базовый класс DTO для представления записей таблиц при работе с SQLAlchemy Core.
+
+    Определяет общие атрибуты (столбцы), присутствующие в большинстве таблиц,
+    предоставляя единообразный интерфейс для всех наследуемых DTO.
+
+    Attributes
+    ----------
+    id : UUID
+        Уникальный идентификатор записи.
+    created_at : datetime
+        Временная метка создания записи.
+
+    Notes
+    -----
+    Наследует конфигурацию Pydantic BaseModel с включённой поддержкой
+    преобразования из объектов SQLAlchemy Core (например, `Row`) или словарей.
+    """
+
+    id: UUID
+    created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+
+class BaseRequestDTO(BaseDTO):
+    """Базовый класс DTO для объектов, строящихся из входящих запросов.
+
+    Предоставляет общий хелпер `_from_schema` для дочерних классов,
+    не затрагивая DTO, не связанные с обработкой запросов.
+    """
+
+    @classmethod
+    def _from_schema(cls, schema: BaseModel, **dump_kwargs: Any) -> Self:
+        """Внутренний хелпер: создаёт DTO из Pydantic-схемы с произвольными параметрами dump.
+
+        Parameters
+        ----------
+        schema : BaseModel
+            Исходная схема запроса.
+        **dump_kwargs : Any
+            Аргументы, передаваемые в `model_dump()` (например, `exclude_unset=True`).
+        """
+        return cls(**schema.model_dump(**dump_kwargs))
+
+
+class BaseCreateDTO(BaseRequestDTO):
+    """Базовый DTO для создания новых сущностей.
+
+    Предоставляет метод `from_request_schema` для построения DTO из схемы
+    входящего POST-запроса и `to_create_values` для получения итогового словаря.
+
+    Notes
+    -----
+    В отличие от `BasePatchDTO`, все поля считаются явно переданными —
+    sentinel-тип `Unset` здесь не нужен.
+
+    Examples
+    --------
+    >>> class CreateEntryDTO(BaseCreateDTO):
+    ...     title: str
+    ...     content: str | None = None
+    ...
+    >>> dto = CreateEntryDTO.from_request_schema(request_schema)
+    >>> dto.to_create_values()
+    {'title': 'Заголовок', 'content': None}
+    """
+
+    @classmethod
+    def from_request_schema(cls, request_schema: BaseModel) -> Self:
+        """Создаёт DTO из Pydantic-схемы POST-запроса.
+
+        В отличие от `BasePatchDTO.from_request_schema`, включает **все** поля,
+        в том числе те, что не были явно переданы (используются значения по умолчанию).
+
+        Parameters
+        ----------
+        request_schema : BaseModel
+            Pydantic-схема входящего запроса.
+
+        Returns
+        -------
+        Self
+            Экземпляр DTO со всеми полями.
+        """
+        return cls._from_schema(request_schema)
+
+    def to_create_values(self) -> dict[str, Any]:
+        """Возвращает словарь всех полей DTO.
+
+        Returns
+        -------
+        dict[str, Any]
+            Словарь вида {field_name: value} по всем полям модели.
+        """
+        return self.model_dump()
+
+
+class BaseUpdateDTO(BaseRequestDTO):
+    """Базовый DTO для обновления сущностей.
 
     Предоставляет метод `to_update_values` для извлечения только явно
     переданных полей, используя sentinel-тип `Unset` для различия между
@@ -32,7 +132,7 @@ class BasePatchDTO(BaseDTO):
 
     Examples
     --------
-    >>> class PatchEntryDTO(BasePatchDTO):
+    >>> class PatchEntryDTO(BaseUpdateDTO):
     ...     title: Maybe[str] = UNSET
     ...     content: Maybe[str | None] = UNSET
     ...     comment: Maybe[str | None] = UNSET
@@ -68,7 +168,7 @@ class BasePatchDTO(BaseDTO):
         объявлены со значениями по умолчанию - иначе `exclude_unset=True`
         не даст нужного эффекта и все поля будут считаться "переданными".
         """
-        return cls(**request_schema.model_dump(exclude_unset=True))
+        return cls._from_schema(request_schema, exclude_unset=True)
 
     def to_update_values(self) -> dict[str, Any]:
         """Возвращает словарь только из явно переданных полей.
@@ -95,34 +195,6 @@ class BasePatchDTO(BaseDTO):
             одно поле было явно передано.
         """
         return not self.to_update_values()
-
-
-class BaseSQLModelDTO(BaseDTO):
-    """Базовый класс DTO для всех SQL-моделей.
-
-    Определяет атрибуты (столбцы), имеющиеся у базовой SQl модели приложения,
-    предоставляя таким образом единообразный интерфейс для всех
-    наследуемых DTO.
-
-    Attributes
-    ----------
-    id : UUID
-        Уникальный идентификатор объекта (записи).
-    created_at : UUID
-        Временная метка создания объекта (записи).
-
-    Notes
-    -----
-    Наследует конфигурацию Pydantic BaseModel с включенной поддержкой
-    преобразования из атрибутов объектов (ORM mode).
-    """
-
-    id: UUID
-    created_at: datetime
-
-    model_config = ConfigDict(
-        from_attributes=True,
-    )
 
 
 class BaseErrorDTO[T](BaseModel):

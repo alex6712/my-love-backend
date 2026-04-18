@@ -1,13 +1,16 @@
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import insert, select, update
+from sqlalchemy.exc import IntegrityError
 
-from app.models.user import UserModel
+from app.core.exceptions.user import UsernameAlreadyExistsException
+from app.infra.postgres import get_constraint_name
+from app.infra.postgres.tables import users_table
 from app.repositories.interface import RepositoryInterface
-from app.schemas.dto.user import PatchProfileDTO, UserWithCredentialsDTO
+from app.schemas.dto.user import CreateUserDTO, PatchProfileDTO, UserWithCredentialsDTO
 
 
-class UserRepository(RepositoryInterface):
+class UserRepository(RepositoryInterface[CreateUserDTO]):
     """Репозиторий пользователя.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
@@ -34,22 +37,32 @@ class UserRepository(RepositoryInterface):
         Обновляет хэш пароля пользователя по его идентификатору.
     """
 
-    def add_user(self, username: str, password_hash: str) -> None:
+    async def create(self, data: CreateUserDTO) -> None:
         """Добавляет в базу данных новую запись о пользователе.
 
         Parameters
         ----------
-        username : str
-            Имя пользователя приложения.
-        password_hash : str
-            Хэш пароля пользователя приложения.
+        data : CreateUserDTO
+            Необходимые для создания записи данные о пользователе.
+
+        Raises
+        ------
+        UsernameAlreadyExistsException
+           Пользователь с переданным username уже существует.
         """
-        self.session.add(
-            UserModel(
-                username=username,
-                password_hash=password_hash,
+        try:
+            await self.connection.execute(
+                insert(users_table).values(**data.to_create_values())
             )
-        )
+        except IntegrityError as e:
+            constraint = get_constraint_name(e)
+
+            if constraint == "uq_users_username":
+                raise UsernameAlreadyExistsException(
+                    detail=f"User with username={data.username} already exists."
+                ) from e
+
+            raise
 
     async def get_user_by_id(self, user_id: UUID) -> UserWithCredentialsDTO | None:
         """Возвращает DTO пользователя по его id.

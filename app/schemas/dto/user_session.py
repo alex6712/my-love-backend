@@ -1,10 +1,10 @@
 from datetime import datetime
 from uuid import UUID
 
-from app.schemas.dto.base import BaseSQLModelDTO
+from app.schemas.dto.base import BaseSQLCoreDTO
 
 
-class UserSessionDTO(BaseSQLModelDTO):
+class UserSessionDTO(BaseSQLCoreDTO):
     """DTO для представления сессии пользователя системы.
 
     Attributes

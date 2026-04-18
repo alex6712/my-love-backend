@@ -82,13 +82,13 @@ class CoupleRequestModel(BaseModel):
     initiator: Mapped["UserModel"] = relationship(
         "UserModel",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
         foreign_keys=[initiator_id],
     )
     recipient: Mapped["UserModel"] = relationship(
         "UserModel",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
         foreign_keys=[recipient_id],
     )
 

@@ -3,8 +3,8 @@ from uuid import UUID
 from app.core.enums import NoteType, SortOrder
 from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.note import NoteNotFoundException
-from app.infrastructure.postgresql.uow import UnitOfWork
-from app.infrastructure.redis import RedisClient
+from app.infra.postgres.uow import UnitOfWork
+from app.infra.redis import RedisClient
 from app.repositories.couple import CoupleRepository
 from app.repositories.note import NoteRepository
 from app.schemas.dto.note import NoteDTO, PatchNoteDTO

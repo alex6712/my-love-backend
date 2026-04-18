@@ -7,7 +7,7 @@ from app.models.base import BaseModel
 
 if TYPE_CHECKING:
     from app.models.album import AlbumModel
-    from app.models.couple_request import CoupleRequestModel
+    from app.models.couple import CoupleModel
     from app.models.file import FileModel
     from app.models.note import NoteModel
     from app.models.user_session import UserSessionModel
@@ -46,37 +46,31 @@ class UserModel(BaseModel):
         "UserSessionModel",
         back_populates="user",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
     )
-    couples_as_initiator: Mapped[list["CoupleRequestModel"]] = relationship(
-        "CoupleRequestModel",
-        foreign_keys="CoupleRequestModel.initiator_id",
+    couple: Mapped["CoupleModel"] = relationship(
+        "CoupleModel",
+        secondary="couple_members",
         viewonly=True,
-        lazy="select",
-    )
-    couples_as_recipient: Mapped[list["CoupleRequestModel"]] = relationship(
-        "CoupleRequestModel",
-        foreign_keys="CoupleRequestModel.recipient_id",
-        viewonly=True,
-        lazy="select",
+        lazy="raise",
     )
     media_albums: Mapped[list["AlbumModel"]] = relationship(
         "AlbumModel",
         back_populates="creator",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
     )
     media_files: Mapped[list["FileModel"]] = relationship(
         "FileModel",
         back_populates="creator",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
     )
     notes: Mapped[list["NoteModel"]] = relationship(
         "NoteModel",
         back_populates="creator",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
     )
 
     def __repr__(self, **_) -> str:

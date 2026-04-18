@@ -39,13 +39,13 @@ class AlbumItemsModel(BaseModel):
     album: Mapped["AlbumModel"] = relationship(
         "AlbumModel",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
         foreign_keys=[album_id],
     )
     file: Mapped["FileModel"] = relationship(
         "FileModel",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
         foreign_keys=[file_id],
     )
 

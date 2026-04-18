@@ -10,7 +10,7 @@ from app.core.exceptions.couple import (
     CoupleNotSelfException,
     CoupleRequestAlreadyExistsException,
 )
-from app.infrastructure.postgresql import get_constraint_name
+from app.infra.postgres import get_constraint_name
 from app.models.couple_request import CoupleRequestModel
 from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.couple import CoupleRequestDTO
@@ -52,7 +52,7 @@ class CoupleRequestRepository(RepositoryInterface):
             UUID пользователя-реципиента.
         """
         try:
-            await self.session.scalar(
+            await self.session.execute(
                 insert(CoupleRequestModel).values(
                     initiator_id=initiator_id,
                     recipient_id=recipient_id,

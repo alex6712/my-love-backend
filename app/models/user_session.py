@@ -43,7 +43,7 @@ class UserSessionModel(BaseModel):
         "UserModel",
         back_populates="sessions",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
     )
 
     def __repr__(self, **_) -> str:

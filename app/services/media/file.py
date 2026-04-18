@@ -30,8 +30,8 @@ from app.core.exceptions.media import (
     UnsupportedFileTypeException,
     UploadNotCompletedException,
 )
-from app.infrastructure.postgresql.uow import UnitOfWork
-from app.infrastructure.redis import RedisClient
+from app.infra.postgres.uow import UnitOfWork
+from app.infra.redis import RedisClient
 from app.repositories.couple import CoupleRepository
 from app.repositories.media import FileRepository
 from app.schemas.dto.file import (

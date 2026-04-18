@@ -64,14 +64,13 @@ class AlbumModel(BaseModel):
         "UserModel",
         back_populates="media_albums",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
     )
     items: Mapped[list["FileModel"]] = relationship(
         "FileModel",
         secondary="album_items",
-        cascade="all, delete-orphan",
         viewonly=True,
-        lazy="select",
+        lazy="raise",
     )
 
     def __repr__(self, **_) -> str:

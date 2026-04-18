@@ -1,40 +1,52 @@
-from abc import ABC
-from typing import Any, Protocol
+from abc import ABC, abstractmethod
+from typing import Any, Generic, TypeVar
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Mapped
-from sqlalchemy.orm.attributes import InstrumentedAttribute
+from sqlalchemy import Column, Select, Table, func, select
+from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.sql.elements import ColumnElement, UnaryExpression
 
 from app.core.enums import SortOrder
+from app.schemas.dto.base import BaseCreateDTO
+
+CreateDTO = TypeVar("CreateDTO", bound=BaseCreateDTO)
 
 
-class RepositoryInterface(ABC):
+class RepositoryInterface(ABC, Generic[CreateDTO]):
     """Интерфейс репозитория.
 
     Реализация паттерна Репозиторий. Является интерфейсом доступа к данным (DAO).
 
     Attributes
     ----------
-    session : AsyncSession
-        Объект асинхронной сессии запроса.
+    connection : AsyncConnection
+        Объект асинхронного подключения запроса.
     """
 
-    def __init__(self, session: AsyncSession):
-        self.session = session
+    def __init__(self, connection: AsyncConnection):
+        self.connection = connection
+
+    @abstractmethod
+    async def create(self, data: CreateDTO) -> None:
+        """Создаёт новую запись.
+
+        Parameters
+        ----------
+        data : CreateDTO
+            Данные для создания записи.
+        """
+        ...
 
     @staticmethod
     def _build_count_query(
-        model_class: type[Any], *where_clauses: ColumnElement[bool]
+        table: Table, *where_clauses: ColumnElement[bool]
     ) -> Select[tuple[int]]:
         """Создаёт запрос подсчёта записей для пользователя и его партнёра.
 
         Parameters
         ----------
-        model_class : Any
-            Класс модели для подсчёта.
+        table : Table
+            Объект таблицы для подсчёта.
         where_clauses : ColumnElement[bool]
             Условие WHERE для фильтрации.
 
@@ -43,7 +55,7 @@ class RepositoryInterface(ABC):
         Select[tuple[int]]
             Запрос для подсчёта общего количества записей.
         """
-        query = select(func.count()).select_from(model_class)
+        query = select(func.count()).select_from(table)
 
         if not where_clauses:
             return query
@@ -52,13 +64,13 @@ class RepositoryInterface(ABC):
 
     @staticmethod
     def _build_order_clause(
-        column: InstrumentedAttribute[Any], order: SortOrder
+        column: Column[Any], order: SortOrder
     ) -> UnaryExpression[Any]:
         """Создаёт выражение сортировки по переданной колонке.
 
         Parameters
         ----------
-        column : InstrumentedAttribute[Any]
+        column : Column[Any]
             Колонка модели, по которой выполняется сортировка.
         order : SortOrder
             Направление сортировки.
@@ -71,71 +83,37 @@ class RepositoryInterface(ABC):
         return column.desc() if order == SortOrder.DESC else column.asc()
 
 
-class HasCreatedBy(Protocol):
-    """Протокол для типизации SQLAlchemy моделей с атрибутом created_by.
+class SharedAccessMixin:
+    """Миксин для фильтрации записей по создателю на уровне репозитория.
 
-    Определяет структурный интерфейс для моделей, которые содержат информацию
-    о создателе записи в виде колонки `created_by` типа `UUID`.
-
-    Протокол использует механизм "утиной типизации" и позволяет
-    использовать любой класс, имеющий атрибут `created_by: Mapped[UUID]`,
-    в качестве аргумента для методов, ожидающих такие модели.
-
-    Notes
-    -----
-    Это runtime-проверяемый протокол, что позволяет использовать `isinstance()`
-    для проверки соответствия классов протоколу во время выполнения программы.
-    """
-
-    created_by: Mapped[UUID]
-
-
-class SharedResourceRepository(RepositoryInterface):
-    """Базовый репозиторий для работы с ресурсами, доступными нескольким пользователям.
-
-    Предоставляет общие методы для построения SQL-условий фильтрации по полю `created_by`,
-    позволяя ограничивать доступ к ресурсам на уровне записей в зависимости от
-    пользователя и его партнёра.
-
-    Этот репозиторий предназначен для наследования и использования в репозиториях,
-    работающих с моделями, которые соответствуют протоколу `HasCreatedBy`.
-
-    Methods
-    -------
-    _build_shared_clause(model_class, user_id, partner_id=None)
-        Строит условия WHERE для фильтрации записей по создателю.
-
-    Inherits
-    --------
-    RepositoryInterface : abc.ABC
-        Базовый интерфейс репозитория с общими методами доступа к данным.
+    Предназначен для наследования в репозиториях, работающих с таблицами,
+    имеющими колонку `created_by`. Предоставляет вспомогательный метод
+    для построения SQL-условий, ограничивающих выборку записями конкретного
+    пользователя или его партнёра.
     """
 
     @staticmethod
     def _build_shared_clause(
-        model_class: type[HasCreatedBy], user_id: UUID, partner_id: UUID | None = None
+        created_by_column: Column[UUID], user_id: UUID, partner_id: UUID | None = None
     ) -> ColumnElement[bool]:
-        """Создаёт условие WHERE для фильтрации записей по создателю и партнёру.
-
-        Генерирует SQLAlchemy выражение для ограничения выборки записей модели
-        только теми, которые были созданы указанным пользователем или его партнёром.
+        """Строит WHERE-условие для фильтрации записей по создателю.
 
         Parameters
         ----------
-        model_class : type[HasCreatedBy]
-            Класс SQLAlchemy модели, соответствующий протоколу `HasCreatedBy`.
+        created_by_column : Column[UUID]
+            Колонка модели, содержащая UUID создателя записи.
         user_id : UUID
-            UUID пользователя, для которого выполняется фильтрация.
+            UUID пользователя, чьи записи должны попасть в выборку.
         partner_id : UUID | None, optional
-            UUID партнёра пользователя. Если передан, фильтрация будет включать
-            записи, созданные как пользователем, так и его партнёром.
+            UUID партнёра. Если передан, выборка расширяется до записей,
+            созданных как пользователем, так и его партнёром.
 
         Returns
         -------
         ColumnElement[bool]
-            Объект SQLAlchemy выражения для использования в WHERE-условиях.
+            SQLAlchemy-выражение, готовое к использованию в `.where()`.
         """
         if partner_id:
-            return model_class.created_by.in_([user_id, partner_id])
+            return created_by_column.in_([user_id, partner_id])
 
-        return model_class.created_by == user_id
+        return created_by_column == user_id

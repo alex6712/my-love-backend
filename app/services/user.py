@@ -2,7 +2,7 @@ from uuid import UUID
 
 from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.user import UserNotFoundException
-from app.infrastructure.postgresql.uow import UnitOfWork
+from app.infra.postgres.uow import UnitOfWork
 from app.repositories.user import UserRepository
 from app.schemas.dto.user import PatchProfileDTO, UserDTO
 

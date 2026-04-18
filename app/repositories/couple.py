@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions.couple import CoupleAlreadyExistsException
-from app.infrastructure.postgresql import get_constraint_name
+from app.infra.postgres import get_constraint_name
 from app.models.couple import CoupleModel
 from app.repositories.interface import RepositoryInterface
 from app.schemas.dto.couple import CoupleDTO, PatchCoupleDTO

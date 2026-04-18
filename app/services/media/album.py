@@ -3,7 +3,7 @@ from uuid import UUID
 from app.core.enums import SortOrder
 from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.media import MediaNotFoundException
-from app.infrastructure.postgresql.uow import UnitOfWork
+from app.infra.postgres.uow import UnitOfWork
 from app.repositories.couple import CoupleRepository
 from app.repositories.media import AlbumRepository, FileRepository
 from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO, PatchAlbumDTO
