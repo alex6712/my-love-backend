@@ -74,7 +74,7 @@ async def get_notes(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
-    partner_id : UUID
+    partner_id : UUID | None
         Идентификатор партнёра, или None если пользователь не состоит в паре.
     note_type : NoteType | None
         Тип заметок для получения.
@@ -173,7 +173,7 @@ async def count(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
-    partner_id : UUID
+    partner_id : UUID | None
         Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
@@ -226,7 +226,7 @@ async def patch_notes(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
-    partner_id : UUID
+    partner_id : UUID | None
         Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns

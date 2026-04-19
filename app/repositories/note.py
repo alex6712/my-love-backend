@@ -12,12 +12,14 @@ from app.repositories.interface import (
     OwnedCreateMixin,
     OwnedDeleteMixin,
     OwnedFilteredReadMixin,
+    OwnedRepositoryInterface,
     OwnedUpdateMixin,
 )
 from app.schemas.dto.note import CreateNoteDTO, FilterNoteDTO, NoteDTO, UpdateNoteDTO
 
 
 class NoteRepository(
+    OwnedRepositoryInterface,
     OwnedFilteredReadMixin[FilterNoteDTO, NoteDTO],
     OwnedCreateMixin[CreateNoteDTO, NoteDTO],
     OwnedUpdateMixin[UpdateNoteDTO, NoteDTO],
@@ -54,7 +56,7 @@ class NoteRepository(
 
         Parameters
         ----------
-        create_dto : CreateDTO
+        create_dto : CreateNoteDTO
             Данные для создания заметки.
         created_by : UUID
             Идентификатор пользователя, создающего заметку.
@@ -68,10 +70,7 @@ class NoteRepository(
         """
         insert_cte = (
             insert(notes_table)
-            .values(
-                **create_dto.to_create_values(),
-                created_by=created_by,
-            )
+            .values(**create_dto.to_create_values(), created_by=created_by)
             .returning(notes_table)
             .cte("insert_cte")
         )
@@ -80,8 +79,9 @@ class NoteRepository(
                 users_table, insert_cte.c.created_by == users_table.c.id
             )
         )
+        row = result.mappings().one()
 
-        return NoteDTO.model_validate(result.mappings().one())
+        return NoteDTO.model_validate({**row, "creator": self._extract_creator(row)})
 
     async def get_all(
         self,
@@ -90,7 +90,7 @@ class NoteRepository(
         *,
         offset: int = DEFAULT_OFFSET,
         limit: int = DEFAULT_LIMIT,
-        sort_order: SortOrder = SortOrder.DESC,
+        sort_order: SortOrder = SortOrder.ASC,
     ) -> tuple[list[NoteDTO], int]:
         """Возвращает отфильтрованный постраничный список заметок и их общее количество.
 
@@ -111,7 +111,7 @@ class NoteRepository(
             Максимальное количество возвращаемых записей, по умолчанию `DEFAULT_LIMIT`.
         sort_order : SortOrder, optional
             Направление сортировки по полю `created_at`,
-            по умолчанию SortOrder.DESC.
+            по умолчанию SortOrder.ASC.
 
         Returns
         -------
@@ -183,10 +183,8 @@ class NoteRepository(
 
         Parameters
         ----------
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
 
         Returns
         -------

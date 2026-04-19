@@ -3,7 +3,13 @@ from uuid import UUID
 
 from app.core.enums import DownloadFileErrorCode, FileStatus, UploadFileErrorCode
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BaseDTO, BaseErrorDTO, BaseSQLCoreDTO, BaseUpdateDTO
+from app.schemas.dto.base import (
+    BaseCreateDTO,
+    BaseDTO,
+    BaseErrorDTO,
+    BaseSQLCoreDTO,
+    BaseUpdateDTO,
+)
 from app.schemas.dto.user import CreatorDTO
 
 
@@ -59,11 +65,18 @@ class FileDTO(BaseSQLCoreDTO, InternalFileMetadataDTO):
     creator: CreatorDTO
 
 
-class PatchFileDTO(BaseUpdateDTO):
+class CreateFileDTO(BaseCreateDTO, InternalFileMetadataDTO):
+    object_key: str
+    geo_data: dict[str, Any] | None = None
+
+
+class UpdateFileDTO(BaseUpdateDTO):
     """DTO для частичного обновления медиа-файла.
 
     Attributes
     ----------
+    status : FileStatus
+        Новый статус медиа-файла. Если `UNSET`- поле не изменяется.
     title : Maybe[str]
         Новое наименование файла. Если `UNSET`- поле не изменяется.
     description : Maybe[str | None]
@@ -71,6 +84,7 @@ class PatchFileDTO(BaseUpdateDTO):
         Может быть явно передано как None для удаления описания.
     """
 
+    status: Maybe[FileStatus] = UNSET
     title: Maybe[str] = UNSET
     description: Maybe[str | None] = UNSET
 

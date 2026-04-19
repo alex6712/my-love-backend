@@ -4,18 +4,35 @@ from uuid import UUID
 from sqlalchemy import delete, insert, select, update
 from sqlalchemy.orm import selectinload
 
+from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET
 from app.core.enums import FileStatus, SortOrder
+from app.infra.postgres.tables.files import files_table
+from app.infra.postgres.tables.users import users_table
 from app.models.file import FileModel
-from app.repositories.interface import SharedResourceRepository
+from app.repositories.interface import (
+    AccessContext,
+    OwnedCreateMixin,
+    OwnedDeleteMixin,
+    OwnedReadMixin,
+    OwnedRepositoryInterface,
+    OwnedUpdateMixin,
+)
 from app.schemas.dto.file import (
+    CreateFileDTO,
     FileDTO,
     FileMetadataDTO,
     InternalFileMetadataDTO,
-    PatchFileDTO,
+    UpdateFileDTO,
 )
 
 
-class FileRepository(SharedResourceRepository):
+class FileRepository(
+    OwnedRepositoryInterface,
+    OwnedReadMixin[FileDTO],
+    OwnedCreateMixin[CreateFileDTO, FileDTO],
+    OwnedUpdateMixin[UpdateFileDTO, FileDTO],
+    OwnedDeleteMixin,
+):
     """Репозиторий медиа-файлов.
 
     Реализация паттерна Репозиторий для работы с медиа-файлами.
@@ -45,55 +62,59 @@ class FileRepository(SharedResourceRepository):
         Удаляет записи медиа-файлов со статусом `FileStatus.PENDING` по их идентификаторам.
     """
 
-    async def add_pending_file(
-        self, file_metadata: FileMetadataDTO, object_key: str, created_by: UUID
-    ) -> UUID:
+    async def create(self, create_dto: CreateFileDTO, created_by: UUID) -> FileDTO:
         """Добавляет в базу данных запись о загружаемом медиа-файле.
-
-        Запись создаётся со статусом ``FileStatus.PENDING``.
 
         Parameters
         ----------
-        file_metadata : FileMetadataDTO
-            DTO с метаданными файла.
-        object_key : str
-            Ключ объекта в S3 (путь к файлу в хранилище).
+        create_dto : CreateFileDTO
+            Данные для создания записи о медиа-файле.
         created_by : UUID
-            UUID пользователя, создающего запись.
+            Идентификатор пользователя, загружающего файл.
+            Передаётся явно, так как извлекается из payload токена,
+            а не из схемы запроса.
 
         Returns
         -------
-        UUID
-            UUID созданной записи медиа-файла.
-
-        Raises
-        ------
-        RuntimeError
-            Если INSERT не вернул идентификатор созданной записи.
+        FileDTO
+            Доменное DTO созданной записи о файле.
         """
-        metadata = InternalFileMetadataDTO.model_validate(
-            file_metadata.model_dump(exclude={"client_ref_id"})
+        insert_cte = (
+            insert(files_table)
+            .values(**create_dto.to_create_values(), created_by=created_by)
+            .returning(files_table)
+            .cte("insert_cte")
         )
-
-        file_id = await self.session.scalar(
-            insert(FileModel)
-            .values(
-                {
-                    "object_key": object_key,
-                    "status": FileStatus.PENDING,
-                    "created_by": created_by,
-                    **metadata.model_dump(),
-                }
+        result = await self.connection.execute(
+            select(files_table, *self._creator_columns()).join(
+                users_table, insert_cte.c.created_by == users_table.c.id
             )
-            .returning(FileModel.id)
         )
+        row = result.mappings().one()
 
-        if not file_id:
-            raise RuntimeError(
-                "Unknown error is occurred while trying to create new file entry."
+        return FileDTO.model_validate({**row, "creator": self._extract_creator(row)})
+
+    async def count(self, access_ctx: AccessContext) -> int:
+        """Возвращает количество медиа-файлов по id их создателя.
+
+        Parameters
+        ----------
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+
+        Returns
+        -------
+        int
+            Количество доступных пользователю медиа-файлов.
+        """
+        return (
+            await self.connection.scalar(
+                self._build_count_query(
+                    files_table, access_ctx.as_where_clause(files_table.c.created_by)
+                )
             )
-
-        return file_id
+            or 0
+        )
 
     async def add_pending_files(
         self,
@@ -139,83 +160,63 @@ class FileRepository(SharedResourceRepository):
 
         return list(file_ids)
 
-    async def get_files_by_creator(
+    async def get_all(
         self,
-        offset: int,
-        limit: int,
-        order: SortOrder,
-        user_id: UUID,
-        partner_id: UUID | None = None,
+        access_ctx: AccessContext,
+        *,
+        offset: int = DEFAULT_OFFSET,
+        limit: int = DEFAULT_LIMIT,
+        sort_order: SortOrder = SortOrder.ASC,
     ) -> tuple[list[FileDTO], int]:
-        """Возвращает список DTO медиа файлов по id их создателя.
+        """Возвращает постраничный список медиа-файлов и их общее количество.
+
+        Условие доступа и фильтры применяются на уровне запроса атомарно.
+        Общее количество возвращается без учёта пагинации - для формирования
+        метаданных ответа на клиенте.
 
         Parameters
         ----------
-        offset : int
-            Смещение от начала списка.
-        limit : int
-            Количество возвращаемых файлов.
-        order : SortOrder
-            Направление сортировки файлов.
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+        offset : int, optional
+            Количество пропускаемых записей, по умолчанию `DEFAULT_OFFSET`.
+        limit : int, optional
+            Максимальное количество возвращаемых записей, по умолчанию `DEFAULT_LIMIT`.
+        sort_order : SortOrder, optional
+            Направление сортировки по полю `created_at`,
+            по умолчанию SortOrder.ASC.
 
         Returns
         -------
         tuple[list[FileDTO], int]
-            Кортеж из списка DTO файлов и общего количества.
+            Список DTO найденных файлов и общее количество записей.
+            Пустой список и 0, если файлов нет или доступ ко всем из них запрещён.
         """
-        query = (
-            select(FileModel)
-            .options(selectinload(FileModel.creator))
+        where_clause = access_ctx.as_where_clause(files_table.c.created_by)
+
+        data_query = (
+            select(files_table, *self._creator_columns())
+            .join(users_table, files_table.c.created_by == users_table.c.id)
+            .where(where_clause)
+            .order_by(self._build_order_clause(files_table.c.created_at, sort_order))
             .slice(offset, offset + limit)
         )
 
-        query = query.order_by(self._build_order_clause(FileModel.created_at, order))
-
-        where_clause = self._build_shared_clause(FileModel, user_id, partner_id)
-
-        query = query.where(where_clause)
-        count_query = self._build_count_query(FileModel, where_clause)
-
-        files, total = await asyncio.gather(
-            self.session.scalars(query),
-            self.session.scalar(count_query),
+        data_result, total = await asyncio.gather(
+            self.connection.execute(data_query),
+            self.connection.scalar(self._build_count_query(files_table, where_clause)),
         )
 
-        return [FileDTO.model_validate(file) for file in files.all()], total or 0
+        return (
+            [
+                FileDTO.model_validate({**row, "creator": self._extract_creator(row)})
+                for row in data_result.mappings().all()
+            ],
+            total or 0,
+        )
 
-    async def count_files_by_creator(
-        self,
-        user_id: UUID,
-        partner_id: UUID | None = None,
-    ) -> int:
-        """Возвращает количество медиа-файлов по id их создателя.
-
-        Parameters
-        ----------
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя.
-
-        Returns
-        -------
-        int
-            Количество доступных пользователю медиа-файлов.
-        """
-        where_clause = self._build_shared_clause(FileModel, user_id, partner_id)
-        count_query = self._build_count_query(FileModel, where_clause)
-
-        return await self.session.scalar(count_query) or 0
-
-    async def get_file_by_id(
-        self,
-        file_id: UUID,
-        user_id: UUID,
-        partner_id: UUID | None = None,
+    async def get_by_id(
+        self, record_id: UUID, access_ctx: AccessContext
     ) -> FileDTO | None:
         """Получает медиа-файл по его UUID.
 
@@ -224,21 +225,29 @@ class FileRepository(SharedResourceRepository):
 
         Parameters
         ----------
-        file_id : UUID
-            UUID медиа-файла.
-        user_id : UUID | None
-            UUID пользователя, чей файл ищется.
-        partner_id : UUID | None, optional
-            Если указано, ищет также среди файлов партнёра.
+        record_id : UUID
+            UUID пользовательского медиа-файла.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
 
         Returns
         -------
-        FileDTO
-            DTO найденного медиа-файла.
+        NoteDTO | None
+            Доменное DTO записи медиа-файла или None, если файл не найден.
         """
-        files = await self.get_files_by_ids([file_id], user_id, partner_id)
+        result = await self.connection.execute(
+            select(files_table, *self._creator_columns())
+            .join(users_table, files_table.c.created_by == users_table.c.id)
+            .where(
+                files_table.c.id == record_id,
+                access_ctx.as_where_clause(files_table.c.created_by),
+            )
+        )
 
-        return files[0] if len(files) == 1 else None
+        if not (row := result.mappings().first()):
+            return None
+
+        return FileDTO.model_validate({**row, "creator": self._extract_creator(row)})
 
     async def get_files_by_ids(
         self,
@@ -280,26 +289,12 @@ class FileRepository(SharedResourceRepository):
 
         return [FileDTO.model_validate(file) for file in files.all()]
 
-    async def mark_file_uploaded(self, file_id: UUID) -> None:
-        """Обновляет статус файла на UPLOADED после успешной загрузки.
-
-        Parameters
-        ----------
-        file_id : UUID
-            Уникальный идентификатор файла.
-        """
-        await self.session.execute(
-            update(FileModel)
-            .where(FileModel.id == file_id)
-            .values(status=FileStatus.UPLOADED)
-        )
-
-    async def update_file_by_id(
+    async def update(
         self,
-        file_id: UUID,
-        patch_file_dto: PatchFileDTO,
-        user_id: UUID,
-    ) -> bool:
+        record_id: UUID,
+        update_dto: UpdateFileDTO,
+        access_ctx: AccessContext,
+    ) -> FileDTO | None:
         """Обновление атрибутов файла в базе данных.
 
         Выполняет SQL-запрос UPDATE для изменения атрибутов файла,
@@ -307,41 +302,65 @@ class FileRepository(SharedResourceRepository):
 
         Parameters
         ----------
-        file_id : UUID
+        record_id : UUID
             UUID файла к изменению.
-        patch_file_dto : PatchFileDTO
+        update_dto : UpdateFileDTO
             DTO с полями для обновления. Только явно переданные поля
             попадают в SET-часть запроса через `to_update_values()`.
-        user_id : UUID
-            UUID текущего пользователя.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
 
         Returns
         -------
-        bool
-            True, если запись была обновлена, False - если файл
-            не найден или не прошёл проверку прав доступа.
+        FileDTO | None
+            Доменное DTO файла, если он обновлён, None - в ином
+            случае.
         """
-        updated = await self.session.scalar(
-            update(FileModel)
+        update_cte = (
+            update(files_table)
             .where(
-                FileModel.id == file_id,
-                FileModel.created_by == user_id,
+                files_table.c.id == record_id,
+                access_ctx.as_where_clause(files_table.c.created_by),
             )
-            .values(**patch_file_dto.to_update_values())
-            .returning(FileModel.id)
+            .values(**update_dto.to_update_values())
+            .returning(files_table)
+            .cte("update_cte")
+        )
+        result = await self.connection.execute(
+            select(update_cte, *self._creator_columns()).join(
+                users_table, update_cte.c.created_by == users_table.c.id
+            )
         )
 
-        return updated is not None
+        if not (row := result.mappings().first()):
+            return None
 
-    async def delete_file_by_id(self, file_id: UUID) -> None:
+        return FileDTO.model_validate({**row, "creator": self._extract_creator(row)})
+
+    async def delete(self, record_id: UUID, access_ctx: AccessContext) -> bool:
         """Удаляет запись о медиа файле из базы данных по его UUID.
 
         Parameters
         ----------
-        file_id : UUID
+        record_id : UUID
             UUID файла для удаления.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+
+        Returns
+        -------
+        bool
+            True если запись о файле удалена, False если файл по переданному
+            `record_id` не найден или пользователь не имеет достаточно прав.
         """
-        await self.session.execute(delete(FileModel).where(FileModel.id == file_id))
+        result = await self.connection.execute(
+            delete(FileModel).where(
+                files_table.c.id == record_id,
+                access_ctx.as_where_clause(files_table.c.created_by),
+            )
+        )
+
+        return result.mappings().first() is not None
 
     async def delete_pending_files_by_ids(self, file_ids: list[UUID]) -> None:
         """Удаляет записи медиа-файлов со статусом `FileStatus.PENDING` по их идентификаторам.

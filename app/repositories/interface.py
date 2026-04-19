@@ -37,7 +37,7 @@ class RepositoryInterface(ABC):
     """
 
     def __init__(self, session: AsyncSession):
-        self.session: AsyncSession = session
+        self.session = session
 
     @staticmethod
     def _build_count_query(
@@ -338,7 +338,7 @@ class CreateMixin(ABC, Generic[CreateDTO, EntityDTO]):
         ...
 
 
-class OwnedCreateMixin(OwnedRepositoryInterface, Generic[CreateDTO, EntityDTO]):
+class OwnedCreateMixin(ABC, Generic[CreateDTO, EntityDTO]):
     """Миксин операции создания записи с явной привязкой к владельцу.
 
     Предназначен для сущностей с ограниченной видимостью, у которых
@@ -427,7 +427,7 @@ class ReadMixin(ABC, Generic[EntityDTO]):
         ...
 
 
-class OwnedReadMixin(OwnedRepositoryInterface, Generic[EntityDTO]):
+class OwnedReadMixin(ABC, Generic[EntityDTO]):
     """Миксин операции чтения записи с проверкой прав доступа.
 
     Предназначен для сущностей с ограниченной видимостью. Условие доступа
@@ -498,7 +498,7 @@ class OwnedReadMixin(OwnedRepositoryInterface, Generic[EntityDTO]):
         ...
 
 
-class OwnedFilteredReadMixin(OwnedRepositoryInterface, Generic[FilterDTO, EntityDTO]):
+class OwnedFilteredReadMixin(ABC, Generic[FilterDTO, EntityDTO]):
     """Миксин операции фильтрованного чтения с подсчётом записей.
 
     Предназначен для сущностей с ограниченным доступом, поддерживающих
@@ -581,7 +581,7 @@ class UpdateMixin(ABC, Generic[UpdateDTO, EntityDTO]):
         ...
 
 
-class OwnedUpdateMixin(OwnedRepositoryInterface, Generic[UpdateDTO, EntityDTO]):
+class OwnedUpdateMixin(ABC, Generic[UpdateDTO, EntityDTO]):
     """Миксин операции обновления записи с проверкой прав доступа.
 
     Предназначен для сущностей с ограниченной видимостью. Условие доступа
@@ -650,7 +650,7 @@ class DeleteMixin(ABC):
         ...
 
 
-class OwnedDeleteMixin(OwnedRepositoryInterface):
+class OwnedDeleteMixin(ABC):
     """Миксин операции удаления записи с проверкой прав доступа.
 
     Предназначен для сущностей с ограниченной видимостью. Условие доступа

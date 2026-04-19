@@ -3,14 +3,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Path, Query, status
 
+from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET, MAX_LIMIT, MAX_OFFSET
 from app.core.dependencies.auth import StrictAuthenticationDependency
+from app.core.dependencies.context import PartnerIdDependency
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.dependencies.transport import IdempotencyKeyDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF, IDEMPOTENCY_CONFLICT_ERROR_REF
 from app.core.enums import SortOrder
 from app.schemas.dto.file import (
     FileMetadataDTO,
-    PatchFileDTO,
+    UpdateFileDTO,
 )
 from app.schemas.v1.requests.files import (
     ConfirmUploadRequest,
@@ -45,21 +47,23 @@ router = APIRouter(
 async def get_files(
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
     offset: Annotated[
         int,
         Query(
             ge=0,
+            le=MAX_OFFSET,
             description="Смещение от начала списка (количество пропускаемых файлов).",
         ),
-    ] = 0,
+    ] = DEFAULT_OFFSET,
     limit: Annotated[
         int,
         Query(
             ge=1,
-            le=50,
+            le=MAX_LIMIT,
             description="Количество возвращаемых файлов.",
         ),
-    ] = 10,
+    ] = DEFAULT_LIMIT,
     order: Annotated[
         SortOrder,
         Query(
@@ -83,6 +87,8 @@ async def get_files(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
     offset : int, optional
         Смещение от начала списка (количество пропускаемых файлов).
     limit : int, optional
@@ -96,7 +102,9 @@ async def get_files(
         Объект ответа, содержащий список доступных пользователю медиа файлов
         в пределах заданной пагинации и общее количество найденных файлов.
     """
-    files, total = await services.file.get_files(offset, limit, order, payload.sub)
+    files, total = await services.file.get_files(
+        offset, limit, order, payload.sub, partner_id
+    )
 
     return FilesResponse(
         files=files, total=total, detail=f"Found {total} file entries."
@@ -113,6 +121,7 @@ async def get_files(
 async def count(
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
 ) -> CountResponse:
     """Получение количества всех доступных пользователю медиа файлов.
 
@@ -130,6 +139,8 @@ async def count(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
     -------
@@ -137,7 +148,7 @@ async def count(
         Объект ответа, содержащий общее количество доступных
         пользователю медиа файлов.
     """
-    count = await services.file.count_files(payload.sub)
+    count = await services.file.count_files(payload.sub, partner_id)
 
     return CountResponse(count=count, detail=f"Found {count} file entries.")
 
@@ -316,6 +327,7 @@ async def download(
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
 ) -> PresignedURLResponse:
     """Получение presigned-url для скачивания медиа-файла из приватного хранилища.
 
@@ -336,6 +348,8 @@ async def download(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
     -------
@@ -343,14 +357,10 @@ async def download(
         Успешный ответ о генерации presigned-url для скачивания.
     """
     url = await services.file.get_download_presigned_url(
-        file_id,
-        payload.sub,
+        file_id, payload.sub, partner_id
     )
 
-    return PresignedURLResponse(
-        url=url,
-        detail="Presigned URL generated successfully.",
-    )
+    return PresignedURLResponse(url=url, detail="Presigned URL generated successfully.")
 
 
 @router.post(
@@ -394,8 +404,7 @@ async def download_batch(
         Успешный ответ о генерации presigned-urls для скачивания.
     """
     successful, failed = await services.file.get_download_presigned_urls(
-        body.files_uuids,
-        payload.sub,
+        body.files_uuids, payload.sub
     )
 
     return PresignedURLsBatchResponse(
@@ -452,7 +461,7 @@ async def patch_file(
     """
     await services.file.update_file(
         file_id,
-        PatchFileDTO.from_request_schema(body),
+        UpdateFileDTO.from_request_schema(body),
         payload.sub,
     )
 

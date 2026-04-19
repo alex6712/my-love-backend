@@ -1,9 +1,9 @@
-from sqlalchemy import Column, ForeignKey, Table
+from sqlalchemy import Column, Table
 from sqlalchemy.types import Enum as SAEnum
-from sqlalchemy.types import String, Text, Uuid
+from sqlalchemy.types import String, Text
 
 from app.core.enums import NoteType
-from app.infra.postgres.tables import base_columns, metadata
+from app.infra.postgres.tables import base_columns, metadata, owned_columns
 
 notes_table = Table(
     "notes",
@@ -33,12 +33,6 @@ notes_table = Table(
         nullable=True,
         comment="Содержимое пользовательской заметки",
     ),
-    Column(
-        "created_by",
-        Uuid(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        comment="UUID пользователя, загрузившего заметку",
-    ),
+    *owned_columns(),
     comment="Пользовательские заметки и записки",
 )

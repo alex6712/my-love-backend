@@ -73,7 +73,7 @@ class NoteService:
         limit: int,
         sort_order: SortOrder,
         user_id: UUID,
-        partner_id: UUID | None = None,
+        partner_id: UUID | None,
     ) -> tuple[list[NoteDTO], int]:
         """Получение всех заметок по UUID создателя.
 
@@ -93,7 +93,7 @@ class NoteService:
             Направление сортировки заметок.
         user_id : UUID
             UUID пользователя.
-        partner_id : UUID | None, optional
+        partner_id : UUID | None
             UUID партнёра пользователя или None.
 
         Returns
@@ -109,7 +109,7 @@ class NoteService:
             sort_order=sort_order,
         )
 
-    async def count_notes(self, user_id: UUID, partner_id: UUID | None = None) -> int:
+    async def count_notes(self, user_id: UUID, partner_id: UUID | None) -> int:
         """Получение количества всех доступных пользователю заметок.
 
         Возвращает закэшированное значение из Redis, если оно есть.
@@ -119,7 +119,7 @@ class NoteService:
         ----------
         user_id : UUID
             UUID пользователя.
-        partner_id : UUID | None, optional
+        partner_id : UUID | None
             UUID партнёра пользователя или None.
 
         Returns
@@ -145,7 +145,7 @@ class NoteService:
         note_id: UUID,
         update_dto: UpdateNoteDTO,
         user_id: UUID,
-        partner_id: UUID | None = None,
+        partner_id: UUID | None,
     ) -> None:
         """Частичное обновление атрибутов заметки по её UUID.
 
@@ -161,7 +161,7 @@ class NoteService:
             DTO с полями для обновления. Содержит только явно переданные поля.
         user_id : UUID
             UUID пользователя, инициирующего изменение заметки.
-        partner_id : UUID | None, optional
+        partner_id : UUID | None
             UUID партнёра пользователя или None.
 
         Raises
