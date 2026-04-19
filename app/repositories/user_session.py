@@ -33,8 +33,6 @@ class UserSessionRepository(
         Создаёт новую пользовательскую сессию.
     get_by_id(record_id)
         Возвращает DTO пользовательской сессии по её идентификатору.
-    get_by_refresh_token_hash(refresh_token_hash)
-        Возвращает сессию по хешу refresh-токена.
     update_by_refresh_token_hash(refresh_token_hash, update_dto)
         Обновляет данные сессии по хэшу токена обновления.
     delete(record_id)

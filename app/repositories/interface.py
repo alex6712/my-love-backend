@@ -508,7 +508,7 @@ class OwnedFilteredReadMixin(OwnedRepositoryInterface, Generic[FilterDTO, Entity
     Attributes
     ----------
     FilterDTO : TypeVar
-        Тип DTO с параметрами фильтрации. Специфичен для домена —
+        Тип DTO с параметрами фильтрации. Специфичен для домена -
         определяется в конкретном интерфейсе репозитория.
     EntityDTO : TypeVar
         Тип доменного DTO возвращаемой сущности.
