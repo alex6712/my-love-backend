@@ -15,7 +15,7 @@ class BaseDTO(BaseModel):
     (Атрибуты определяются в дочерних классах)
     """
 
-    pass
+    model_config = ConfigDict(frozen=True)
 
 
 class BaseSQLCoreDTO(BaseDTO):
@@ -43,6 +43,39 @@ class BaseSQLCoreDTO(BaseDTO):
     model_config = ConfigDict(
         from_attributes=True,
     )
+
+
+class BaseFilterDTO(BaseDTO):
+    """Базовый DTO для передачи параметров фильтрации в репозиторий.
+
+    Предназначен для query-параметров — конструируется напрямую,
+    без промежуточной схемы запроса.
+
+    Notes
+    -----
+    None-значение поля означает «фильтр не задан», а не «фильтровать по NULL».
+    Репозиторий проверяет каждое поле явно при построении WHERE-clause.
+
+    Examples
+    --------
+    >>> class NoteFilterDTO(BaseFilterDTO):
+    ...     note_type: NoteType | None = None
+    ...
+    >>> NoteFilterDTO().is_empty()
+    True
+    >>> NoteFilterDTO(note_type=NoteType.WISHLIST).is_empty()
+    False
+    """
+
+    def is_empty(self) -> bool:
+        """Проверяет, что ни один фильтр не задан.
+
+        Returns
+        -------
+        bool
+            True, если все поля равны None.
+        """
+        return all(value is None for value in self.model_dump().values())
 
 
 class BaseRequestDTO(BaseDTO):
@@ -74,7 +107,7 @@ class BaseCreateDTO(BaseRequestDTO):
 
     Notes
     -----
-    В отличие от `BasePatchDTO`, все поля считаются явно переданными —
+    В отличие от `BasePatchDTO`, все поля считаются явно переданными -
     sentinel-тип `Unset` здесь не нужен.
 
     Examples

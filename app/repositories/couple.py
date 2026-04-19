@@ -70,10 +70,8 @@ class CoupleRepository(RepositoryInterface):
         couple = await self.session.scalar(
             select(CoupleModel)
             .options(
-                selectinload(
-                    CoupleModel.user_low,
-                    CoupleModel.user_high,
-                )
+                selectinload(CoupleModel.user_low),
+                selectinload(CoupleModel.user_high),
             )
             .where(
                 or_(

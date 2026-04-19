@@ -5,13 +5,21 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.infra.postgres import get_constraint_name
-from app.infra.postgres.tables import users_table
-from app.repositories.interface import PublicRepositoryInterface
+from app.infra.postgres.tables.users import users_table
+from app.repositories.interface import (
+    CreateMixin,
+    ReadMixin,
+    RepositoryInterfaceNew,
+    UpdateMixin,
+)
 from app.schemas.dto.user import CreateUserDTO, UpdateUserDTO, UserWithCredentialsDTO
 
 
 class UserRepository(
-    PublicRepositoryInterface[CreateUserDTO, UpdateUserDTO, UserWithCredentialsDTO]
+    RepositoryInterfaceNew,
+    ReadMixin[UserWithCredentialsDTO],
+    CreateMixin[CreateUserDTO, UserWithCredentialsDTO],
+    UpdateMixin[UpdateUserDTO, UserWithCredentialsDTO],
 ):
     """Репозиторий пользователя.
 
@@ -43,6 +51,11 @@ class UserRepository(
         create_dto : CreateUserDTO
             Необходимые для создания записи данные о пользователе.
 
+        Returns
+        -------
+        UserWithCredentialsDTO
+            Доменное DTO пользователя с чувствительными данными.
+
         Raises
         ------
         UsernameAlreadyExistsException
@@ -54,7 +67,6 @@ class UserRepository(
                 .values(**create_dto.to_create_values())
                 .returning(users_table)
             )
-            row = result.mappings().one()
         except IntegrityError as e:
             constraint = get_constraint_name(e)
 
@@ -65,7 +77,7 @@ class UserRepository(
 
             raise
 
-        return UserWithCredentialsDTO.model_validate(row)
+        return UserWithCredentialsDTO.model_validate(result.mappings().one())
 
     async def get_by_id(self, record_id: UUID) -> UserWithCredentialsDTO | None:
         """Возвращает DTO пользователя по его id.

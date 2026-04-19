@@ -5,9 +5,9 @@ from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.note import NoteNotFoundException
 from app.infra.postgres.uow import UnitOfWork
 from app.infra.redis import RedisClient
-from app.repositories.couple import CoupleRepository
+from app.repositories.interface import AccessContext
 from app.repositories.note import NoteRepository
-from app.schemas.dto.note import CreateNoteDTO, NoteDTO, UpdateNoteDTO
+from app.schemas.dto.note import CreateNoteDTO, FilterNoteDTO, NoteDTO, UpdateNoteDTO
 
 
 class NoteService:
@@ -23,14 +23,12 @@ class NoteService:
         Клиент Redis для кэширования запросов.
     _note_repo : NoteRepository
         Репозиторий для операций с заметками в БД.
-    _couple_repo : CoupleRepository
-        Репозиторий пар между пользователями.
 
     Methods
     -------
-    create_note(type, title, content, created_by)
+    create_note(create_dto, user_id)
         Создание новой пользовательской заметки.
-    get_notes(offset, limit, user_id)
+    get_notes(note_type, offset, limit, sort_order, user_id)
         Получение всех заметок по UUID создателя.
     count_notes(user_id)
         Получение количества всех доступных пользователю заметок.
@@ -47,7 +45,6 @@ class NoteService:
         self._redis_client = redis_client
 
         self._note_repo = unit_of_work.get_repository(NoteRepository)
-        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
 
     async def create_note(self, create_dto: CreateNoteDTO, user_id: UUID) -> None:
         """Создание новой пользовательской заметки.
@@ -67,15 +64,16 @@ class NoteService:
             UUID пользователя, создающего заметку.
         """
         await self._note_repo.create(create_dto, user_id)
-        await self._redis_client.increment_count("notes", create_dto.created_by)
+        await self._redis_client.increment_count("notes", user_id)
 
     async def get_notes(
         self,
         note_type: NoteType | None,
         offset: int,
         limit: int,
-        order: SortOrder,
+        sort_order: SortOrder,
         user_id: UUID,
+        partner_id: UUID | None = None,
     ) -> tuple[list[NoteDTO], int]:
         """Получение всех заметок по UUID создателя.
 
@@ -91,23 +89,27 @@ class NoteService:
             Смещение от начала списка (количество пропускаемых заметок).
         limit : int
             Количество возвращаемых заметок.
-        order : SortOrder
+        sort_order : SortOrder
             Направление сортировки заметок.
         user_id : UUID
             UUID пользователя.
+        partner_id : UUID | None, optional
+            UUID партнёра пользователя или None.
 
         Returns
         -------
         tuple[list[NoteDTO], int]
             Кортеж из списка заметок и общего количества.
         """
-        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
-
-        return await self._note_repo.get_notes_by_creator(
-            note_type, offset, limit, user_id, order, partner_id
+        return await self._note_repo.get_all(
+            FilterNoteDTO(type=note_type),
+            AccessContext(user_id=user_id, partner_id=partner_id),
+            offset=offset,
+            limit=limit,
+            sort_order=sort_order,
         )
 
-    async def count_notes(self, user_id: UUID) -> int:
+    async def count_notes(self, user_id: UUID, partner_id: UUID | None = None) -> int:
         """Получение количества всех доступных пользователю заметок.
 
         Возвращает закэшированное значение из Redis, если оно есть.
@@ -117,19 +119,20 @@ class NoteService:
         ----------
         user_id : UUID
             UUID пользователя.
+        partner_id : UUID | None, optional
+            UUID партнёра пользователя или None.
 
         Returns
         -------
         int
             Количество доступных пользователю заметок.
         """
-        cached = await self._redis_client.get_count("notes", user_id)
-
-        if cached is not None:
+        if cached := await self._redis_client.get_count("notes", user_id):
             return cached
 
-        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
-        count = await self._note_repo.count_notes_by_creator(user_id, partner_id)
+        count = await self._note_repo.count(
+            AccessContext(user_id=user_id, partner_id=partner_id)
+        )
 
         await self._redis_client.set_count(
             "notes", user_id, count, self._COUNT_CACHE_TTL
@@ -138,7 +141,11 @@ class NoteService:
         return count
 
     async def update_note(
-        self, note_id: UUID, patch_note_dto: UpdateNoteDTO, user_id: UUID
+        self,
+        note_id: UUID,
+        update_dto: UpdateNoteDTO,
+        user_id: UUID,
+        partner_id: UUID | None = None,
     ) -> None:
         """Частичное обновление атрибутов заметки по её UUID.
 
@@ -150,10 +157,12 @@ class NoteService:
         ----------
         note_id : UUID
             UUID заметки к изменению.
-        patch_note_dto : UpdateNoteDTO
+        update_dto : UpdateNoteDTO
             DTO с полями для обновления. Содержит только явно переданные поля.
         user_id : UUID
             UUID пользователя, инициирующего изменение заметки.
+        partner_id : UUID | None, optional
+            UUID партнёра пользователя или None.
 
         Raises
         ------
@@ -162,16 +171,14 @@ class NoteService:
         NoteNotFoundException
             Если заметка не найдена или пользователь не является её создателем.
         """
-        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
-
-        if patch_note_dto.is_empty():
+        if update_dto.is_empty():
             raise NothingToUpdateException(detail="No fields provided for update.")
 
-        updated = await self._note_repo.update_note_by_id(
-            note_id, patch_note_dto, user_id, partner_id
-        )
-
-        if not updated:
+        if not await self._note_repo.update(
+            note_id,
+            update_dto,
+            AccessContext(user_id=user_id, partner_id=partner_id),
+        ):
             raise NoteNotFoundException(
                 detail=f"Note with id={note_id} not found, or you're not this note's creator.",
             )
@@ -198,13 +205,9 @@ class NoteService:
             Возникает в случае, если заметка с переданным UUID не существует
             или текущий пользователь не является создателем заметки.
         """
-        note = await self._note_repo.get_note_by_id(note_id, user_id)
-
-        if note is None:
+        if not await self._note_repo.delete(note_id, AccessContext(user_id=user_id)):
             raise NoteNotFoundException(
                 detail=f"Note with id={note_id} not found, or you're not this note's creator.",
             )
-
-        await self._note_repo.delete_note_by_id(note_id)
 
         await self._redis_client.decrement_count("notes", user_id)

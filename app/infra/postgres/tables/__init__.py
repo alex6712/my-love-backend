@@ -4,12 +4,6 @@ from uuid import UUID
 from sqlalchemy import Column, MetaData, text
 from sqlalchemy.types import DateTime, Uuid
 
-from app.infra.postgres.tables.couple_members import couple_members_table
-from app.infra.postgres.tables.couple_requests import couple_requests_table
-from app.infra.postgres.tables.couples import couples_table
-from app.infra.postgres.tables.notes import notes_table
-from app.infra.postgres.tables.users import users_table
-
 metadata = MetaData()
 """Глобальный реестр всех таблиц SQLAlchemy Core приложения.
 
@@ -60,14 +54,3 @@ def base_columns() -> tuple[Column[UUID], Column[datetime]]:
             comment="Дата и время создания записи",
         ),
     )
-
-
-__all__ = [
-    "metadata",
-    "base_columns",
-    "couple_members_table",
-    "couple_requests_table",
-    "couples_table",
-    "notes_table",
-    "users_table",
-]

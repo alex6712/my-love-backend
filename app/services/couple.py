@@ -92,7 +92,7 @@ class CoupleService:
         CoupleRequestAlreadyExistsException
             Если уже отправлен подобный запрос.
         """
-        recipient_user = await self._user_repo.get_user_by_username(recipient_username)
+        recipient_user = await self._user_repo.get_by_username(recipient_username)
         if recipient_user is None:
             raise UserNotFoundException(
                 detail=f"User with username={recipient_username} not found."

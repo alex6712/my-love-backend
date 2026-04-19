@@ -3,7 +3,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Path, Query, status
 
+from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET, MAX_LIMIT, MAX_OFFSET
 from app.core.dependencies.auth import StrictAuthenticationDependency
+from app.core.dependencies.context import PartnerIdDependency
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.core.enums import NoteType, SortOrder
@@ -29,6 +31,7 @@ router = APIRouter(
 async def get_notes(
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
     note_type: Annotated[
         NoteType | None, Query(alias="t", description="Тип заметок для получения.")
     ] = None,
@@ -36,17 +39,18 @@ async def get_notes(
         int,
         Query(
             ge=0,
+            le=MAX_OFFSET,
             description="Смещение от начала списка (количество пропускаемых заметок).",
         ),
-    ] = 0,
+    ] = DEFAULT_OFFSET,
     limit: Annotated[
         int,
         Query(
             ge=1,
-            le=50,
+            le=MAX_LIMIT,
             description="Количество возвращаемых заметок.",
         ),
-    ] = 10,
+    ] = DEFAULT_LIMIT,
     order: Annotated[
         SortOrder,
         Query(
@@ -70,6 +74,8 @@ async def get_notes(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
     note_type : NoteType | None
         Тип заметок для получения.
     offset : int, optional
@@ -86,7 +92,7 @@ async def get_notes(
         в пределах заданной пагинации и общее количество найденных заметок.
     """
     notes, total = await services.note.get_notes(
-        note_type, offset, limit, order, payload.sub
+        note_type, offset, limit, order, payload.sub, partner_id
     )
 
     return NotesResponse(
@@ -149,6 +155,7 @@ async def post_notes(
 async def count(
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
 ) -> CountResponse:
     """Получение количества всех доступных пользователю заметок.
 
@@ -166,6 +173,8 @@ async def count(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
     -------
@@ -173,7 +182,7 @@ async def count(
         Объект ответа, содержащий общее количество доступных
         пользователю заметок.
     """
-    count = await services.note.count_notes(payload.sub)
+    count = await services.note.count_notes(payload.sub, partner_id)
 
     return CountResponse(count=count, detail=f"Found {count} note entries.")
 
@@ -192,6 +201,7 @@ async def patch_notes(
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
 ) -> StandardResponse:
     """Частичное изменение пользовательской заметки.
 
@@ -216,6 +226,8 @@ async def patch_notes(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
     -------
@@ -226,6 +238,7 @@ async def patch_notes(
         note_id,
         UpdateNoteDTO.from_request_schema(body),
         payload.sub,
+        partner_id,
     )
 
     return StandardResponse(detail="Note content updated successfully.")

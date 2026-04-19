@@ -62,6 +62,16 @@ class PartnerDTO(UserDTO):
 
 
 class CreateUserDTO(BaseCreateDTO):
+    """DTO для создания нового пользователя.
+
+    Attributes
+    ----------
+    username : str
+        Имя пользователя.
+    password_hash : str
+        Хэш пароля пользователя.
+    """
+
     username: str
     password_hash: str
 

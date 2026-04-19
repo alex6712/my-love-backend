@@ -37,6 +37,7 @@ from app.schemas.dto.payload import (
 )
 from app.schemas.dto.token import Tokens
 from app.schemas.dto.user import CreateUserDTO, UpdateUserDTO
+from app.schemas.dto.user_session import CreateUserSessionDTO, UpdateUserSessionDTO
 
 
 class AuthService:
@@ -151,8 +152,14 @@ class AuthService:
             user.id, current_time, session_id := uuid4(), exp=expires_at
         )
 
-        await self._user_session_repo.add_user_session(
-            session_id, user.id, hash_token(refresh_token), expires_at, current_time
+        await self._user_session_repo.create(
+            CreateUserSessionDTO(
+                id=session_id,
+                user_id=user.id,
+                refresh_token_hash=hash_token(refresh_token),
+                expires_at=expires_at,
+                last_used_at=current_time,
+            )
         )
 
         return Tokens(
@@ -214,13 +221,13 @@ class AuthService:
         )
 
         # атомарное обновление хэша токена обновления
-        updated = (
-            await self._user_session_repo.update_user_session_by_refresh_token_hash(
-                hash_token(refresh_token),
-                hash_token(new_refresh_token),
-                expires_at,
-                current_time,
-            )
+        updated = await self._user_session_repo.update_by_refresh_token_hash(
+            hash_token(refresh_token),
+            UpdateUserSessionDTO(
+                refresh_token_hash=hash_token(new_refresh_token),
+                expires_at=expires_at,
+                last_used_at=current_time,
+            ),
         )
 
         if not updated:
@@ -286,7 +293,7 @@ class AuthService:
                 jti=payload.jti, ttl=ttl, token_type=token_type
             )
 
-        await self._user_session_repo.delete_user_session_by_id(payload.session_id)
+        await self._user_session_repo.delete(payload.session_id)
 
     async def logout(self, payload: AccessTokenPayload) -> None:
         """Завершает текущую сессию пользователя.
