@@ -4,7 +4,7 @@ from sqlalchemy.types import Uuid
 from app.infra.postgres.tables import base_columns, metadata
 
 album_items_table = Table(
-    "albums",
+    "album_items",
     metadata,
     *base_columns(),
     Column(

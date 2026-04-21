@@ -405,6 +405,7 @@ async def attach(
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
 ) -> StandardResponse:
     """Привязка медиа-файлов к медиа-альбому.
 
@@ -426,13 +427,17 @@ async def attach(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
     -------
     StandardResponse
         Ответ о результате добавления файлов к альбому.
     """
-    await services.album.attach(album_id, body.files_uuids, payload.sub)
+    await services.album.attach_files(
+        album_id, body.files_uuids, payload.sub, partner_id
+    )
 
     return StandardResponse(detail="Files successfully attached to album.")
 
@@ -453,6 +458,7 @@ async def detach(
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
 ) -> StandardResponse:
     """Отвязка медиа-файлов от медиа-альбома.
 
@@ -474,12 +480,16 @@ async def detach(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
     -------
     StandardResponse
         Ответ о результате удаления файлов из альбома.
     """
-    await services.album.detach(album_id, body.files_uuids, payload.sub)
+    await services.album.detach_files(
+        album_id, body.files_uuids, payload.sub, partner_id
+    )
 
     return StandardResponse(detail="Files successfully detached from album.")

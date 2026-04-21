@@ -49,6 +49,25 @@ class AlbumWithItemsDTO(AlbumDTO):
 
 
 class CreateAlbumDTO(BaseCreateDTO):
+    """DTO для создания нового медиа-альбома.
+
+    Attributes
+    ----------
+    title : str
+        Наименование альбома.
+    description : str | None
+        Описание альбома.
+    cover_url : str | None
+        URL обложки альбома.
+    is_private : bool
+        Видимость альбома (True — личный, False — публичный).
+
+    Notes
+    -----
+    Поле `creator` не передаётся, так как определяется
+    на основе контекста аутентификации (например, из JWT).
+    """
+
     title: str
     description: str | None
     cover_url: str | None

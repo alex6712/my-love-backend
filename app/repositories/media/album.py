@@ -1,7 +1,20 @@
 import asyncio
 from uuid import UUID
 
-from sqlalchemy import and_, case, delete, func, insert, or_, select, text, update
+from sqlalchemy import (
+    and_,
+    case,
+    delete,
+    exists,
+    func,
+    insert,
+    literal,
+    or_,
+    select,
+    text,
+    update,
+)
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET
 from app.core.enums import SortOrder
@@ -450,75 +463,113 @@ class AlbumRepository(
 
         return AlbumDTO.model_validate({**row, "creator": self._extract_creator(row)})
 
-    async def get_existing_album_items(
+    async def attach_files(
+        self, record_id: UUID, files_ids: list[UUID], access_ctx: AccessContext
+    ) -> None:
+        """Прикрепляет медиа-файлы к альбому.
+
+        Прикрепляет только те файлы, к которым есть доступ по контексту,
+        и только если альбом также доступен. Дубликаты молча игнорируются.
+
+        Parameters
+        ----------
+        record_id : UUID
+            UUID альбома.
+        files_ids : list[UUID]
+            Список UUID медиа-файлов для прикрепления.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+        """
+        await self.connection.execute(
+            pg_insert(album_items_table)
+            .from_select(
+                ["album_id", "file_id"],
+                select(
+                    literal(record_id).label("album_id"),
+                    files_table.c.id.label("file_id"),
+                ).where(
+                    files_table.c.id.in_(files_ids),
+                    access_ctx.as_where_clause(files_table.c.created_by),
+                    exists(
+                        select(albums_table.c.id).where(
+                            albums_table.c.id == record_id,
+                            access_ctx.as_where_clause(albums_table.c.created_by),
+                        )
+                    ),
+                ),
+            )
+            .on_conflict_do_nothing(constraint="uq_album_file")
+        )
+
+    async def detach_files(
+        self, record_id: UUID, files_ids: list[UUID], access_ctx: AccessContext
+    ) -> None:
+        """Открепляет медиа-файлы от альбома.
+
+        Удаление выполняется только если пользователь имеет доступ
+        как к самому альбому, так и к каждому из открепляемых файлов.
+        Возвращает список UUID файлов, которые были реально удалены,
+        что позволяет на уровне сервиса сравнить его с переданным
+        списком и сформировать обратную связь для пользователя.
+
+        Parameters
+        ----------
+        record_id : UUID
+            UUID альбома.
+        files_ids : list[UUID]
+            Список UUID медиа-файлов для удаления.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+        """
+        await self.connection.execute(
+            delete(album_items_table).where(
+                and_(
+                    album_items_table.c.album_id == record_id,
+                    album_items_table.c.file_id.in_(files_ids),
+                    exists(
+                        select(albums_table.c.id).where(
+                            albums_table.c.id == record_id,
+                            access_ctx.as_where_clause(albums_table.c.created_by),
+                        )
+                    ),
+                    album_items_table.c.file_id.in_(
+                        select(files_table.c.id).where(
+                            files_table.c.id.in_(files_ids),
+                            access_ctx.as_where_clause(files_table.c.created_by),
+                        )
+                    ),
+                )
+            )
+        )
+
+    async def get_attached_files_ids(
         self, album_id: UUID, files_ids: list[UUID]
-    ) -> set[UUID]:
-        """Получает UUID медиа-файлов, уже прикреплённых к альбому.
+    ) -> list[UUID]:
+        """Возвращает UUID файлов, уже прикреплённых к альбому.
+
+        Используется для отсеивания дубликатов при диагностике
+        частичного провала attach_files — чтобы отличить файлы,
+        которые не были вставлены из-за конфликта, от тех,
+        что недоступны по контексту.
 
         Parameters
         ----------
         album_id : UUID
             UUID альбома.
         files_ids : list[UUID]
-            Список UUID медиа-файлов для проверки.
+            Список UUID файлов для проверки.
 
         Returns
         -------
-        set[UUID]
-            Множество UUID уже прикреплённых файлов.
+        list[UUID]
+            UUID файлов из files_ids, которые уже прикреплены к альбому.
+            Пустой список, если ни один из переданных файлов не прикреплён.
         """
-        result = await self.session.scalars(
-            select(AlbumItemsModel.file_id).where(
-                and_(
-                    AlbumItemsModel.album_id == album_id,
-                    AlbumItemsModel.file_id.in_(files_ids),
-                )
+        result = await self.connection.scalars(
+            select(album_items_table.c.file_id).where(
+                album_items_table.c.album_id == album_id,
+                album_items_table.c.file_id.in_(files_ids),
             )
         )
 
-        return set(result.all())
-
-    async def attach_files_to_album(
-        self, album_id: UUID, files_uuids: list[UUID]
-    ) -> None:
-        """Прикрепляет медиа-файлы к альбому.
-
-        Parameters
-        ----------
-        album_id : UUID
-            UUID альбома.
-        files_uuids : list[UUID]
-            Список UUID медиа-файлов для прикрепления.
-        """
-        await self.session.execute(
-            insert(AlbumItemsModel).values(
-                [
-                    {
-                        "album_id": album_id,
-                        "file_id": file_id,
-                    }
-                    for file_id in files_uuids
-                ]
-            )
-        )
-
-    async def detach_files_from_album(
-        self, album_id: UUID, files_uuids: list[UUID]
-    ) -> None:
-        """Открепляет медиа-файлы от альбома.
-
-        Parameters
-        ----------
-        album_id : UUID
-            UUID альбома.
-        files_uuids : list[UUID]
-            Список UUID медиа-файлов для удаления.
-        """
-        await self.session.execute(
-            delete(AlbumItemsModel).where(
-                and_(
-                    AlbumItemsModel.album_id == album_id,
-                    AlbumItemsModel.file_id.in_(files_uuids),
-                )
-            )
-        )
+        return list(result.all())
