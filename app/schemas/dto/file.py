@@ -69,8 +69,8 @@ class CreateFileDTO(BaseCreateDTO, InternalFileMetadataDTO):
     """DTO для создания нового файла.
 
     Объединяет базовые поля создания сущности (`BaseCreateDTO`)
-    и метаданные медиа-файла (`InternalFileMetadataDTO`),
-    а также содержит информацию, необходимую для доступа к
+    и метаданные медиа-файла (`InternalFileMetadataDTO`).
+    Также содержит информацию, необходимую для доступа к
     объекту в файловом хранилище.
 
     Attributes
