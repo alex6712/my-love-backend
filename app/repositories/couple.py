@@ -8,7 +8,7 @@ from app.core.exceptions.couple import CoupleAlreadyExistsException
 from app.infra.postgres import get_constraint_name
 from app.models.couple import CoupleModel
 from app.repositories.interface import RepositoryInterface
-from app.schemas.dto.couple import CoupleDTO, PatchCoupleDTO
+from app.schemas.dto.couple import CoupleDTO, UpdateCoupleDTO
 from app.schemas.dto.user import PartnerDTO
 
 
@@ -175,7 +175,7 @@ class CoupleRepository(RepositoryInterface):
     async def update_couple_by_id(
         self,
         couple_id: UUID,
-        patch_couple_dto: PatchCoupleDTO,
+        patch_couple_dto: UpdateCoupleDTO,
         user_id: UUID,
     ) -> bool:
         """Обновление атрибутов пары между пользователями в базе данных.
@@ -187,7 +187,7 @@ class CoupleRepository(RepositoryInterface):
         ----------
         couple_id : UUID
             UUID пары к изменению.
-        patch_couple_dto : PatchCoupleDTO
+        patch_couple_dto : UpdateCoupleDTO
             DTO с полями для обновления. Только явно переданные поля
             попадают в SET-часть запроса через `to_update_values()`.
         user_id : UUID

@@ -1,8 +1,9 @@
 from datetime import date, datetime
+from uuid import UUID
 
 from app.core.enums import CoupleRequestStatus
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BaseSQLCoreDTO, BaseUpdateDTO
+from app.schemas.dto.base import BaseCreateDTO, BaseSQLCoreDTO, BaseUpdateDTO
 from app.schemas.dto.user import PartnerDTO
 
 
@@ -46,7 +47,13 @@ class CoupleDTO(BaseSQLCoreDTO):
     relationship_started_on: date | None
 
 
-class PatchCoupleDTO(BaseUpdateDTO):
+class CreateCoupleDTO(BaseCreateDTO):
+    user_low_id: UUID
+    user_high_id: UUID
+    relationship_started_on: date | None = None
+
+
+class UpdateCoupleDTO(BaseUpdateDTO):
     """DTO для частичного обновления данных о паре.
 
     Attributes

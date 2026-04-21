@@ -52,24 +52,26 @@ class AlbumRepository(
 
     Methods
     -------
-    add_album(title, description, cover_url, is_private, created_by)
-        Добавляет в базу данных новую запись о медиа альбоме.
-    get_album_by_id(album_id, user_id, partner_id)
-        Возвращает DTO медиа альбома по его id.
-    get_albums_by_creator(offset, limit, user_id, partner_id)
-        Возвращает список DTO медиа альбомов по id их создателя.
-    search_albums_by_trigram(search_query, threshold, limit, user_id, partner_id)
+    create(create_dto, created_by)
+        Создаёт новый альбом с привязкой к владельцу.
+    get_by_id(record_id, access_ctx)
+        Возвращает DTO альбома по его UUID.
+    get_all(access_ctx, offset, limit, sort_order)
+        Возвращает постраничный список альбомов и их общее количество.
+    search_by_trigram(access_ctx, search_query, threshold, offset, limit)
         Производит поиск альбомов по переданному запросу.
-    get_album_with_items_by_id(album_id, user_id, partner_id)
-        Возвращает DTO медиа альбома с его элементами.
-    update_album_by_id(album_id, title, description, cover_url, is_private)
-        Обновление атрибутов альбома в базе данных.
-    delete_album_by_id(album_id)
+    get_with_items(record_id, access_ctx, offset, limit)
+        Возвращает DTO альбома с постраничным списком медиа-файлов.
+    update(record_id, update_dto, access_ctx)
+        Обновляет атрибуты альбома в базе данных.
+    delete(record_id, access_ctx)
         Удаляет запись о медиа альбоме из базы данных.
-    get_existing_album_items(album_id, files_ids)
-        Получает UUID медиа-файлов, уже прикреплённых к альбому.
-    attach_files_to_album(album_id, files_uuids)
+    attach_files(record_id, files_ids, access_ctx)
         Прикрепляет медиа-файлы к альбому.
+    detach_files(record_id, files_ids, access_ctx)
+        Открепляет медиа-файлы от альбома.
+    get_attached_files_ids(album_id, files_ids)
+        Возвращает UUID файлов, уже прикреплённых к альбому.
     """
 
     _LIKE_ESCAPE_CHAR = "\\"

@@ -413,11 +413,39 @@ class OwnedBatchCreateMixin(ABC, Generic[CreateDTO, EntityDTO]):
         ...
 
 
-class ReadMixin(ABC, Generic[EntityDTO]):
-    """Миксин операции чтения записи по идентификатору.
+class ReadOneMixin(ABC, Generic[EntityDTO]):
+    """Миксин для операции получения одной записи по идентификатору.
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def get_by_id(self, record_id: UUID) -> EntityDTO | None:
+        """Возвращает запись по идентификатору.
+
+        Parameters
+        ----------
+        record_id : UUID
+            Идентификатор записи для получения.
+
+        Returns
+        -------
+        EntityDTO | None
+            Доменное DTO найденной записи или None, если запись не найдена.
+        """
+        ...
+
+
+class ReadMixin(ReadOneMixin[EntityDTO]):
+    """Миксин для полного набора read-операций: по идентификатору и списком.
+
+    Расширяет :class:`ReadOneMixin`, добавляя постраничную выборку всех записей.
+
+    Type Parameters
+    ---------------
     EntityDTO : TypeVar
         Тип доменного DTO возвращаемой сущности.
     """
@@ -446,22 +474,6 @@ class ReadMixin(ABC, Generic[EntityDTO]):
         -------
         tuple[list[EntityDTO], int]
             Список DTO и общее количество записей без учёта пагинации.
-        """
-        ...
-
-    @abstractmethod
-    async def get_by_id(self, record_id: UUID) -> EntityDTO | None:
-        """Возвращает запись по идентификатору.
-
-        Parameters
-        ----------
-        record_id : UUID
-            Идентификатор записи для получения.
-
-        Returns
-        -------
-        EntityDTO | None
-            Доменное DTO найденной записи или None, если запись не найдена.
         """
         ...
 

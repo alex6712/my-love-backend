@@ -6,7 +6,7 @@ from app.infra.postgres.tables.user_sessions import user_sessions_table
 from app.repositories.interface import (
     CreateMixin,
     DeleteMixin,
-    ReadMixin,
+    ReadOneMixin,
     RepositoryInterfaceNew,
 )
 from app.schemas.dto.user_session import (
@@ -19,7 +19,7 @@ from app.schemas.dto.user_session import (
 class UserSessionRepository(
     RepositoryInterfaceNew,
     CreateMixin[CreateUserSessionDTO, UserSessionDTO],
-    ReadMixin[UserSessionDTO],
+    ReadOneMixin[UserSessionDTO],
     DeleteMixin[UserSessionDTO],
 ):
     """Репозиторий для управления пользовательскими сессиями.
