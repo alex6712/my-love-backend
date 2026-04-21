@@ -3,7 +3,7 @@ from typing import Any, Generic, Protocol, Sequence, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import Column, Label, RowMapping, Select, Table, func, select
+from sqlalchemy import Column, FromClause, Label, RowMapping, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm.attributes import InstrumentedAttribute
@@ -213,14 +213,14 @@ class RepositoryInterfaceNew(ABC):
 
     @staticmethod
     def _build_count_query(
-        table: Table, *where_clauses: ColumnElement[bool]
+        table: FromClause, *where_clauses: ColumnElement[bool]
     ) -> Select[tuple[int]]:
         """Создаёт запрос подсчёта записей.
 
         Parameters
         ----------
-        table : Table
-            Таблица, по которой выполняется подсчёт.
+        table : FromClause
+            Таблица или выражение, по которой выполняется подсчёт.
         where_clauses : ColumnElement[bool]
             Условия WHERE для фильтрации. Если не переданы,
             возвращается запрос без фильтрации.

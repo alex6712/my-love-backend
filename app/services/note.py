@@ -54,12 +54,8 @@ class NoteService:
 
         Parameters
         ----------
-        type : NoteType
-            Тип пользовательской заметки.
-        title : str
-            Заголовок пользовательской заметки
-        content : str
-            Содержимое пользовательской заметки.
+        create_dto : CreateNoteDTO
+            Данные для создания заметки.
         user_id : UUID
             UUID пользователя, создающего заметку.
         """

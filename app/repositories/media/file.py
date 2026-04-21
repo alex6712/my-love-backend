@@ -86,11 +86,9 @@ class FileRepository(
         insert_cte = (
             insert(files_table)
             .values(
-                {
-                    **create_dto.to_create_values(),
-                    "status": FileStatus.PENDING,
-                    "created_by": created_by,
-                }
+                **create_dto.to_create_values(),
+                status=FileStatus.PENDING,
+                created_by=created_by,
             )
             .returning(files_table)
             .cte("insert_cte")
@@ -325,8 +323,7 @@ class FileRepository(
         Returns
         -------
         FileDTO | None
-            Доменное DTO файла, если он обновлён, None - в ином
-            случае.
+            Доменное DTO файла, если он обновлён, None - в ином случае.
         """
         update_cte = (
             update(files_table)
@@ -364,8 +361,7 @@ class FileRepository(
         Returns
         -------
         FileDTO | None
-            Доменное DTO файла, если он удалён, None - в ином
-            случае.
+            Доменное DTO файла, если он удалён, None - в ином случае.
         """
         delete_cte = (
             delete(files_table)

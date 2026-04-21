@@ -1,5 +1,5 @@
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BaseSQLCoreDTO, BaseUpdateDTO
+from app.schemas.dto.base import BaseCreateDTO, BaseSQLCoreDTO, BaseUpdateDTO
 from app.schemas.dto.file import FileDTO
 from app.schemas.dto.user import CreatorDTO
 
@@ -48,7 +48,14 @@ class AlbumWithItemsDTO(AlbumDTO):
     total: int
 
 
-class PatchAlbumDTO(BaseUpdateDTO):
+class CreateAlbumDTO(BaseCreateDTO):
+    title: str
+    description: str | None
+    cover_url: str | None
+    is_private: bool
+
+
+class UpdateAlbumDTO(BaseUpdateDTO):
     """DTO для частичного обновления альбома.
 
     Attributes

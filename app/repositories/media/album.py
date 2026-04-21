@@ -2,17 +2,36 @@ import asyncio
 from uuid import UUID
 
 from sqlalchemy import and_, case, delete, func, insert, or_, select, text, update
-from sqlalchemy.orm import selectinload
 
+from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET
 from app.core.enums import SortOrder
-from app.models.album import AlbumModel
-from app.models.album_items import AlbumItemsModel
-from app.models.file import FileModel
-from app.repositories.interface import SharedResourceRepository
-from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO, PatchAlbumDTO
+from app.infra.postgres.tables.album_items import album_items_table
+from app.infra.postgres.tables.albums import albums_table
+from app.infra.postgres.tables.files import files_table
+from app.infra.postgres.tables.users import users_table
+from app.repositories.interface import (
+    AccessContext,
+    OwnedCreateMixin,
+    OwnedDeleteMixin,
+    OwnedReadMixin,
+    OwnedRepositoryInterface,
+    OwnedUpdateMixin,
+)
+from app.schemas.dto.album import (
+    AlbumDTO,
+    AlbumWithItemsDTO,
+    CreateAlbumDTO,
+    UpdateAlbumDTO,
+)
 
 
-class AlbumRepository(SharedResourceRepository):
+class AlbumRepository(
+    OwnedRepositoryInterface,
+    OwnedReadMixin[AlbumDTO],
+    OwnedCreateMixin[CreateAlbumDTO, AlbumDTO],
+    OwnedUpdateMixin[UpdateAlbumDTO, AlbumDTO],
+    OwnedDeleteMixin[AlbumDTO],
+):
     """Репозиторий медиа-альбомов.
 
     Реализация паттерна Репозиторий для работы с медиа-альбомами.
@@ -43,136 +62,147 @@ class AlbumRepository(SharedResourceRepository):
     _LIKE_ESCAPE_CHAR = "\\"
     """Символы экранирования для операции LIKE (и ILIKE)."""
 
-    def add_album(
-        self,
-        title: str,
-        description: str | None,
-        cover_url: str | None,
-        is_private: bool,
-        created_by: UUID,
-    ) -> None:
-        """Добавляет в базу данных новую запись о медиа альбоме.
+    async def create(self, create_dto: CreateAlbumDTO, created_by: UUID) -> AlbumDTO:
+        """Создаёт новый альбом с привязкой к владельцу.
 
         Parameters
         ----------
-        title : str
-            Наименование альбома.
-        description : str | None
-            Описание альбома.
-        cover_url : str | None
-            URL обложки альбома.
-        is_private : bool
-            Видимость альбома.
+        create_dto : CreateFileDTO
+            Данные для создания альбома.
         created_by : UUID
-            UUID пользователя, создавшего альбом.
-        """
-        self.session.add(
-            AlbumModel(
-                title=title,
-                description=description,
-                cover_url=cover_url,
-                is_private=is_private,
-                created_by=created_by,
-            )
-        )
-
-    async def get_album_by_id(
-        self, album_id: UUID, user_id: UUID, partner_id: UUID | None = None
-    ) -> AlbumDTO | None:
-        """Возвращает DTO медиа альбома по его id.
-
-        Parameters
-        ----------
-        album_id : UUID
-            UUID альбома.
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя.
+            Идентификатор пользователя, создающего альбом.
+            Передаётся явно, так как извлекается из payload токена,
+            а не из схемы запроса.
 
         Returns
         -------
-        AlbumDTO | None
-            DTO записи альбома или None, если альбом не найден.
+        AlbumDTO
+            Доменное DTO созданного альбома.
         """
-        album = await self.session.scalar(
-            select(AlbumModel)
-            .options(selectinload(AlbumModel.creator))
-            .where(
-                AlbumModel.id == album_id,
-                self._build_shared_clause(AlbumModel, user_id, partner_id),
+        insert_cte = (
+            insert(albums_table)
+            .values(**create_dto.to_create_values(), created_by=created_by)
+            .returning(albums_table)
+            .cte("insert_cte")
+        )
+        result = await self.connection.execute(
+            select(insert_cte, *self._creator_columns()).join(
+                users_table, insert_cte.c.created_by == users_table.c.id
             )
         )
 
-        return AlbumDTO.model_validate(album) if album else None
+        return AlbumDTO.model_validate(result.mappings().one())
 
-    async def get_albums_by_creator(
+    async def get_all(
         self,
-        offset: int,
-        limit: int,
-        order: SortOrder,
-        user_id: UUID,
-        partner_id: UUID | None = None,
+        access_ctx: AccessContext,
+        *,
+        offset: int = DEFAULT_OFFSET,
+        limit: int = DEFAULT_LIMIT,
+        sort_order: SortOrder = SortOrder.ASC,
     ) -> tuple[list[AlbumDTO], int]:
-        """Возвращает список DTO медиа альбомов по id их создателя.
+        """Возвращает постраничный список альбомов и их общее количество.
+
+        Условие доступа и фильтры применяются на уровне запроса атомарно.
+        Общее количество возвращается без учёта пагинации - для формирования
+        метаданных ответа на клиенте.
 
         Parameters
         ----------
-        offset : int
-            Смещение от начала списка.
-        limit : int
-            Количество возвращаемых альбомов.
-        order : SortOrder
-            Направление сортировки альбомов.
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+        offset : int, optional
+            Количество пропускаемых записей, по умолчанию `DEFAULT_OFFSET`.
+        limit : int, optional
+            Максимальное количество возвращаемых записей, по умолчанию `DEFAULT_LIMIT`.
+        sort_order : SortOrder, optional
+            Направление сортировки по полю `created_at`,
+            по умолчанию SortOrder.ASC.
 
         Returns
         -------
         tuple[list[AlbumDTO], int]
-            Кортеж из списка DTO альбомов и общего количества.
+            Список DTO найденных альбомов и общее количество записей.
+            Пустой список и 0, если альбомов нет или доступ ко всем из них запрещён.
         """
-        query = (
-            select(AlbumModel)
-            .options(selectinload(AlbumModel.creator))
-            .slice(offset, offset + limit)
+        where_clause = access_ctx.as_where_clause(albums_table.c.created_by)
+
+        result, total = await asyncio.gather(
+            self.connection.execute(
+                select(albums_table, *self._creator_columns())
+                .join(users_table, albums_table.c.created_by == users_table.c.id)
+                .where(where_clause)
+                .order_by(
+                    self._build_order_clause(albums_table.c.created_at, sort_order)
+                )
+                .slice(offset, offset + limit)
+            ),
+            self.connection.scalar(self._build_count_query(albums_table, where_clause)),
         )
 
-        query = query.order_by(self._build_order_clause(AlbumModel.created_at, order))
-
-        where_clause = self._build_shared_clause(AlbumModel, user_id, partner_id)
-
-        query = query.where(where_clause)
-        count_query = self._build_count_query(AlbumModel, where_clause)
-
-        albums, total = await asyncio.gather(
-            self.session.scalars(query),
-            self.session.scalar(count_query),
+        return (
+            [
+                AlbumDTO.model_validate({**row, "creator": self._extract_creator(row)})
+                for row in result.mappings().all()
+            ],
+            total or 0,
         )
 
-        return [AlbumDTO.model_validate(album) for album in albums.all()], total or 0
+    async def get_by_id(
+        self, record_id: UUID, access_ctx: AccessContext
+    ) -> AlbumDTO | None:
+        """Получает DTO альбома по его UUID.
 
-    async def search_albums_by_trigram(
+        Возвращает DTO альбома с указанным UUID
+        и создателем (текущей пользователь или его партнёр).
+
+        Parameters
+        ----------
+        record_id : UUID
+            UUID пользовательского альбома.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+
+        Returns
+        -------
+        AlbumDTO | None
+            Доменное DTO записи альбома или None, если альбом не найден.
+        """
+        result = await self.connection.execute(
+            select(albums_table, *self._creator_columns())
+            .join(users_table, albums_table.c.created_by == users_table.c.id)
+            .where(
+                albums_table.c.id == record_id,
+                access_ctx.as_where_clause(albums_table.c.created_by),
+            )
+        )
+
+        if not (row := result.mappings().first()):
+            return None
+
+        return AlbumDTO.model_validate({**row, "creator": self._extract_creator(row)})
+
+    async def search_by_trigram(
         self,
+        access_ctx: AccessContext,
         search_query: str,
         threshold: float,
-        offset: int,
-        limit: int,
-        user_id: UUID,
-        partner_id: UUID | None = None,
+        *,
+        offset: int = DEFAULT_OFFSET,
+        limit: int = DEFAULT_LIMIT,
     ) -> tuple[list[AlbumDTO], int]:
         """Производит поиск альбомов по переданному запросу.
 
         Используется гибридный подход с поиском по полному вхождению (ILIKE)
         и по триграммам (% + GIN-индексы). Результат возвращается в порядке
-        возрастания сходства с запросом:
+        убывания сходства с запросом:
         - Первыми возвращаются результаты с полным совпадением;
         - Далее следуют результаты, отсортированные по значению функции `similarity`.
 
         Parameters
         ----------
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
         search_query : str
             Поисковый запрос, по которому производится поиск.
         threshold : float
@@ -180,18 +210,14 @@ class AlbumRepository(SharedResourceRepository):
         offset : int
             Смещение от начала списка (количество пропускаемых альбомов).
         limit : int
-            Максимальное количество, которое необходимо вернуть.
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя.
+            Максимальное количество альбомов, которое необходимо вернуть.
 
         Returns
         -------
         tuple[list[AlbumDTO], int]
-            Кортеж из списка найденных альбомов и общего количества.
+            Кортеж из списка найденных альбомов и их общего количества.
         """
-        await self.session.execute(
+        await self.connection.execute(
             text("SELECT set_limit(:threshold)"),
             {"threshold": threshold},
         )
@@ -206,166 +232,223 @@ class AlbumRepository(SharedResourceRepository):
         ilike_pattern = f"%{escape_like(search_query)}%"
 
         ilikes = [
-            AlbumModel.title.ilike(ilike_pattern, escape=self._LIKE_ESCAPE_CHAR),
-            AlbumModel.description.ilike(ilike_pattern, escape=self._LIKE_ESCAPE_CHAR),
+            albums_table.c.title.ilike(ilike_pattern, escape=self._LIKE_ESCAPE_CHAR),
+            albums_table.c.description.ilike(
+                ilike_pattern, escape=self._LIKE_ESCAPE_CHAR
+            ),
         ]
 
         query = (
-            select(AlbumModel)
-            .options(selectinload(AlbumModel.creator))
+            select(albums_table, *self._creator_columns())
+            .join(users_table, albums_table.c.created_by == users_table.c.id)
             .order_by(
                 # полные вхождения в списке идут выше
                 case((or_(*ilikes), 1.0), else_=0.0).desc(),
                 func.greatest(
-                    func.coalesce(func.similarity(AlbumModel.title, search_query), 0.0),
                     func.coalesce(
-                        func.similarity(AlbumModel.description, search_query), 0.0
+                        func.similarity(albums_table.c.title, search_query), 0.0
+                    ),
+                    func.coalesce(
+                        func.similarity(albums_table.c.description, search_query), 0.0
                     ),
                 ).desc(),
-                AlbumModel.created_at,
+                albums_table.c.created_at,
             )
             .slice(offset, offset + limit)
         )
 
         where_clauses = [
-            self._build_shared_clause(AlbumModel, user_id, partner_id),
+            access_ctx.as_where_clause(albums_table.c.created_by),
             or_(
                 # поиск полного вхождения
                 *ilikes,
                 # поиск по триграммам
-                AlbumModel.title.op("%")(search_query),
-                AlbumModel.description.op("%")(search_query),
+                albums_table.c.title.op("%")(search_query),
+                albums_table.c.description.op("%")(search_query),
             ),
         ]
 
         query = query.where(*where_clauses)
-        count_query = self._build_count_query(AlbumModel, *where_clauses)
+        count_query = self._build_count_query(albums_table, *where_clauses)
 
-        albums, total = await asyncio.gather(
-            self.session.scalars(query),
-            self.session.scalar(count_query),
+        result, total = await asyncio.gather(
+            self.connection.execute(query),
+            self.connection.scalar(count_query),
         )
 
-        return [AlbumDTO.model_validate(album) for album in albums.all()], total or 0
+        return [
+            AlbumDTO.model_validate({**row, "creator": self._extract_creator(row)})
+            for row in result.mappings().all()
+        ], total or 0
 
-    async def get_album_with_items_by_id(
+    async def get_with_items(
         self,
-        album_id: UUID,
-        offset: int,
-        limit: int,
-        user_id: UUID,
-        partner_id: UUID | None = None,
+        record_id: UUID,
+        access_ctx: AccessContext,
+        *,
+        offset: int = DEFAULT_OFFSET,
+        limit: int = DEFAULT_LIMIT,
     ) -> AlbumWithItemsDTO | None:
-        """Возвращает DTO медиа альбома по его id с элементами.
+        """Получает DTO альбома с постраничным списком медиа-файлов.
+
+        Параллельно выполняет три запроса: получение альбома с создателем,
+        постраничную выборку медиа-файлов и подсчёт их общего количества.
+        Файлы фильтруются по тому же контексту доступа, что и альбом.
+        Если альбом не найден или недоступен - возвращает None.
 
         Parameters
         ----------
-        album_id : UUID
-            UUID альбома.
-        offset : int
-            Смещение для пагинации.
-        limit : int | None
-            Лимит количества элементов.
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя.
+        record_id : UUID
+            UUID пользовательского альбома.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+            Применяется как к альбому, так и к его медиа-файлам.
+        offset : int, optional
+            Количество пропускаемых записей, по умолчанию `DEFAULT_OFFSET`.
+        limit : int, optional
+            Максимальное количество возвращаемых записей, по умолчанию `DEFAULT_LIMIT`.
 
         Returns
         -------
         AlbumWithItemsDTO | None
-            DTO альбома с файлами или None, если альбом не найден.
+            DTO альбома с медиа-файлами, или None если альбом не найден.
         """
-        album_query = (
-            select(AlbumModel)
-            .options(selectinload(AlbumModel.creator))
-            .where(
-                AlbumModel.id == album_id,
-                self._build_shared_clause(AlbumModel, user_id, partner_id),
-            )
+        # переиспользуется в запросе items и в count, чтобы total совпадал
+        # с реальным количеством доступных файлов после фильтрации
+        items_where_clause = and_(
+            album_items_table.c.album_id == record_id,
+            access_ctx.as_where_clause(files_table.c.created_by),
         )
 
-        where_clause = AlbumItemsModel.album_id == album_id
-
-        items_query = (
-            select(FileModel)
-            .join(AlbumItemsModel, AlbumItemsModel.file_id == FileModel.id)
-            .where(where_clause)
-            .options(selectinload(FileModel.creator))
-            .order_by(AlbumItemsModel.created_at)
-            .slice(offset, offset + limit)
+        album_result, items_result, total = await asyncio.gather(
+            # альбом с данными создателя
+            self.connection.execute(
+                select(albums_table, *self._creator_columns())
+                .join(users_table, albums_table.c.created_by == users_table.c.id)
+                .where(
+                    albums_table.c.id == record_id,
+                    access_ctx.as_where_clause(albums_table.c.created_by),
+                )
+            ),
+            # постраничная выборка файлов альбома с данными их создателей
+            self.connection.execute(
+                select(files_table, *self._creator_columns())
+                .join(users_table, files_table.c.created_by == users_table.c.id)
+                .join(
+                    album_items_table, files_table.c.id == album_items_table.c.file_id
+                )
+                .where(items_where_clause)
+                .slice(offset, offset + limit)
+            ),
+            # общее количество доступных файлов (без учёта пагинации)
+            self.connection.scalar(
+                self._build_count_query(
+                    album_items_table.join(
+                        files_table, album_items_table.c.file_id == files_table.c.id
+                    ),
+                    items_where_clause,
+                )
+            ),
         )
 
-        count_query = self._build_count_query(AlbumItemsModel, where_clause)
-
-        album, items, total = await asyncio.gather(
-            self.session.scalar(album_query),
-            self.session.scalars(items_query),
-            self.session.scalar(count_query),
-        )
-
-        if not album:
+        if not (album_row := album_result.mappings().first()):
             return None
 
-        album_dto = AlbumDTO.model_validate(album)
-
         return AlbumWithItemsDTO.model_validate(
-            {**album_dto.model_dump(), "items": items.all(), "total": total or 0}
+            {
+                **album_row,
+                "creator": self._extract_creator(album_row),
+                "items": [
+                    {**item_row, "creator": self._extract_creator(item_row)}
+                    for item_row in items_result.mappings().all()
+                ],
+                "total": total or 0,
+            }
         )
 
-    async def update_album_by_id(
+    async def update(
         self,
-        album_id: UUID,
-        patch_album_dto: PatchAlbumDTO,
-        user_id: UUID,
-        partner_id: UUID | None = None,
-    ) -> bool:
+        record_id: UUID,
+        update_dto: UpdateAlbumDTO,
+        access_ctx: AccessContext,
+    ) -> AlbumDTO | None:
         """Обновление атрибутов альбома в базе данных.
 
         Выполняет SQL-запрос UPDATE для изменения атрибутов альбома,
-        фильтруя записи по идентификатору альбома и правам доступа
-        через `_build_shared_clause`.
+        фильтруя записи по идентификатору файла и правам доступа.
 
         Parameters
         ----------
-        album_id : UUID
+        record_id : UUID
             UUID альбома к изменению.
-        patch_album_dto : PatchAlbumDTO
+        update_dto : UpdateAlbumDTO
             DTO с полями для обновления. Только явно переданные поля
             попадают в SET-часть запроса через `to_update_values()`.
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя. Передаётся в
-            `_build_shared_clause` для проверки прав на альбомы партнёра.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
 
         Returns
         -------
-        bool
-            True, если запись была обновлена, False - если альбом
-            не найден или не прошёл проверку прав доступа.
+        AlbumDTO | None
+            Доменное DTO альбома, если он обновлён, None - в ином случае.
         """
-        updated = await self.session.scalar(
-            update(AlbumModel)
+        update_cte = (
+            update(albums_table)
             .where(
-                AlbumModel.id == album_id,
-                self._build_shared_clause(AlbumModel, user_id, partner_id),
+                albums_table.c.id == record_id,
+                access_ctx.as_where_clause(albums_table.c.created_by),
             )
-            .values(**patch_album_dto.to_update_values())
-            .returning(AlbumModel.id)
+            .values(**update_dto.to_update_values())
+            .returning(albums_table)
+            .cte("update_cte")
+        )
+        result = await self.connection.execute(
+            select(update_cte, *self._creator_columns()).join(
+                users_table, update_cte.c.created_by == users_table.c.id
+            )
         )
 
-        return updated is not None
+        if not (row := result.mappings().first()):
+            return None
 
-    async def delete_album_by_id(self, album_id: UUID) -> None:
+        return AlbumDTO.model_validate({**row, "creator": self._extract_creator(row)})
+
+    async def delete(
+        self, record_id: UUID, access_ctx: AccessContext
+    ) -> AlbumDTO | None:
         """Удаляет запись о медиа альбоме из базы данных по его UUID.
 
         Parameters
         ----------
-        album_id : UUID
+        record_id : UUID
             UUID альбома для удаления.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+
+        Returns
+        -------
+        AlbumDTO | None
+            Доменное DTO альбома, если он удалён, None - в ином случае.
         """
-        await self.session.execute(delete(AlbumModel).where(AlbumModel.id == album_id))
+        delete_cte = (
+            delete(albums_table)
+            .where(
+                albums_table.c.id == record_id,
+                access_ctx.as_where_clause(albums_table.c.created_by),
+            )
+            .returning(albums_table)
+            .cte("delete_cte")
+        )
+        result = await self.connection.execute(
+            select(delete_cte, *self._creator_columns()).join(
+                users_table, delete_cte.c.created_by == users_table.c.id
+            )
+        )
+
+        if not (row := result.mappings().first()):
+            return None
+
+        return AlbumDTO.model_validate({**row, "creator": self._extract_creator(row)})
 
     async def get_existing_album_items(
         self, album_id: UUID, files_ids: list[UUID]

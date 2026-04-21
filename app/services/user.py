@@ -45,16 +45,13 @@ class UserService:
         UserDTO
             Информация о текущем пользователе.
         """
-        user = await self._user_repo.get_user_by_id(user_id)
-
+        user = await self._user_repo.get_by_id(user_id)
         if user is None:
             raise UserNotFoundException(f"User with id={user_id} not found.")
 
         return UserDTO.model_validate(user)
 
-    async def update_profile(
-        self, patch_profile_dto: UpdateUserDTO, user_id: UUID
-    ) -> None:
+    async def update_profile(self, update_dto: UpdateUserDTO, user_id: UUID) -> None:
         """Частичное обновление атрибутов профиля пользователя по его UUID.
 
         Передаёт данные в репозиторий для обновления профиля пользователя.
@@ -62,7 +59,7 @@ class UserService:
 
         Parameters
         ----------
-        patch_profile_dto : UpdateUserDTO
+        update_dto : UpdateUserDTO
             DTO с полями для обновления. Содержит только явно переданные поля.
         user_id : UUID
             UUID пользователя, чей профиль требуется обновить.
@@ -74,10 +71,8 @@ class UserService:
         UserNotFoundException
             Если пользователь с указанным идентификатором не найден.
         """
-        if patch_profile_dto.is_empty():
+        if update_dto.is_empty():
             raise NothingToUpdateException(detail="No fields provided for update.")
 
-        updated = await self._user_repo.update_user_by_id(patch_profile_dto, user_id)
-
-        if not updated:
+        if not await self._user_repo.update(user_id, update_dto):
             raise UserNotFoundException(f"User with id={user_id} not found.")
