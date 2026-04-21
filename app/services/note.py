@@ -171,9 +171,7 @@ class NoteService:
             raise NothingToUpdateException(detail="No fields provided for update.")
 
         if not await self._note_repo.update(
-            note_id,
-            update_dto,
-            AccessContext(user_id=user_id, partner_id=partner_id),
+            note_id, update_dto, AccessContext(user_id=user_id, partner_id=partner_id)
         ):
             raise NoteNotFoundException(
                 detail=f"Note with id={note_id} not found, or you're not this note's creator.",

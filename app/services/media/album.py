@@ -237,11 +237,9 @@ class AlbumService:
         if update_dto.is_empty():
             raise NothingToUpdateException(detail="No fields provided for update.")
 
-        updated = await self._album_repo.update(
+        if not await self._album_repo.update(
             album_id, update_dto, AccessContext(user_id=user_id, partner_id=partner_id)
-        )
-
-        if not updated:
+        ):
             raise MediaNotFoundException(
                 media_type="album",
                 detail=f"Album with id={album_id} not found, or you're not this album's creator.",
