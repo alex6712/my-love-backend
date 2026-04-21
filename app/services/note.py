@@ -101,7 +101,7 @@ class NoteService:
         tuple[list[NoteDTO], int]
             Кортеж из списка заметок и общего количества.
         """
-        return await self._note_repo.get_all(
+        return await self._note_repo.get_filtered(
             FilterNoteDTO(type=note_type),
             AccessContext(user_id=user_id, partner_id=partner_id),
             offset=offset,

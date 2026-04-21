@@ -24,11 +24,14 @@ class InternalFileMetadataDTO(BaseDTO):
         Наименование медиа-файла.
     description : str | None
         Описание медиа-файла.
+    geo_data : dict[str, Any] | None, optional
+        Данные о местоположении сохранённого медиа
     """
 
     content_type: str
     title: str
     description: str | None
+    geo_data: dict[str, Any] | None = None
 
 
 class FileMetadataDTO(InternalFileMetadataDTO):
@@ -52,22 +55,31 @@ class FileDTO(BaseSQLCoreDTO, InternalFileMetadataDTO):
         Путь до файла внутри бакета приложения.
     status : FileStatus
         Текущий статус медиа-файла.
-    geo_data : dict[str, Any] | None
-        Данные о местоположении сохранённого медиа
     creator : CreatorDTO
         DTO пользователя, создавшего медиа-файл.
     """
 
     object_key: str
     status: FileStatus
-    geo_data: dict[str, Any] | None
 
     creator: CreatorDTO
 
 
 class CreateFileDTO(BaseCreateDTO, InternalFileMetadataDTO):
+    """DTO для создания нового файла.
+
+    Объединяет базовые поля создания сущности (`BaseCreateDTO`)
+    и метаданные медиа-файла (`InternalFileMetadataDTO`),
+    а также содержит информацию, необходимую для доступа к
+    объекту в файловом хранилище.
+
+    Attributes
+    ----------
+    object_key : str
+        Уникальный ключ объекта в файловом хранилище.
+    """
+
     object_key: str
-    geo_data: dict[str, Any] | None = None
 
 
 class UpdateFileDTO(BaseUpdateDTO):

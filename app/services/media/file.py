@@ -494,7 +494,6 @@ class FileService:
 
         valid_files: list[FileMetadataDTO] = []
         failed: list[UploadFileErrorDTO] = []
-
         for metadata in files_metadata:
             try:
                 valid_files.append(self._validate_file_for_upload(metadata))
@@ -515,32 +514,33 @@ class FileService:
 
         batch_id = uuid4()
 
-        object_keys = [
-            self._generate_object_key(user_id, batch_id) for _ in valid_files
+        create_dtos = [
+            CreateFileDTO(
+                **metadata.model_dump(exclude={"client_ref_id"}),
+                object_key=self._generate_object_key(user_id, batch_id),
+            )
+            for metadata in valid_files
         ]
-        file_ids = await self._file_repo.add_pending_files(
-            valid_files, object_keys, user_id
-        )
+        files = await self._file_repo.create_batch(create_dtos, user_id)
 
         tasks = [
             self._s3_client.generate_presigned_url(
                 "put_object",
                 Params={
                     "Bucket": self._settings.MINIO_BUCKET_NAME,
-                    "Key": key,
+                    "Key": file.object_key,
                 },
                 ExpiresIn=self._settings.PRESIGNED_URL_EXPIRATION,
             )
-            for key in object_keys
+            for file in files
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         successful: list[PresignedURLWithRefDTO] = []
         failed_file_ids: list[UUID] = []
-
-        for file_id, metadata, result in zip(file_ids, valid_files, results):
+        for file, metadata, result in zip(files, valid_files, results):
             if isinstance(result, BaseException):
-                failed_file_ids.append(file_id)
+                failed_file_ids.append(file.id)
 
                 failed.append(
                     UploadFileErrorDTO(
@@ -552,14 +552,16 @@ class FileService:
             else:
                 successful.append(
                     PresignedURLWithRefDTO(
-                        file_id=file_id,
+                        file_id=file.id,
                         presigned_url=AnyHttpUrl(result),
                         client_ref_id=metadata.client_ref_id,
                     )
                 )
 
         if failed_file_ids:
-            await self._file_repo.delete_pending_files_by_ids(failed_file_ids)
+            await self._file_repo.delete_batch(
+                failed_file_ids, AccessContext(user_id=user_id)
+            )
 
         await self._redis_client.finalize_idempotency_key(
             scope=idem_scope,
@@ -752,7 +754,10 @@ class FileService:
         return PresignedURLDTO(file_id=validated_file.id, presigned_url=AnyHttpUrl(url))
 
     async def get_download_presigned_urls(
-        self, files_uuids: list[UUID], user_id: UUID
+        self,
+        files_ids: list[UUID],
+        user_id: UUID,
+        partner_id: UUID | None,
     ) -> DownloadFilesResult:
         """Генерирует presigned URL для скачивания файлов.
 
@@ -763,12 +768,14 @@ class FileService:
 
         Parameters
         ----------
-        files_uuids : list[UUID]
+        files_ids : list[UUID]
             Список идентификаторов запрашиваемых файлов.
         user_id : UUID
             Идентификатор пользователя, запрашивающего скачивание.
             Используется для фильтрации файлов - доступны только файлы,
             принадлежащие пользователю или его партнёру.
+        partner_id : UUID | None
+            UUID партнёра пользователя или None.
 
         Returns
         -------
@@ -779,19 +786,16 @@ class FileService:
             валидацию и генерацию ссылки;
             - ``failed`` - ошибки для файлов, которые не удалось обработать.
         """
-        partner_id = await self._couple_repo.get_partner_id_by_user_id(user_id)
-
         files = {
             file.id: file
-            for file in await self._file_repo.get_files_by_ids(
-                files_uuids, user_id, partner_id
+            for file in await self._file_repo.get_by_ids(
+                files_ids, AccessContext(user_id=user_id, partner_id=partner_id)
             )
         }
 
         valid_files: list[FileDTO] = []
         failed: list[DownloadFileErrorDTO] = []
-
-        for file_id in files_uuids:
+        for file_id in files_ids:
             try:
                 valid_files.append(
                     self._validate_file_for_download(files.get(file_id), file_id)
@@ -815,7 +819,6 @@ class FileService:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         successful: list[PresignedURLDTO] = []
-
         for file, result in zip(valid_files, results):
             if isinstance(result, BaseException):
                 failed.append(
@@ -996,9 +999,7 @@ class FileService:
             Возникает в случае, если файл с переданным UUID не существует
             или текущий пользователь не является создателем файла.
         """
-        access_ctx = AccessContext(user_id=user_id)
-
-        file = await self._file_repo.get_by_id(file_id, access_ctx)
+        file = await self._file_repo.delete(file_id, AccessContext(user_id=user_id))
         if file is None:
             raise MediaNotFoundException(
                 media_type="file",
@@ -1013,5 +1014,4 @@ class FileService:
         except ClientError:
             pass
 
-        await self._file_repo.delete(file_id, access_ctx)
         await self._redis_client.decrement_count("files", user_id)

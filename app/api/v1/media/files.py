@@ -377,6 +377,7 @@ async def download_batch(
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
 ) -> PresignedURLsDownloadBatchResponse:
     """Получение presigned-url для скачивания пакета медиа-файлов в приватное хранилище.
 
@@ -397,6 +398,8 @@ async def download_batch(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
     -------
@@ -404,7 +407,7 @@ async def download_batch(
         Успешный ответ о генерации presigned-urls для скачивания.
     """
     successful, failed = await services.file.get_download_presigned_urls(
-        body.files_uuids, payload.sub
+        body.files_uuids, payload.sub, partner_id
     )
 
     return PresignedURLsBatchResponse(

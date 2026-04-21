@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Protocol, TypeVar
+from typing import Any, Generic, Protocol, Sequence, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -374,6 +374,45 @@ class OwnedCreateMixin(ABC, Generic[CreateDTO, EntityDTO]):
         ...
 
 
+class OwnedBatchCreateMixin(ABC, Generic[CreateDTO, EntityDTO]):
+    """Миксин операции пакетного создания записей с явной привязкой к владельцу.
+
+    Предназначен для сущностей с ограниченной видимостью, у которых
+    поле created_by не входит в схему запроса и извлекается отдельно
+    из payload токена на уровне сервиса.
+
+    Attributes
+    ----------
+    CreateDTO : TypeVar
+        Тип DTO для создания записи.
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def create_batch(
+        self, create_dtos: Sequence[CreateDTO], created_by: UUID
+    ) -> list[EntityDTO]:
+        """Создаёт несколько записей с привязкой к владельцу.
+
+        Parameters
+        ----------
+        create_dtos : Sequence[CreateDTO]
+            Данные для создания записей.
+        created_by : UUID
+            Идентификатор пользователя, создающего записи.
+            Передаётся явно, так как извлекается из payload токена,
+            а не из схемы запроса.
+
+        Returns
+        -------
+        list[EntityDTO]
+            Список доменных DTO созданных записей.
+            Порядок соответствует порядку create_dtos.
+        """
+        ...
+
+
 class ReadMixin(ABC, Generic[EntityDTO]):
     """Миксин операции чтения записи по идентификатору.
 
@@ -383,32 +422,32 @@ class ReadMixin(ABC, Generic[EntityDTO]):
         Тип доменного DTO возвращаемой сущности.
     """
 
-    # @abstractmethod
-    # async def get_all(
-    #     self,
-    #     *,
-    #     offset: int = 0,
-    #     limit: int = 50,
-    #     sort_order: SortOrder = SortOrder.DESC,
-    # ) -> tuple[list[EntityDTO], int]:
-    #     """Возвращает постраничный список всех записей и их общее количество.
+    @abstractmethod
+    async def get_all(
+        self,
+        *,
+        offset: int = 0,
+        limit: int = 50,
+        sort_order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[EntityDTO], int]:
+        """Возвращает постраничный список всех записей и их общее количество.
 
-    #     Parameters
-    #     ----------
-    #     offset : int, optional
-    #         Количество пропускаемых записей, по умолчанию 0.
-    #     limit : int, optional
-    #         Максимальное количество возвращаемых записей, по умолчанию 50.
-    #     sort_order : SortOrder, optional
-    #         Направление сортировки по полю `created_at`,
-    #         по умолчанию SortOrder.DESC.
+        Parameters
+        ----------
+        offset : int, optional
+            Количество пропускаемых записей, по умолчанию 0.
+        limit : int, optional
+            Максимальное количество возвращаемых записей, по умолчанию 50.
+        sort_order : SortOrder, optional
+            Направление сортировки по полю `created_at`,
+            по умолчанию SortOrder.DESC.
 
-    #     Returns
-    #     -------
-    #     tuple[list[EntityDTO], int]
-    #         Список DTO и общее количество записей без учёта пагинации.
-    #     """
-    #     ...
+        Returns
+        -------
+        tuple[list[EntityDTO], int]
+            Список DTO и общее количество записей без учёта пагинации.
+        """
+        ...
 
     @abstractmethod
     async def get_by_id(self, record_id: UUID) -> EntityDTO | None:
@@ -515,7 +554,7 @@ class OwnedFilteredReadMixin(ABC, Generic[FilterDTO, EntityDTO]):
     """
 
     @abstractmethod
-    async def get_all(
+    async def get_filtered(
         self,
         filter_dto: FilterDTO,
         access_ctx: AccessContext,
@@ -544,6 +583,46 @@ class OwnedFilteredReadMixin(ABC, Generic[FilterDTO, EntityDTO]):
         -------
         tuple[list[EntityDTO], int]
             Список DTO и общее количество записей без учёта пагинации.
+        """
+        ...
+
+
+class OwnedBatchReadMixin(ABC, Generic[EntityDTO]):
+    """Миксин операции пакетного чтения записей с проверкой прав доступа.
+
+    Предназначен для сущностей с ограниченной видимостью. Условие доступа
+    из AccessContext включается непосредственно в WHERE-clause запроса,
+    исключая TOCTOU.
+
+    Attributes
+    ----------
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def get_by_ids(
+        self, record_ids: Sequence[UUID], access_ctx: AccessContext
+    ) -> list[EntityDTO]:
+        """Возвращает записи по списку идентификаторов при наличии прав доступа.
+
+        Намеренно не разграничивает отсутствие записи и отказ в доступе -
+        недоступные и несуществующие записи молча исключаются из результата.
+        Это предотвращает раскрытие факта существования чужих записей.
+
+        Parameters
+        ----------
+        record_ids : Sequence[UUID]
+            Идентификаторы запрашиваемых записей.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+
+        Returns
+        -------
+        list[EntityDTO]
+            Список DTO записей, доступных в рамках контекста.
+            Порядок не гарантирован. Размер списка может быть меньше
+            len(record_ids), если часть записей недоступна или не существует.
         """
         ...
 
@@ -626,15 +705,20 @@ class OwnedUpdateMixin(ABC, Generic[UpdateDTO, EntityDTO]):
         ...
 
 
-class DeleteMixin(ABC):
+class DeleteMixin(ABC, Generic[EntityDTO]):
     """Миксин операции удаления записи без проверки прав доступа.
 
     Предназначен для публичных сущностей или административных операций,
     не требующих проверки принадлежности.
+
+    Attributes
+    ----------
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
     """
 
     @abstractmethod
-    async def delete(self, record_id: UUID) -> bool:
+    async def delete(self, record_id: UUID) -> EntityDTO | None:
         """Удаляет запись по идентификатору.
 
         Parameters
@@ -644,22 +728,30 @@ class DeleteMixin(ABC):
 
         Returns
         -------
-        bool
-            True, если запись была удалена. False, если запись не найдена.
+        EntityDTO | None
+            Доменное DTO удалённой записи или None, если запись
+            не найдена либо доступ запрещён.
         """
         ...
 
 
-class OwnedDeleteMixin(ABC):
+class OwnedDeleteMixin(ABC, Generic[EntityDTO]):
     """Миксин операции удаления записи с проверкой прав доступа.
 
     Предназначен для сущностей с ограниченной видимостью. Условие доступа
     из AccessContext включается непосредственно в WHERE-clause запроса,
     обеспечивая атомарность проверки и удаления (исключает TOCTOU).
+
+    Attributes
+    ----------
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
     """
 
     @abstractmethod
-    async def delete(self, record_id: UUID, access_ctx: AccessContext) -> bool:
+    async def delete(
+        self, record_id: UUID, access_ctx: AccessContext
+    ) -> EntityDTO | None:
         """Удаляет запись при наличии прав доступа.
 
         Намеренно не разграничивает отсутствие записи и отказ в доступе -
@@ -674,8 +766,47 @@ class OwnedDeleteMixin(ABC):
 
         Returns
         -------
-        bool
-            True, если запись была удалена. False, если запись не найдена
-            либо доступ запрещён.
+        EntityDTO | None
+            Доменное DTO удалённой записи или None, если запись
+            не найдена либо доступ запрещён.
+        """
+        ...
+
+
+class OwnedBatchDeleteMixin(ABC, Generic[EntityDTO]):
+    """Миксин операции пакетного удаления записей с проверкой прав доступа.
+
+    Предназначен для сущностей с ограниченной видимостью. Условие доступа
+    из AccessContext включается непосредственно в WHERE-clause запроса,
+    обеспечивая атомарность проверки и удаления (исключает TOCTOU).
+
+    Attributes
+    ----------
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def delete_batch(
+        self, record_ids: Sequence[UUID], access_ctx: AccessContext
+    ) -> list[EntityDTO]:
+        """Удаляет записи по списку идентификаторов при наличии прав доступа.
+
+        Намеренно не разграничивает отсутствие записи и отказ в доступе -
+        недоступные и несуществующие записи молча пропускаются.
+        Это предотвращает раскрытие факта существования чужих записей.
+
+        Parameters
+        ----------
+        record_ids : Sequence[UUID]
+            Идентификаторы удаляемых записей.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+
+        Returns
+        -------
+        list[EntityDTO]
+            Список DTO удалённых записей.
+            Пустой список, если записей нет или доступ ко всем из них запрещён.
         """
         ...

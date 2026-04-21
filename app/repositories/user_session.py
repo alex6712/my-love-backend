@@ -20,7 +20,7 @@ class UserSessionRepository(
     RepositoryInterfaceNew,
     CreateMixin[CreateUserSessionDTO, UserSessionDTO],
     ReadMixin[UserSessionDTO],
-    DeleteMixin,
+    DeleteMixin[UserSessionDTO],
 ):
     """Репозиторий для управления пользовательскими сессиями.
 
@@ -76,9 +76,11 @@ class UserSessionRepository(
         result = await self.connection.execute(
             select(user_sessions_table).where(user_sessions_table.c.id == record_id)
         )
-        row = result.mappings().first()
 
-        return UserSessionDTO.model_validate(row) if row else None
+        if not (row := result.mappings().first()):
+            return None
+
+        return UserSessionDTO.model_validate(row)
 
     async def update_by_refresh_token_hash(
         self,
@@ -113,11 +115,13 @@ class UserSessionRepository(
             .values(**update_dto.to_update_values())
             .returning(user_sessions_table)
         )
-        row = result.mappings().first()
 
-        return UserSessionDTO.model_validate(row) if row else None
+        if not (row := result.mappings().first()):
+            return None
 
-    async def delete(self, record_id: UUID) -> bool:
+        return UserSessionDTO.model_validate(row)
+
+    async def delete(self, record_id: UUID) -> UserSessionDTO | None:
         """Удаляет сессию по её идентификатору.
 
         Parameters
@@ -127,14 +131,17 @@ class UserSessionRepository(
 
         Returns
         -------
-        bool
-            `True` если сессия найдена и удалена, `False` если сессия
-            с переданным UUID не существует.
+        UserSessionDTO | None
+            Доменное DTO удалённой записи сессии,
+            None - если сессия с таким UUID не найдена.
         """
         result = await self.connection.execute(
             delete(user_sessions_table)
             .where(user_sessions_table.c.id == record_id)
-            .returning(user_sessions_table.c.id)
+            .returning(user_sessions_table)
         )
 
-        return result.mappings().first() is not None
+        if not (row := result.mappings().first()):
+            return None
+
+        return UserSessionDTO.model_validate(row)

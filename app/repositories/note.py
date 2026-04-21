@@ -23,7 +23,7 @@ class NoteRepository(
     OwnedFilteredReadMixin[FilterNoteDTO, NoteDTO],
     OwnedCreateMixin[CreateNoteDTO, NoteDTO],
     OwnedUpdateMixin[UpdateNoteDTO, NoteDTO],
-    OwnedDeleteMixin,
+    OwnedDeleteMixin[NoteDTO],
 ):
     """Репозиторий пользовательских заметок.
 
@@ -39,13 +39,13 @@ class NoteRepository(
     -------
     create(create_dto, created_by)
         Создаёт новую заметку с привязкой к владельцу.
-    get_all(access_ctx, *, offset, limit, sort_order)
+    get_all(access_ctx, offset, limit, sort_order)
         Возвращает постраничный список записей, доступных в рамках контекста.
     get_by_id(record_id, access_ctx)
         Возвращает DTO пользовательской заметки по её id.
-    count_notes_by_creator(user_id, partner_id)
+    count(access_ctx)
         Возвращает количество заметок по id их создателя.
-    update_note_by_id(note_id, title, content)
+    update(record_id, update_dto, access_ctx)
         Обновление атрибутов заметки в базе данных.
     delete(record_id, access_ctx)
         Удаляет запись о пользовательской заметке из базы данных по её UUID.
@@ -83,7 +83,7 @@ class NoteRepository(
 
         return NoteDTO.model_validate({**row, "creator": self._extract_creator(row)})
 
-    async def get_all(
+    async def get_filtered(
         self,
         filter_dto: FilterNoteDTO,
         access_ctx: AccessContext,
@@ -246,7 +246,9 @@ class NoteRepository(
 
         return NoteDTO.model_validate({**row, "creator": self._extract_creator(row)})
 
-    async def delete(self, record_id: UUID, access_ctx: AccessContext) -> bool:
+    async def delete(
+        self, record_id: UUID, access_ctx: AccessContext
+    ) -> NoteDTO | None:
         """Удаляет запись о пользовательской заметке из базы данных по её UUID.
 
         Parameters
@@ -256,19 +258,28 @@ class NoteRepository(
         access_ctx : AccessContext
             Контекст доступа с идентификаторами владельца и партнёра.
 
-        Returns
+        NoteDTO
         -------
-        bool
-            True если заметка удалена, False если заметка по переданному
-            `record_id` не найдена или пользователь не имеет достаточно прав.
+        FileDTO | None
+            Доменное DTO заметки, если она удалёна, None - в ином
+            случае.
         """
-        result = await self.connection.execute(
+        delete_cte = (
             delete(notes_table)
             .where(
                 notes_table.c.id == record_id,
                 access_ctx.as_where_clause(notes_table.c.created_by),
             )
-            .returning(notes_table.c.id)
+            .returning(notes_table)
+            .cte("delete_cte")
+        )
+        result = await self.connection.execute(
+            select(delete_cte, *self._creator_columns()).join(
+                users_table, delete_cte.c.created_by == users_table.c.id
+            )
         )
 
-        return result.mappings().first() is not None
+        if not (row := result.mappings().first()):
+            return None
+
+        return NoteDTO.model_validate({**row, "creator": self._extract_creator(row)})

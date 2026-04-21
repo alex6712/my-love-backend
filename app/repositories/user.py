@@ -1,8 +1,11 @@
+import asyncio
 from uuid import UUID
 
 from sqlalchemy import insert, select, update
 from sqlalchemy.exc import IntegrityError
 
+from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET
+from app.core.enums import SortOrder
 from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.infra.postgres import get_constraint_name
 from app.infra.postgres.tables.users import users_table
@@ -79,6 +82,50 @@ class UserRepository(
 
         return UserWithCredentialsDTO.model_validate(result.mappings().one())
 
+    async def get_all(
+        self,
+        *,
+        offset: int = DEFAULT_OFFSET,
+        limit: int = DEFAULT_LIMIT,
+        sort_order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[UserWithCredentialsDTO], int]:
+        """Возвращает постраничный список всех DTO пользователей
+        и их общее количество.
+
+        Parameters
+        ----------
+        offset : int, optional
+            Количество пропускаемых записей, по умолчанию `DEFAULT_OFFSET`.
+        limit : int, optional
+            Максимальное количество возвращаемых записей, по умолчанию `DEFAULT_LIMIT`.
+        sort_order : SortOrder, optional
+            Направление сортировки по полю `created_at`,
+            по умолчанию SortOrder.DESC.
+
+        Returns
+        -------
+        tuple[list[UserWithCredentialsDTO], int]
+            Список DTO пользователей и общее количество записей без учёта пагинации.
+        """
+        result, total = await asyncio.gather(
+            self.connection.execute(
+                select(users_table)
+                .order_by(
+                    self._build_order_clause(users_table.c.created_at, sort_order)
+                )
+                .slice(offset, offset + limit)
+            ),
+            self.connection.scalar(self._build_count_query(users_table)),
+        )
+
+        return (
+            [
+                UserWithCredentialsDTO.model_validate(row)
+                for row in result.mappings().all()
+            ],
+            total or 0,
+        )
+
     async def get_by_id(self, record_id: UUID) -> UserWithCredentialsDTO | None:
         """Возвращает DTO пользователя по его id.
 
@@ -95,9 +142,11 @@ class UserRepository(
         result = await self.connection.execute(
             select(users_table).where(users_table.c.id == record_id)
         )
-        row = result.mappings().first()
 
-        return UserWithCredentialsDTO.model_validate(row) if row else None
+        if not (row := result.mappings().first()):
+            return None
+
+        return UserWithCredentialsDTO.model_validate(row)
 
     async def get_by_username(self, username: str) -> UserWithCredentialsDTO | None:
         """Возвращает DTO пользователя по его username.
@@ -115,9 +164,11 @@ class UserRepository(
         result = await self.connection.execute(
             select(users_table).where(users_table.c.username == username)
         )
-        row = result.mappings().first()
 
-        return UserWithCredentialsDTO.model_validate(row) if row else None
+        if not (row := result.mappings().first()):
+            return None
+
+        return UserWithCredentialsDTO.model_validate(row)
 
     async def update(
         self, record_id: UUID, update_dto: UpdateUserDTO
@@ -142,6 +193,8 @@ class UserRepository(
             .values(**update_dto.to_update_values())
             .returning(users_table)
         )
-        row = result.mappings().first()
 
-        return UserWithCredentialsDTO.model_validate(row) if row else None
+        if not (row := result.mappings().first()):
+            return None
+
+        return UserWithCredentialsDTO.model_validate(row)
