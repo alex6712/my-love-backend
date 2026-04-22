@@ -279,11 +279,11 @@ class OwnedRepositoryInterface(RepositoryInterfaceNew):
             Список лейблированных колонок users_table.
         """
         return [
-            users_table.c.id.label("creator_id"),
-            users_table.c.created_at.label("creator_created_at"),
-            users_table.c.username.label("creator_username"),
-            users_table.c.avatar_url.label("creator_avatar_url"),
-            users_table.c.is_active.label("creator_is_active"),
+            users_table.c.id.label("_creator_id"),
+            users_table.c.created_at.label("_creator_created_at"),
+            users_table.c.username.label("_creator_username"),
+            users_table.c.avatar_url.label("_creator_avatar_url"),
+            users_table.c.is_active.label("_creator_is_active"),
         ]
 
     @staticmethod
@@ -302,19 +302,19 @@ class OwnedRepositoryInterface(RepositoryInterfaceNew):
             Словарь с данными создателя, готовый для вложенной валидации DTO.
         """
         return {
-            "id": row["creator_id"],
-            "created_at": row["creator_created_at"],
-            "username": row["creator_username"],
-            "avatar_url": row["creator_avatar_url"],
-            "is_active": row["creator_is_active"],
+            "id": row["_creator_id"],
+            "created_at": row["_creator_created_at"],
+            "username": row["_creator_username"],
+            "avatar_url": row["_creator_avatar_url"],
+            "is_active": row["_creator_is_active"],
         }
 
 
 class CreateMixin(ABC, Generic[CreateDTO, EntityDTO]):
     """Миксин операции создания записи.
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
     CreateDTO : TypeVar
         Тип DTO для создания записи.
     EntityDTO : TypeVar
@@ -345,8 +345,8 @@ class OwnedCreateMixin(ABC, Generic[CreateDTO, EntityDTO]):
     поле created_by не входит в схему запроса и извлекается отдельно
     из payload токена на уровне сервиса.
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
     CreateDTO : TypeVar
         Тип DTO для создания записи.
     EntityDTO : TypeVar
@@ -381,8 +381,8 @@ class OwnedBatchCreateMixin(ABC, Generic[CreateDTO, EntityDTO]):
     поле created_by не входит в схему запроса и извлекается отдельно
     из payload токена на уровне сервиса.
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
     CreateDTO : TypeVar
         Тип DTO для создания записи.
     EntityDTO : TypeVar
@@ -478,6 +478,58 @@ class ReadMixin(ReadOneMixin[EntityDTO]):
         ...
 
 
+class FilteredReadMixin(ABC, Generic[FilterDTO, EntityDTO]):
+    """Миксин операции фильтрованного чтения с подсчётом записей.
+
+    Предназначен для публичных сущностей, не имеющих ограничений доступа
+    по принадлежности, но поддерживающих доменно-специфичную фильтрацию.
+    Возвращает результат совместно с общим количеством записей
+    для пагинации на клиенте.
+
+    В отличие от :class:`OwnedFilteredReadMixin`, не требует
+    :class:`AccessContext` — фильтрация определяется исключительно
+    параметрами -filter_dto-.
+
+    Type Parameters
+    ---------------
+    FilterDTO : TypeVar
+        Тип DTO с параметрами фильтрации. Специфичен для домена —
+        определяется в конкретном интерфейсе репозитория.
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def get_filtered(
+        self,
+        filter_dto: FilterDTO,
+        *,
+        offset: int = DEFAULT_OFFSET,
+        limit: int = DEFAULT_LIMIT,
+        sort_order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[EntityDTO], int]:
+        """Возвращает отфильтрованный список записей и общее их количество.
+
+        Parameters
+        ----------
+        filter_dto : FilterDTO
+            Доменно-специфичные параметры фильтрации.
+        offset : int, optional
+            Количество пропускаемых записей, по умолчанию `DEFAULT_OFFSET`.
+        limit : int, optional
+            Максимальное количество возвращаемых записей, по умолчанию `DEFAULT_LIMIT`.
+        sort_order : SortOrder, optional
+            Направление сортировки по полю `created_at`,
+            по умолчанию `SortOrder.DESC`.
+
+        Returns
+        -------
+        tuple[list[EntityDTO], int]
+            Список DTO и общее количество записей без учёта пагинации.
+        """
+        ...
+
+
 class OwnedReadMixin(ABC, Generic[EntityDTO]):
     """Миксин операции чтения записи с проверкой прав доступа.
 
@@ -485,8 +537,8 @@ class OwnedReadMixin(ABC, Generic[EntityDTO]):
     из AccessContext включается непосредственно в WHERE-clause запроса,
     исключая TOCTOU.
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
     EntityDTO : TypeVar
         Тип доменного DTO возвращаемой сущности.
     """
@@ -556,8 +608,8 @@ class OwnedFilteredReadMixin(ABC, Generic[FilterDTO, EntityDTO]):
     доменно-специфичную фильтрацию. Возвращает результат совместно
     с общим количеством записей для пагинации на клиенте.
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
     FilterDTO : TypeVar
         Тип DTO с параметрами фильтрации. Специфичен для домена -
         определяется в конкретном интерфейсе репозитория.
@@ -606,8 +658,8 @@ class OwnedBatchReadMixin(ABC, Generic[EntityDTO]):
     из AccessContext включается непосредственно в WHERE-clause запроса,
     исключая TOCTOU.
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
     EntityDTO : TypeVar
         Тип доменного DTO возвращаемой сущности.
     """
@@ -645,8 +697,8 @@ class UpdateMixin(ABC, Generic[UpdateDTO, EntityDTO]):
     Предназначен для публичных сущностей, не имеющих ограничений
     на изменение по принадлежности.
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
     UpdateDTO : TypeVar
         Тип DTO для обновления записи.
     EntityDTO : TypeVar
@@ -672,6 +724,50 @@ class UpdateMixin(ABC, Generic[UpdateDTO, EntityDTO]):
         ...
 
 
+class FilteredUpdateMixin(ABC, Generic[FilterDTO, UpdateDTO, EntityDTO]):
+    """Миксин операции обновления записи с фильтрацией по дополнительным критериям.
+
+    Предназначен для сущностей, обновление которых требует проверки
+    дополнительных условий помимо идентификатора записи - например,
+    принадлежности конкретному внешнему другому агрегату.
+
+    В отличие от :class:`UpdateMixin`, принимает `filter_dto` вместо
+    `record_id`, что позволяет инкапсулировать произвольный набор
+    критериев фильтрации без расширения сигнатуры базового контракта.
+
+    Type Parameters
+    ---------------
+    FilterDTO : TypeVar
+        Доменно-специфичные параметры фильтрации.
+    UpdateDTO : TypeVar
+        Тип DTO с новыми данными для записи.
+    EntityDTO : TypeVar
+        Тип доменного DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def update_filtered(
+        self, filter_dto: FilterDTO, update_dto: UpdateDTO
+    ) -> EntityDTO | None:
+        """Обновляет запись по набору критериев фильтрации.
+
+        Parameters
+        ----------
+        filter_dto : FilterDTO
+            Критерии выборки обновляемой записи. Конкретный состав полей
+            определяется реализацией репозитория.
+        update_dto : UpdateDTO
+            Новые данные для записи.
+
+        Returns
+        -------
+        EntityDTO | None
+            Доменное DTO обновлённой записи или None, если запись,
+            удовлетворяющая критериям фильтрации, не найдена.
+        """
+        ...
+
+
 class OwnedUpdateMixin(ABC, Generic[UpdateDTO, EntityDTO]):
     """Миксин операции обновления записи с проверкой прав доступа.
 
@@ -679,8 +775,8 @@ class OwnedUpdateMixin(ABC, Generic[UpdateDTO, EntityDTO]):
     из AccessContext включается непосредственно в WHERE-clause запроса,
     обеспечивая атомарность проверки и обновления (исключает TOCTOU).
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
     UpdateDTO : TypeVar
         Тип DTO для обновления записи.
     EntityDTO : TypeVar
@@ -723,8 +819,8 @@ class DeleteMixin(ABC, Generic[EntityDTO]):
     Предназначен для публичных сущностей или административных операций,
     не требующих проверки принадлежности.
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
     EntityDTO : TypeVar
         Тип доменного DTO возвращаемой сущности.
     """
@@ -754,8 +850,8 @@ class OwnedDeleteMixin(ABC, Generic[EntityDTO]):
     из AccessContext включается непосредственно в WHERE-clause запроса,
     обеспечивая атомарность проверки и удаления (исключает TOCTOU).
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
     EntityDTO : TypeVar
         Тип доменного DTO возвращаемой сущности.
     """
@@ -792,8 +888,8 @@ class OwnedBatchDeleteMixin(ABC, Generic[EntityDTO]):
     из AccessContext включается непосредственно в WHERE-clause запроса,
     обеспечивая атомарность проверки и удаления (исключает TOCTOU).
 
-    Attributes
-    ----------
+    Type Parameters
+    ---------------
     EntityDTO : TypeVar
         Тип доменного DTO возвращаемой сущности.
     """

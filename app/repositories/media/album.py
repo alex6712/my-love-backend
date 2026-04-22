@@ -105,8 +105,9 @@ class AlbumRepository(
                 users_table, insert_cte.c.created_by == users_table.c.id
             )
         )
+        row = result.mappings().one()
 
-        return AlbumDTO.model_validate(result.mappings().one())
+        return AlbumDTO.model_validate({**row, "creator": self._extract_creator(row)})
 
     async def get_all(
         self,

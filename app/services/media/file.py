@@ -407,6 +407,7 @@ class FileService:
         create_dto = CreateFileDTO(
             **validated_file.model_dump(exclude={"client_ref_id"}),
             object_key=object_key,
+            status=FileStatus.PENDING,
         )
         file = await self._file_repo.create(create_dto, created_by=user_id)
 
@@ -518,6 +519,7 @@ class FileService:
             CreateFileDTO(
                 **metadata.model_dump(exclude={"client_ref_id"}),
                 object_key=self._generate_object_key(user_id, batch_id),
+                status=FileStatus.PENDING,
             )
             for metadata in valid_files
         ]

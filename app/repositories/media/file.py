@@ -85,11 +85,7 @@ class FileRepository(
         """
         insert_cte = (
             insert(files_table)
-            .values(
-                **create_dto.to_create_values(),
-                status=FileStatus.PENDING,
-                created_by=created_by,
-            )
+            .values(**create_dto.to_create_values(), created_by=created_by)
             .returning(files_table)
             .cte("insert_cte")
         )

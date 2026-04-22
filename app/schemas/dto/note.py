@@ -40,7 +40,7 @@ class FilterNoteDTO(BaseFilterDTO):
         Тип заметки. Если `None` - фильтр не применяется.
     """
 
-    type: NoteType | None = None
+    type: NoteType | None
 
 
 class CreateNoteDTO(BaseCreateDTO):

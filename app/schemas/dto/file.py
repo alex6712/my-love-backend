@@ -77,9 +77,12 @@ class CreateFileDTO(BaseCreateDTO, InternalFileMetadataDTO):
     ----------
     object_key : str
         Уникальный ключ объекта в файловом хранилище.
+    status : FileStatus
+        Статус создаваемой записи медиа-файла.
     """
 
     object_key: str
+    status: FileStatus
 
 
 class UpdateFileDTO(BaseUpdateDTO):

@@ -1,22 +1,52 @@
-from datetime import datetime
-from uuid import UUID
+import asyncio
+from typing import Any, Literal
 
-from sqlalchemy import insert, or_, select, update
+from sqlalchemy import (
+    FromClause,
+    Label,
+    RowMapping,
+    insert,
+    select,
+    update,
+)
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
 
-from app.core.enums import CoupleRequestStatus
+from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET
+from app.core.enums import SortOrder
 from app.core.exceptions.couple import (
     CoupleNotSelfException,
     CoupleRequestAlreadyExistsException,
 )
 from app.infra.postgres import get_constraint_name
-from app.models.couple_request import CoupleRequestModel
-from app.repositories.interface import RepositoryInterface
-from app.schemas.dto.couple import CoupleRequestDTO
+from app.infra.postgres.tables.couple_requests import couple_requests_table
+from app.infra.postgres.tables.users import users_table
+from app.repositories.interface import (
+    CreateMixin,
+    FilteredReadMixin,
+    FilteredUpdateMixin,
+    RepositoryInterfaceNew,
+)
+from app.schemas.dto.couple import (
+    CoupleRequestDTO,
+    CreateCoupleRequestDTO,
+    FilterCoupleRequestDTO,
+    UpdateCoupleRequestDTO,
+)
+
+type PartnerPrefix = Literal["initiator", "recipient"]
+
+initiators_table = users_table.alias("initiators")
+recipients_table = users_table.alias("recipients")
 
 
-class CoupleRequestRepository(RepositoryInterface):
+class CoupleRequestRepository(
+    RepositoryInterfaceNew,
+    CreateMixin[CreateCoupleRequestDTO, CoupleRequestDTO],
+    FilteredReadMixin[FilterCoupleRequestDTO, CoupleRequestDTO],
+    FilteredUpdateMixin[
+        FilterCoupleRequestDTO, UpdateCoupleRequestDTO, CoupleRequestDTO
+    ],
+):
     """Репозиторий запросов на создание пар между пользователями.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
@@ -37,34 +67,110 @@ class CoupleRequestRepository(RepositoryInterface):
         Обновление статуса входящего запроса на создание пары.
     """
 
-    async def add_couple_request(self, initiator_id: UUID, recipient_id: UUID) -> None:
-        """Создание запроса на регистрацию пары между пользователями.
+    @staticmethod
+    def _partner_columns(alias: FromClause, prefix: PartnerPrefix) -> list[Label[Any]]:
+        """Именованные колонки пользователя для SELECT.
 
-        Добавляет в базу данных запись о новом запросе на создание пары между пользователями.
-        Изначально этот запрос имеет статус `Couple.Status.PENDING`, пока реципиент не подтвердит
-        приглашение инициатора.
+        Используется префикс `_`, чтобы не конфликтовать с
+        `initiator_id` / `recipient_id` из `couple_requests_table`.
 
         Parameters
         ----------
-        initiator_id : UUID
-            UUID пользователя-инициатора.
-        recipient_id : UUID
-            UUID пользователя-реципиента.
+        alias : FromClause
+            Псевдоним таблицы users.
+        prefix : PartnerPrefix
+            Префикс колонок - `"initiator"` или `"recipient"`.
+
+        Returns
+        -------
+        list[Label[Any]]
+            Список лейблированных колонок users_table.
+        """
+        return [
+            alias.c.id.label(f"_{prefix}_id"),
+            alias.c.created_at.label(f"_{prefix}_created_at"),
+            alias.c.username.label(f"_{prefix}_username"),
+            alias.c.avatar_url.label(f"_{prefix}_avatar_url"),
+            alias.c.is_active.label(f"_{prefix}_is_active"),
+        ]
+
+    @staticmethod
+    def _extract_partner(row: RowMapping, prefix: PartnerPrefix) -> dict[str, Any]:
+        """Извлекает данные партнёра из плоской строки JOIN-результата.
+
+        Parameters
+        ----------
+        row : RowMapping
+            Плоская строка результата запроса с лейблированными
+            колонками пользователя.
+        prefix : PartnerPrefix
+            Префикс колонок - `"initiator"` или `"recipient"`.
+
+        Returns
+        -------
+        dict[str, Any]
+            Словарь с данными партнёра, готовый для вложенной валидации DTO.
+        """
+        return {
+            "id": row[f"_{prefix}_id"],
+            "username": row[f"_{prefix}_username"],
+            "avatar_url": row[f"_{prefix}_avatar_url"],
+            "is_active": row[f"_{prefix}_is_active"],
+            "created_at": row[f"_{prefix}_created_at"],
+            "updated_at": row[f"_{prefix}_updated_at"],
+        }
+
+    async def create(self, create_dto: CreateCoupleRequestDTO) -> CoupleRequestDTO:
+        """Создаёт новый запрос на создание пары.
+
+        Вставляет запись в `couple_requests` и сразу возвращает её
+        вместе с данными обоих участников через JOIN с `users`.
+
+        Parameters
+        ----------
+        create_dto : CreateCoupleRequestDTO
+            DTO с данными для создания запроса.
+
+        Returns
+        -------
+        CoupleRequestDTO
+            Созданный запрос на пару с вложенными DTO инициатора и реципиента.
+
+        Raises
+        ------
+        CoupleRequestAlreadyExistsException
+            Если между этими двумя пользователями уже существует
+            запрос со статусом `PENDING` (нарушение `uq_couple_request_pending`).
+        CoupleNotSelfException
+            Если `initiator_id == recipient_id` (нарушение `ck_couple_not_self`).
         """
         try:
-            await self.session.execute(
-                insert(CoupleRequestModel).values(
-                    initiator_id=initiator_id,
-                    recipient_id=recipient_id,
-                    status=CoupleRequestStatus.PENDING,
+            insert_cte = (
+                insert(couple_requests_table)
+                .values(**create_dto.to_create_values())
+                .returning(couple_requests_table)
+                .cte("insert_cte")
+            )
+            result = await self.connection.execute(
+                select(
+                    insert_cte,
+                    *self._partner_columns(initiators_table, "initiator"),
+                    *self._partner_columns(recipients_table, "recipient"),
+                )
+                .join(
+                    initiators_table, insert_cte.c.initiator_id == initiators_table.c.id
+                )
+                .join(
+                    recipients_table, insert_cte.c.recipient_id == recipients_table.c.id
                 )
             )
+            row = result.mappings().one()
         except IntegrityError as e:
             constraint = get_constraint_name(e)
 
             if constraint == "uq_couple_request_pending":
                 raise CoupleRequestAlreadyExistsException(
-                    detail=f"Pending request from {initiator_id} to {recipient_id} already exists!"
+                    detail=f"Pending request from {create_dto.initiator_id} to {create_dto.recipient_id} already exists!"
                 ) from e
             elif constraint == "ck_couple_not_self":
                 raise CoupleNotSelfException(
@@ -73,144 +179,148 @@ class CoupleRequestRepository(RepositoryInterface):
 
             raise
 
-    async def get_active_couples_by_partner_ids(
-        self, *partner_ids: UUID
-    ) -> list[CoupleRequestDTO]:
-        """Получение списка активных пар по UUID нескольких партнёров.
+        return CoupleRequestDTO.model_validate(
+            {
+                **row,
+                "initiator": self._extract_partner(row, "initiator"),
+                "recipient": self._extract_partner(row, "recipient"),
+            }
+        )
+
+    async def get_filtered(
+        self,
+        filter_dto: FilterCoupleRequestDTO,
+        *,
+        offset: int = DEFAULT_OFFSET,
+        limit: int = DEFAULT_LIMIT,
+        sort_order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[CoupleRequestDTO], int]:
+        """Возвращает отфильтрованный список заявок на пару с общим их количеством.
+
+        Выполняет два запроса параллельно: выборку страницы с JOIN-ами на обоих
+        партнёров и подсчёт общего количества записей без учёта пагинации.
 
         Parameters
         ----------
-        *partner_ids : UUID
-            Список UUID пользователей.
+        filter_dto : FilterCoupleRequestDTO
+            Параметры фильтрации. Пустой DTO возвращает все записи.
+        offset : int, optional
+            Количество пропускаемых записей, по умолчанию `DEFAULT_OFFSET`.
+        limit : int, optional
+            Максимальное количество возвращаемых записей, по умолчанию `DEFAULT_LIMIT`.
+        sort_order : SortOrder, optional
+            Направление сортировки по полю `created_at`,
+            по умолчанию `SortOrder.DESC`.
 
         Returns
         -------
-        list[CoupleRequestDTO]
-            Список DTO активных пар, в которых состоит хотя бы один
-            из переданных пользователей.
+        tuple[list[CoupleRequestDTO], int]
+            Список DTO заявок на текущей странице и общее количество записей,
+            удовлетворяющих фильтру. Второй элемент равен `0`, если записей нет.
+
+        Notes
+        -----
+        Каждая заявка содержит вложенные данные об инициаторе и получателе,
+        извлекаемые через JOIN с таблицей пользователей (под алиасами
+        `initiators_table` и `recipients_table`).
         """
-        result = await self.session.scalars(
-            select(CoupleRequestModel)
-            .options(
-                selectinload(CoupleRequestModel.initiator),
-                selectinload(CoupleRequestModel.recipient),
-            )
-            .where(
-                or_(
-                    CoupleRequestModel.initiator_id.in_(partner_ids),
-                    CoupleRequestModel.recipient_id.in_(partner_ids),
-                ),
-                CoupleRequestModel.status == CoupleRequestStatus.ACCEPTED,
-            )
+        where_clauses = [
+            getattr(couple_requests_table.c, field) == value
+            for field, value in filter_dto.to_filter_values().items()
+        ]
+
+        result, total = await asyncio.gather(
+            self.connection.execute(
+                select(
+                    couple_requests_table,
+                    *self._partner_columns(initiators_table, "initiator"),
+                    *self._partner_columns(recipients_table, "recipient"),
+                )
+                .join(
+                    initiators_table,
+                    couple_requests_table.c.initiator_id == initiators_table.c.id,
+                )
+                .join(
+                    recipients_table,
+                    couple_requests_table.c.recipient_id == recipients_table.c.id,
+                )
+                .where(*where_clauses)
+                .order_by(
+                    self._build_order_clause(
+                        couple_requests_table.c.created_at, sort_order
+                    )
+                )
+                .slice(offset, offset + limit)
+            ),
+            self.connection.scalar(
+                self._build_count_query(couple_requests_table, *where_clauses)
+            ),
         )
 
-        return [CoupleRequestDTO.model_validate(request) for request in result.all()]
-
-    async def get_pending_requests_for_recipient(
-        self, recipient_id: UUID
-    ) -> list[CoupleRequestDTO]:
-        """Получение входящих запросов для пользователя.
-
-        Возвращает все приглашения пользователю с переданным UUID,
-        которые находятся в состоянии `CoupleRequestStatus.PENDING`.
-
-        Parameters
-        ----------
-        recipient_id : UUID
-            UUID пользователя-реципиента.
-
-        Returns
-        -------
-        list[CoupleRequestDTO]
-            Список всех приглашений на создание пары.
-        """
-        requests = await self.session.scalars(
-            select(CoupleRequestModel)
-            .options(
-                selectinload(CoupleRequestModel.initiator),
-                selectinload(CoupleRequestModel.recipient),
-            )
-            .where(
-                CoupleRequestModel.recipient_id == recipient_id,
-                CoupleRequestModel.status == CoupleRequestStatus.PENDING,
-            )
+        return (
+            [
+                CoupleRequestDTO.model_validate(
+                    {
+                        **row,
+                        "initiator": self._extract_partner(row, "initiator"),
+                        "recipient": self._extract_partner(row, "recipient"),
+                    }
+                )
+                for row in result.mappings().all()
+            ],
+            total or 0,
         )
 
-        return [CoupleRequestDTO.model_validate(request) for request in requests.all()]
-
-    async def get_pending_request_by_id_and_recipient_id(
-        self, couple_request_id: UUID, recipient_id: UUID
+    async def update_filtered(
+        self, filter_dto: FilterCoupleRequestDTO, update_dto: UpdateCoupleRequestDTO
     ) -> CoupleRequestDTO | None:
-        """Получение входящего запроса на создание пары по его ID и ID реципиента.
+        """Обновляет запрос на создание пары по его идентификатору.
 
-        Возвращает приглашение, если оно существует, адресовано указанному
-        пользователю и находится в состоянии `CoupleRequestStatus.PENDING`.
+        Применяет переданные изменения к записи в `couple_requests`
+        и возвращает актуальное состояние с данными обоих участников.
 
         Parameters
         ----------
-        couple_request_id : UUID
-            UUID запроса на создание пары.
-        recipient_id : UUID
-            UUID пользователя-реципиента.
+        record_id : UUID
+            Идентификатор обновляемого запроса.
+        update_dto : UpdateCoupleRequestDTO
+            DTO с обновляемыми полями.
 
         Returns
         -------
         CoupleRequestDTO | None
-            DTO запроса на создание пары, или None, если запрос не найден.
+            Обновлённый запрос на пару с вложенными DTO инициатора и реципиента
+            или None, если запрос не найден.
         """
-        request = await self.session.scalar(
-            select(CoupleRequestModel)
-            .options(
-                selectinload(CoupleRequestModel.initiator),
-                selectinload(CoupleRequestModel.recipient),
+        where_clauses = [
+            getattr(couple_requests_table.c, field) == value
+            for field, value in filter_dto.to_filter_values().items()
+        ]
+
+        update_cte = (
+            update(couple_requests_table)
+            .values(**update_dto.to_update_values())
+            .where(*where_clauses)
+            .returning(couple_requests_table)
+            .cte("update_cte")
+        )
+        result = await self.connection.execute(
+            select(
+                couple_requests_table,
+                *self._partner_columns(initiators_table, "initiator"),
+                *self._partner_columns(recipients_table, "recipient"),
             )
-            .where(
-                CoupleRequestModel.id == couple_request_id,
-                CoupleRequestModel.recipient_id == recipient_id,
-                CoupleRequestModel.status == CoupleRequestStatus.PENDING,
-            )
+            .join(initiators_table, update_cte.c.initiator_id == initiators_table.c.id)
+            .join(recipients_table, update_cte.c.recipient_id == recipients_table.c.id)
         )
 
-        return CoupleRequestDTO.model_validate(request) if request else None
+        if not (row := result.mappings().first()):
+            return None
 
-    async def update_request_status_by_id_and_recipient_id(
-        self,
-        couple_request_id: UUID,
-        recipient_id: UUID,
-        new_status: CoupleRequestStatus,
-        accepted_at: datetime,
-    ) -> bool:
-        """Обновление статуса входящего запроса на создание пары.
-
-        Обновляет статус запроса только если он существует, адресован
-        указанному реципиенту и находится в состоянии `CoupleRequestStatus.PENDING`.
-
-        Parameters
-        ----------
-        couple_request_id : UUID
-            UUID запроса на создание пары.
-        recipient_id : UUID
-            UUID пользователя-реципиента.
-        new_status : CoupleRequestStatus
-            Новый статус запроса.
-        accepted_at : datetime
-            Дата и время принятия запроса.
-
-        Returns
-        -------
-        bool
-            True, если запись была обновлена, False - если запрос не найден
-            или не находится в состоянии PENDING.
-        """
-        updated = await self.session.scalar(
-            update(CoupleRequestModel)
-            .where(
-                CoupleRequestModel.id == couple_request_id,
-                CoupleRequestModel.recipient_id == recipient_id,
-                CoupleRequestModel.status == CoupleRequestStatus.PENDING,
-            )
-            .values(status=new_status, accepted_at=accepted_at)
-            .returning(CoupleRequestModel.id)
+        return CoupleRequestDTO.model_validate(
+            {
+                **row,
+                "initiator": self._extract_partner(row, "initiator"),
+                "recipient": self._extract_partner(row, "recipient"),
+            }
         )
-
-        return updated is not None

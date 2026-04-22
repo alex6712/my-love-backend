@@ -53,19 +53,63 @@ class BaseFilterDTO(BaseDTO):
 
     Notes
     -----
-    None-значение поля означает "фильтр не задан", а не "фильтровать по NULL".
-    Репозиторий проверяет каждое поле явно при построении WHERE-clause.
+    Наследники должны объявлять все фильтруемые поля с типом `Maybe[T]`
+    и значением по умолчанию `UNSET`.
 
     Examples
     --------
     >>> class NoteFilterDTO(BaseFilterDTO):
-    ...     note_type: NoteType | None = None
+    ...     note_type: Maybe[NoteType] = UNSET
     ...
     >>> NoteFilterDTO().is_empty()
     True
     >>> NoteFilterDTO(note_type=NoteType.WISHLIST).is_empty()
     False
+    >>> NoteFilterDTO(note_type=NoteType.WISHLIST).to_filter_values()
+    {'note_type': <NoteType.WISHLIST: ...>}
     """
+
+    def __init__(self):
+        self._cached_values: dict[str, Any] | None = None
+
+    def _build_filter_values(self) -> dict[str, Any]:
+        """Формирует словарь активных параметров фильтрации.
+
+        Исключает поля, оставшиеся в значении `UNSET` - то есть явно
+        не переданные при конструировании DTO.
+
+        Returns
+        -------
+        dict[str, Any]
+            Словарь вида `{field_name: value}` только для заданных фильтров.
+            Используется для построения WHERE-условий в репозитории.
+
+        Notes
+        -----
+        Предполагает, что имена полей DTO совпадают с именами колонок таблицы.
+        """
+        return {
+            field: value
+            for field, value in self.model_dump().items()
+            if not isinstance(value, Unset)
+        }
+
+    def to_filter_values(self) -> dict[str, Any]:
+        """Возвращает закэшированный словарь активных параметров фильтрации.
+
+        При первом вызове формирует словарь через `_build_filter_values`,
+        после чего повторно использует сохранённый результат.
+
+        Returns
+        -------
+        dict[str, Any]
+            Словарь вида `{field_name: value}` только для заданных фильтров.
+            Пустой словарь, если ни один фильтр не задан.
+        """
+        if self._cached_values is None:
+            self._cached_values = self._build_filter_values()
+
+        return self._cached_values
 
     def is_empty(self) -> bool:
         """Проверяет, что ни один фильтр не задан.
@@ -73,9 +117,10 @@ class BaseFilterDTO(BaseDTO):
         Returns
         -------
         bool
-            True, если все поля равны None.
+            True, если все поля остались `UNSET`, False - если хотя бы
+            одно поле было явно передано.
         """
-        return all(value is None for value in self.model_dump().values())
+        return not self.to_filter_values()
 
 
 class BaseRequestDTO(BaseDTO):

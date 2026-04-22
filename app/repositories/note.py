@@ -101,8 +101,7 @@ class NoteRepository(
         Parameters
         ----------
         filter_dto : FilterNoteDTO
-            Параметры фильтрации. Поля со значением None игнорируются
-            при построении WHERE-clause.
+            Параметры фильтрации. Пустой DTO возвращает все записи.
         access_ctx : AccessContext
             Контекст доступа с идентификаторами владельца и партнёра.
         offset : int, optional
@@ -120,20 +119,22 @@ class NoteRepository(
             соответствующих фильтрам. Пустой список и 0,
             если заметок нет или доступ ко всем из них запрещён.
         """
-        where_clauses = [access_ctx.as_where_clause(notes_table.c.created_by)]
-        if filter_dto.type is not None:
-            where_clauses.append(notes_table.c.type == filter_dto.type)
+        where_clauses = [
+            getattr(notes_table.c, field) == value
+            for field, value in filter_dto.to_filter_values().items()
+        ]
+        where_clauses.append(access_ctx.as_where_clause(notes_table.c.created_by))
 
-        data_query = (
-            select(notes_table, *self._creator_columns())
-            .join(users_table, notes_table.c.created_by == users_table.c.id)
-            .where(*where_clauses)
-            .order_by(self._build_order_clause(notes_table.c.created_at, sort_order))
-            .slice(offset, offset + limit)
-        )
-
-        data_result, total = await asyncio.gather(
-            self.connection.execute(data_query),
+        result, total = await asyncio.gather(
+            self.connection.execute(
+                select(notes_table, *self._creator_columns())
+                .join(users_table, notes_table.c.created_by == users_table.c.id)
+                .where(*where_clauses)
+                .order_by(
+                    self._build_order_clause(notes_table.c.created_at, sort_order)
+                )
+                .slice(offset, offset + limit)
+            ),
             self.connection.scalar(
                 self._build_count_query(notes_table, *where_clauses)
             ),
@@ -142,7 +143,7 @@ class NoteRepository(
         return (
             [
                 NoteDTO.model_validate({**row, "creator": self._extract_creator(row)})
-                for row in data_result.mappings().all()
+                for row in result.mappings().all()
             ],
             total or 0,
         )
