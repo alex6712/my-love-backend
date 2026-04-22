@@ -109,7 +109,7 @@ class CoupleService:
         ):
             users_ids: set[UUID] = set()
             for couple in couples:
-                users_ids.update([couple.user_low.id, couple.user_high.id])
+                users_ids.update([couple.first_user.id, couple.second_user.id])
 
             if initiator_id in users_ids:
                 raise CoupleAlreadyExistsException(detail="You're already in couple!")

@@ -39,16 +39,16 @@ class CoupleDTO(BaseSQLCoreDTO):
 
     Attributes
     ----------
-    user_low : PartnerDTO
-        DTO пользователя с меньшим UUID в паре.
-    user_high : PartnerDTO
-        DTO пользователя с большим UUID в паре.
+    first_user : PartnerDTO
+        DTO первого пользователя члена пары.
+    second_user : PartnerDTO
+        DTO второго пользователя члена пары.
     relationship_started_on : date | None
         Реальная дата начала отношений.
     """
 
-    user_low: PartnerDTO
-    user_high: PartnerDTO
+    first_user: PartnerDTO
+    second_user: PartnerDTO
     relationship_started_on: date | None
 
 
@@ -103,16 +103,16 @@ class CreateCoupleDTO(BaseCreateDTO):
 
     Attributes
     ----------
-    user_low_id : UUID
-        Идентификатор пользователя с меньшим UUID.
-    user_high_id : UUID
-        Идентификатор пользователя с большим UUID.
+    first_user : UUID
+        Идентификатор первого пользователя члена пары.
+    second_user : UUID
+        Идентификатор второго пользователя члена пары.
     relationship_started_on : date | None
         Дата начала отношений, указанная пользователями. None, если не задана.
     """
 
-    user_low_id: UUID
-    user_high_id: UUID
+    first_user: UUID
+    second_user: UUID
     relationship_started_on: date | None
 
 

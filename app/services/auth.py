@@ -347,11 +347,9 @@ class AuthService:
                 detail="New password must differ from current."
             )
 
-        updated = await self._user_repo.update(
+        if not await self._user_repo.update(
             payload.sub, UpdateUserDTO(password_hash=hash_(new_password))
-        )
-
-        if not updated:
+        ):
             raise PasswordUpdateFailedException(
                 detail="Failed to update password: no rows were affected."
             )

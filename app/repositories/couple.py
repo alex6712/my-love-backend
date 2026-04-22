@@ -1,27 +1,47 @@
+from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import insert, or_, select, update
+from sqlalchemy import (
+    FromClause,
+    Label,
+    RowMapping,
+    insert,
+    literal,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions.couple import CoupleAlreadyExistsException
 from app.infra.postgres import get_constraint_name
+from app.infra.postgres.tables.couple_members import couple_members_table
+from app.infra.postgres.tables.couples import couples_table
+from app.infra.postgres.tables.users import users_table
 from app.models.couple import CoupleModel
-from app.repositories.interface import RepositoryInterface
-from app.schemas.dto.couple import CoupleDTO, UpdateCoupleDTO
+from app.repositories.interface import (
+    CreateMixin,
+    ReadOneMixin,
+    RepositoryInterfaceNew,
+    UpdateMixin,
+)
+from app.schemas.dto.couple import CoupleDTO, CreateCoupleDTO, UpdateCoupleDTO
 from app.schemas.dto.user import PartnerDTO
 
+type PartnerPrefix = Literal["first_user", "second_user"]
 
-class CoupleRepository(RepositoryInterface):
+
+class CoupleRepository(
+    RepositoryInterfaceNew,
+    CreateMixin[CreateCoupleDTO, CoupleDTO],
+    ReadOneMixin[CoupleDTO],
+    UpdateMixin[UpdateCoupleDTO, CoupleDTO],
+):
     """Репозиторий пар между пользователями.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
     Реализует основные CRUD операции с парами пользователей.
-
-    Attributes
-    ----------
-    session : AsyncSession
-        Объект асинхронной сессии запроса.
 
     Methods
     -------
@@ -34,6 +54,123 @@ class CoupleRepository(RepositoryInterface):
     update_couple_by_id(couple_id, patch_couple_dto, user_id)
         Обновление атрибутов пары между пользователями в базе данных.
     """
+
+    @staticmethod
+    def _partner_columns(alias: FromClause, prefix: PartnerPrefix) -> list[Label[Any]]:
+        """Именованные колонки пользователя для SELECT.
+
+        Parameters
+        ----------
+        alias : FromClause
+            Псевдоним таблицы users.
+        prefix : PartnerPrefix
+            Префикс колонок - `"first_user"` или `"second_user"`.
+
+        Returns
+        -------
+        list[Label[Any]]
+            Список лейблированных колонок users_table.
+        """
+        return [
+            alias.c.id.label(f"_{prefix}_id"),
+            alias.c.created_at.label(f"_{prefix}_created_at"),
+            alias.c.username.label(f"_{prefix}_username"),
+            alias.c.avatar_url.label(f"_{prefix}_avatar_url"),
+            alias.c.is_active.label(f"_{prefix}_is_active"),
+        ]
+
+    @staticmethod
+    def _extract_partner(row: RowMapping, prefix: PartnerPrefix) -> dict[str, Any]:
+        """Извлекает данные партнёра из плоской строки JOIN-результата.
+
+        Parameters
+        ----------
+        row : RowMapping
+            Плоская строка результата запроса с лейблированными
+            колонками пользователя.
+        prefix : PartnerPrefix
+            Префикс колонок - `"first_user"` или `"second_user"`.
+
+        Returns
+        -------
+        dict[str, Any]
+            Словарь с данными партнёра, готовый для вложенной валидации DTO.
+        """
+        return {
+            "id": row[f"_{prefix}_id"],
+            "username": row[f"_{prefix}_username"],
+            "avatar_url": row[f"_{prefix}_avatar_url"],
+            "is_active": row[f"_{prefix}_is_active"],
+            "created_at": row[f"_{prefix}_created_at"],
+            "updated_at": row[f"_{prefix}_updated_at"],
+        }
+
+    async def create(self, create_dto: CreateCoupleDTO) -> CoupleDTO:
+        first_users_table = users_table.alias("first_users")
+        second_users_table = users_table.alias("second_users")
+
+        insert_couple_cte = (
+            insert(couples_table)
+            .values(**create_dto.to_create_values())
+            .returning(couples_table)
+            .cte("insert_couple_cte")
+        )
+        member_rows = select(
+            insert_couple_cte.c.id.label("couple_id"),
+            literal(create_dto.first_user).label("user_id"),
+            literal(1).label("slot"),
+        ).union_all(
+            select(
+                insert_couple_cte.c.id.label("couple_id"),
+                literal(create_dto.second_user).label("user_id"),
+                literal(2).label("slot"),
+            )
+        )
+        insert_members_cte = (
+            insert(couple_members_table)
+            .from_select(["couple_id", "user_id", "slot"], member_rows)
+            .returning(couple_members_table)
+            .cte("insert_members_cte")
+        )
+
+        first_members_table = insert_members_cte.alias("first_members")
+        second_members_table = insert_members_cte.alias("second_members")
+
+        result = await self.connection.execute(
+            select(
+                insert_couple_cte,
+                *self._partner_columns(first_users_table, "first_user"),
+                *self._partner_columns(second_users_table, "second_user"),
+            )
+            .select_from(insert_couple_cte)
+            .join(
+                first_members_table,
+                (insert_couple_cte.c.id == first_members_table.c.couple_id)
+                & (first_members_table.c.slot == 1),
+            )
+            .join(
+                first_users_table,
+                first_users_table.c.id == first_members_table.c.user_id,
+            )
+            .join(
+                second_members_table,
+                (insert_couple_cte.c.id == second_members_table.c.couple_id)
+                & (second_members_table.c.slot == 2),
+            )
+            .join(
+                second_users_table,
+                second_members_table.c.user_id == second_users_table.c.id,
+            )
+        )
+        row = result.mappings().one()
+
+        return CoupleDTO.model_validate(
+            {
+                **row,
+                "first_user": self._extract_partner(row, "first_user"),
+                "second_user": self._extract_partner(row, "second_user"),
+            }
+        )
 
     async def add_couple(self, user_low_id: UUID, user_high_id: UUID) -> None:
         """Создание записи о зарегистрированной паре между пользователями.
