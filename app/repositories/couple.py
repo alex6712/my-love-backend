@@ -1,160 +1,240 @@
-from uuid import UUID
+from typing import Any, Literal
 
-from sqlalchemy import or_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy import FromClause, Label, RowMapping, insert, literal, select
+from sqlalchemy.exc import IntegrityError
 
-from app.models.couple import CoupleModel
-from app.repositories.interface import RepositoryInterface
-from app.schemas.dto.couple import CoupleDTO, PatchCoupleDTO
+from app.core.exceptions.couple import CoupleAlreadyExistsException
+from app.infra.postgres import get_constraint_name
+from app.infra.postgres.tables.couple_members import couple_members_table
+from app.infra.postgres.tables.couples import couples_table
+from app.infra.postgres.tables.users import users_table
+from app.repositories.interface import (
+    CreateMixin,
+    FilteredReadOneMixin,
+    RepositoryInterface,
+)
+from app.schemas.dto.couple import (
+    CoupleDTO,
+    CreateCoupleDTO,
+    FilterCoupleDTO,
+)
+
+type PartnerPrefix = Literal["first_user", "second_user"]
+
+first_users_table = users_table.alias("first_users")
+second_users_table = users_table.alias("second_users")
 
 
-class CoupleRepository(RepositoryInterface):
+class CoupleRepository(
+    RepositoryInterface,
+    CreateMixin[CreateCoupleDTO, CoupleDTO],
+    FilteredReadOneMixin[FilterCoupleDTO, CoupleDTO],
+):
     """Репозиторий пар между пользователями.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
     Реализует основные CRUD операции с парами пользователей.
 
-    Attributes
-    ----------
-    session : AsyncSession
-        Объект асинхронной сессии запроса.
-
     Methods
     -------
-    add_couple(initiator_id, recipient_id)
-        Регистрация пары между пользователями.
-    get_couples_by_users_ids(first_user_id, second_user_id)
-        Получение списка пар по UUID нескольких партнёров.
-    get_partner_by_user_id(user_id)
-        Получение информации о партнёре пользователя.
-    update_couple_by_id(couple_id, patch_couple_dto, user_id)
-        Обновление атрибутов пары между пользователями в базе данных.
+    create(create_dto)
+        Создаёт пару и атомарно добавляет обоих участников.
+    get_one_filtered(filter_dto)
+        Возвращает пару, соответствующую переданным фильтрам.
     """
 
-    def __init__(self, session: AsyncSession):
-        super().__init__(session)
-
-    def add_couple(self, user_low_id: UUID, user_high_id: UUID) -> None:
-        """Создание записи о зарегистрированной паре между пользователями.
-
-        Добавляет в базу данных запись о новой паре между пользователями.
-        Уникальность и порядок UUID пользователей обеспечивается ограничениями
-        базы данных.
+    @staticmethod
+    def _partner_columns(alias: FromClause, prefix: PartnerPrefix) -> list[Label[Any]]:
+        """Именованные колонки пользователя для SELECT.
 
         Parameters
         ----------
-        user_low_id : UUID
-            UUID пользователя-инициатора.
-        user_high_id : UUID
-            UUID пользователя-реципиента.
-        """
-        self.session.add(
-            CoupleModel(user_low_id=user_low_id, user_high_id=user_high_id)
-        )
-
-    async def get_couples_by_partners_ids(self, *partners_ids: UUID) -> list[CoupleDTO]:
-        """Получение списка пар по UUID нескольких партнёров.
-
-        Parameters
-        ----------
-        *partner_ids : UUID
-            Список UUID пользователей.
+        alias : FromClause
+            Псевдоним таблицы users.
+        prefix : PartnerPrefix
+            Префикс колонок - `"first_user"` или `"second_user"`.
 
         Returns
         -------
-        list[CoupleDTO]
-            Список DTO пар, в которых состоит хотя бы один
-            из переданных пользователей.
+        list[Label[Any]]
+            Список лейблированных колонок users_table.
         """
-        couples = await self.session.scalars(
-            select(CoupleModel)
-            .options(
-                selectinload(CoupleModel.user_low),
-                selectinload(CoupleModel.user_high),
+        return [
+            alias.c.id.label(f"_{prefix}_id"),
+            alias.c.created_at.label(f"_{prefix}_created_at"),
+            alias.c.username.label(f"_{prefix}_username"),
+            alias.c.avatar_url.label(f"_{prefix}_avatar_url"),
+            alias.c.is_active.label(f"_{prefix}_is_active"),
+        ]
+
+    @staticmethod
+    def _extract_partner(row: RowMapping, prefix: PartnerPrefix) -> dict[str, Any]:
+        """Извлекает данные партнёра из плоской строки JOIN-результата.
+
+        Parameters
+        ----------
+        row : RowMapping
+            Плоская строка результата запроса с лейблированными
+            колонками пользователя.
+        prefix : PartnerPrefix
+            Префикс колонок - `"first_user"` или `"second_user"`.
+
+        Returns
+        -------
+        dict[str, Any]
+            Словарь с данными партнёра, готовый для вложенной валидации DTO.
+        """
+        return {
+            "id": row[f"_{prefix}_id"],
+            "created_at": row[f"_{prefix}_created_at"],
+            "username": row[f"_{prefix}_username"],
+            "avatar_url": row[f"_{prefix}_avatar_url"],
+            "is_active": row[f"_{prefix}_is_active"],
+        }
+
+    async def create(self, create_dto: CreateCoupleDTO) -> CoupleDTO:
+        """Создаёт пару и атомарно добавляет обоих участников.
+
+        Выполняет три операции в рамках одного запроса через цепочку CTE:
+
+        1. `insert_couple_cte` - вставляет запись в `couples`;
+        2. `insert_members_cte` - вставляет двух участников в
+        `couple_members` через `INSERT ... FROM SELECT`,
+        назначая им слоты `1` и `2`;
+        3. Итоговый `SELECT` - возвращает пару с данными обоих
+        участников через JOIN с `users`.
+
+        Parameters
+        ----------
+        create_dto : CreateCoupleDTO
+            DTO с данными для создания пары.
+
+        Returns
+        -------
+        CoupleDTO
+            Созданная пара с вложенными DTO первого и второго участников.
+        """
+        insert_couple_cte = (
+            insert(couples_table)
+            .values(**create_dto.to_create_values())
+            .returning(couples_table)
+            .cte("insert_couple_cte")
+        )
+        member_rows = select(
+            insert_couple_cte.c.id.label("couple_id"),
+            literal(create_dto.first_user_id).label("user_id"),
+            literal(1).label("slot"),
+        ).union_all(
+            select(
+                insert_couple_cte.c.id.label("couple_id"),
+                literal(create_dto.second_user_id).label("user_id"),
+                literal(2).label("slot"),
             )
-            .where(
-                or_(
-                    CoupleModel.user_low_id.in_(partners_ids),
-                    CoupleModel.user_high_id.in_(partners_ids),
+        )
+        insert_members_cte = (
+            insert(couple_members_table)
+            .from_select(["couple_id", "user_id", "slot"], member_rows)
+            .returning(couple_members_table)
+            .cte("insert_members_cte")
+        )
+
+        try:
+            result = await self.connection.execute(
+                select(
+                    insert_couple_cte,
+                    *self._partner_columns(first_users_table, "first_user"),
+                    *self._partner_columns(second_users_table, "second_user"),
                 )
+                # получаем первого пользователя
+                .join(
+                    m1 := insert_members_cte.alias("m1"),
+                    (m1.c.couple_id == insert_couple_cte.c.id) & (m1.c.slot == 1),
+                )
+                .join(first_users_table, first_users_table.c.id == m1.c.user_id)
+                # получаем второго пользователя
+                .join(
+                    m2 := insert_members_cte.alias("m2"),
+                    (m2.c.couple_id == insert_couple_cte.c.id) & (m2.c.slot == 2),
+                )
+                .join(second_users_table, second_users_table.c.id == m2.c.user_id)
             )
+            row = result.mappings().one()
+        except IntegrityError as e:
+            constraint_name = get_constraint_name(e)
+
+            if constraint_name == "uq_one_couple_per_user":
+                raise CoupleAlreadyExistsException(
+                    detail=f"User {create_dto.first_user_id} or {create_dto.second_user_id} is already in couple!",
+                ) from e
+
+            raise
+
+        return CoupleDTO.model_validate(
+            {
+                **row,
+                "first_user": self._extract_partner(row, "first_user"),
+                "second_user": self._extract_partner(row, "second_user"),
+            }
         )
 
-        return [CoupleDTO.model_validate(couple) for couple in couples.all()]
+    async def get_one_filtered(self, filter_dto: FilterCoupleDTO) -> CoupleDTO | None:
+        """Возвращает пару, соответствующую переданным фильтрам.
 
-    async def get_partner_id_by_user_id(self, user_id: UUID) -> UUID | None:
-        """Получение UUID партнёра пользователя.
-
-        Получает UUID пользователя, после чего ищет в БД запись
-        о паре пользователей и возвращает UUID партнёра пользователя.
+        Строит запрос через двойной self-join `couple_members`
+        (алиасы `m1` и `m2`) для раздельного получения первого
+        и второго участников, затем присоединяет `users` для
+        каждого из них.
 
         Parameters
         ----------
-        user_id : UUID
-            UUID пользователя в системе.
+        filter_dto : FilterCoupleDTO
+            DTO с полями фильтрации. Пустой DTO вернёт первую
+            попавшуюся пару.
 
         Returns
         -------
-        UUID | None
-            UUID партнёра пользователя или None, если пользователь не в паре.
+        CoupleDTO | None
+            Найденная пара с вложенными DTO обоих участников или None,
+            если ни одна пара не соответствует фильтрам.
         """
-        couple = await self.session.scalar(
-            select(CoupleModel).where(
-                or_(
-                    CoupleModel.user_low_id == user_id,
-                    CoupleModel.user_high_id == user_id,
-                ),
+        result = await self.connection.execute(
+            select(
+                couples_table,
+                *self._partner_columns(first_users_table, "first_user"),
+                *self._partner_columns(second_users_table, "second_user"),
+            )
+            .select_from(couple_members_table)
+            .join(
+                couples_table,
+                couples_table.c.id == couple_members_table.c.couple_id,
+            )
+            # первый участник
+            .join(
+                m1 := couple_members_table.alias("m1"),
+                (m1.c.couple_id == couples_table.c.id) & (m1.c.slot == 1),
+            )
+            .join(first_users_table, first_users_table.c.id == m1.c.user_id)
+            # второй участник
+            .join(
+                m2 := couple_members_table.alias("m2"),
+                (m2.c.couple_id == couples_table.c.id) & (m2.c.slot == 2),
+            )
+            .join(second_users_table, second_users_table.c.id == m2.c.user_id)
+            .where(
+                *[
+                    getattr(couple_members_table.c, field) == value
+                    for field, value in filter_dto.to_filter_values().items()
+                ]
             )
         )
 
-        if couple is None:
+        if not (row := result.mappings().first()):
             return None
 
-        return (
-            couple.user_low_id
-            if couple.user_high_id == user_id
-            else couple.user_high_id
+        return CoupleDTO.model_validate(
+            {
+                **row,
+                "first_user": self._extract_partner(row, "first_user"),
+                "second_user": self._extract_partner(row, "second_user"),
+            }
         )
-
-    async def update_couple_by_id(
-        self,
-        couple_id: UUID,
-        patch_couple_dto: PatchCoupleDTO,
-        user_id: UUID,
-    ) -> bool:
-        """Обновление атрибутов пары между пользователями в базе данных.
-
-        Выполняет SQL-запрос UPDATE для изменения атрибутов пары,
-        устанавливая переданные в patch DTO значения.
-
-        Parameters
-        ----------
-        couple_id : UUID
-            UUID пары к изменению.
-        patch_couple_dto : PatchCoupleDTO
-            DTO с полями для обновления. Только явно переданные поля
-            попадают в SET-часть запроса через `to_update_values()`.
-        user_id : UUID
-            UUID текущего пользователя.
-
-        Returns
-        -------
-        bool
-            True, если запись была обновлена, False - если пара
-            не найдена или не прошла проверку прав доступа.
-        """
-        updated = await self.session.scalar(
-            update(CoupleModel)
-            .where(
-                CoupleModel.id == couple_id,
-                or_(
-                    CoupleModel.user_low_id == user_id,
-                    CoupleModel.user_high_id == user_id,
-                ),
-            )
-            .values(**patch_couple_dto.to_update_values())
-            .returning(CoupleModel.id)
-        )
-
-        return updated is not None

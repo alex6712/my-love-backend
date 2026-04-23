@@ -1,10 +1,10 @@
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BasePatchDTO, BaseSQLModelDTO
+from app.schemas.dto.base import BaseCreateDTO, BaseSQLCoreDTO, BaseUpdateDTO
 from app.schemas.dto.file import FileDTO
 from app.schemas.dto.user import CreatorDTO
 
 
-class AlbumDTO(BaseSQLModelDTO):
+class AlbumDTO(BaseSQLCoreDTO):
     """DTO для представления медиа альбома.
 
     Attributes
@@ -48,7 +48,33 @@ class AlbumWithItemsDTO(AlbumDTO):
     total: int
 
 
-class PatchAlbumDTO(BasePatchDTO):
+class CreateAlbumDTO(BaseCreateDTO):
+    """DTO для создания нового медиа-альбома.
+
+    Attributes
+    ----------
+    title : str
+        Наименование альбома.
+    description : str | None
+        Описание альбома.
+    cover_url : str | None
+        URL обложки альбома.
+    is_private : bool
+        Видимость альбома (True — личный, False — публичный).
+
+    Notes
+    -----
+    Поле `creator` не передаётся, так как определяется
+    на основе контекста аутентификации (например, из JWT).
+    """
+
+    title: str
+    description: str | None
+    cover_url: str | None
+    is_private: bool
+
+
+class UpdateAlbumDTO(BaseUpdateDTO):
     """DTO для частичного обновления альбома.
 
     Attributes

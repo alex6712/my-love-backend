@@ -3,10 +3,16 @@ from uuid import UUID
 from app.core.enums import SortOrder
 from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.media import MediaNotFoundException
-from app.infrastructure.postgresql import UnitOfWork
-from app.repositories.couple_request import CoupleRequestRepository
+from app.infra.postgres.uow import UnitOfWork
+from app.repositories.couple import CoupleRepository
+from app.repositories.interface import AccessContext
 from app.repositories.media import AlbumRepository, FileRepository
-from app.schemas.dto.album import AlbumDTO, AlbumWithItemsDTO, PatchAlbumDTO
+from app.schemas.dto.album import (
+    AlbumDTO,
+    AlbumWithItemsDTO,
+    CreateAlbumDTO,
+    UpdateAlbumDTO,
+)
 
 
 class AlbumService:
@@ -23,7 +29,7 @@ class AlbumService:
         Репозиторий для операций с альбомами в базе данных.
     _file_repo : FileRepository
         Репозиторий для операций с файлами в базе данных.
-    _couple_request_repo : CoupleRequestRepository
+    _couple_repo : CoupleRepository
         Репозиторий для операций с парами пользователей в БД.
 
     Methods
@@ -49,41 +55,27 @@ class AlbumService:
     def __init__(self, unit_of_work: UnitOfWork):
         self._album_repo = unit_of_work.get_repository(AlbumRepository)
         self._file_repo = unit_of_work.get_repository(FileRepository)
-        self._couple_request_repo = unit_of_work.get_repository(CoupleRequestRepository)
+        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
 
-    def create_album(
-        self,
-        title: str,
-        description: str | None,
-        cover_url: str | None,
-        is_private: bool,
-        created_by: UUID,
-    ) -> None:
+    async def create_album(self, create_dto: CreateAlbumDTO, created_by: UUID) -> None:
         """Создание нового медиа альбома.
-
-        Создаёт новый альбом по переданным данным.
 
         Parameters
         ----------
-        title : str
-            Наименование альбома.
-        description : str | None
-            Описание альбома.
-        cover_url : str | None
-            URL обложки альбома.
-        is_private : bool
-            Видимость альбома:
-            - True - личный альбом;
-            - False - публичный альбом (значение по умолчанию).
+        create_dto : CreateAlbumDTO
+            Данные для создания альбома.
         created_by : UUID
             UUID пользователя, создавшего альбом.
         """
-        self._album_repo.add_album(
-            title, description, cover_url, is_private, created_by
-        )
+        await self._album_repo.create(create_dto, created_by)
 
     async def get_albums(
-        self, offset: int, limit: int, order: SortOrder, user_id: UUID
+        self,
+        offset: int,
+        limit: int,
+        sort_order: SortOrder,
+        user_id: UUID,
+        partner_id: UUID | None,
     ) -> tuple[list[AlbumDTO], int]:
         """Получение всех альбомов по UUID создателя.
 
@@ -97,20 +89,23 @@ class AlbumService:
             Смещение от начала списка (количество пропускаемых альбомов).
         limit : int
             Количество возвращаемых альбомов.
-        order : SortOrder
+        sort_order : SortOrder
             Направление сортировки альбомов.
         user_id : UUID
             UUID пользователя.
+        partner_id : UUID | None
+            UUID партнёра пользователя или None.
 
         Returns
         -------
         tuple[list[AlbumDTO], int]
             Кортеж из списка альбомов и общего количества.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
-
-        return await self._album_repo.get_albums_by_creator(
-            offset, limit, order, user_id, partner_id
+        return await self._album_repo.get_all(
+            AccessContext(user_id=user_id, partner_id=partner_id),
+            offset=offset,
+            limit=limit,
+            sort_order=sort_order,
         )
 
     async def search_albums(
@@ -120,6 +115,7 @@ class AlbumService:
         offset: int,
         limit: int,
         user_id: UUID,
+        partner_id: UUID | None,
     ) -> tuple[list[AlbumDTO], int]:
         """Поиск альбомов по переданному запросу.
 
@@ -139,20 +135,29 @@ class AlbumService:
             Максимальное количество, которое необходимо вернуть.
         user_id : UUID
             UUID текущего пользователя.
+        partner_id : UUID | None
+            UUID партнёра пользователя или None.
 
         Returns
         -------
         tuple[list[AlbumDTO], int]
             Кортеж из списка найденных альбомов и общего количества.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
-
-        return await self._album_repo.search_albums_by_trigram(
-            search_query, threshold, offset, limit, user_id, partner_id
+        return await self._album_repo.search_by_trigram(
+            AccessContext(user_id=user_id, partner_id=partner_id),
+            search_query,
+            threshold,
+            offset=offset,
+            limit=limit,
         )
 
     async def get_album(
-        self, album_id: UUID, offset: int, limit: int, user_id: UUID
+        self,
+        album_id: UUID,
+        offset: int,
+        limit: int,
+        user_id: UUID,
+        partner_id: UUID | None,
     ) -> AlbumWithItemsDTO:
         """Получение подробной информации об альбоме по его UUID.
 
@@ -170,6 +175,8 @@ class AlbumService:
             Лимит количества элементов.
         user_id : UUID
             UUID текущего пользователя.
+        partner_id : UUID | None
+            UUID партнёра пользователя или None.
 
         Returns
         -------
@@ -182,12 +189,12 @@ class AlbumService:
             В случае если альбом по переданному UUID не существует или
             текущий пользователь не имеет прав на просмотр этого альбома.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
-
-        album = await self._album_repo.get_album_with_items_by_id(
-            album_id, offset, limit, user_id, partner_id
+        album = await self._album_repo.get_with_items(
+            album_id,
+            AccessContext(user_id=user_id, partner_id=partner_id),
+            offset=offset,
+            limit=limit,
         )
-
         if album is None:
             raise MediaNotFoundException(
                 media_type="album",
@@ -197,7 +204,11 @@ class AlbumService:
         return album
 
     async def update_album(
-        self, album_id: UUID, patch_album_dto: PatchAlbumDTO, user_id: UUID
+        self,
+        album_id: UUID,
+        update_dto: UpdateAlbumDTO,
+        user_id: UUID,
+        partner_id: UUID | None,
     ) -> None:
         """Частичное обновление атрибутов медиа-альбома по его UUID.
 
@@ -209,10 +220,12 @@ class AlbumService:
         ----------
         album_id : UUID
             UUID альбома к изменению.
-        patch_album_dto : PatchAlbumDTO
+        update_dto : UpdateAlbumDTO
             DTO с полями для обновления. Содержит только явно переданные поля.
         user_id : UUID
             UUID пользователя, инициирующего изменение альбома.
+        partner_id : UUID | None
+            UUID партнёра пользователя или None.
 
         Raises
         ------
@@ -221,16 +234,12 @@ class AlbumService:
         MediaNotFoundException
             Если альбом не найден или пользователь не является его создателем.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
-
-        if patch_album_dto.is_empty():
+        if update_dto.is_empty():
             raise NothingToUpdateException(detail="No fields provided for update.")
 
-        updated = await self._album_repo.update_album_by_id(
-            album_id, patch_album_dto, user_id, partner_id
-        )
-
-        if not updated:
+        if not await self._album_repo.update(
+            album_id, update_dto, AccessContext(user_id=user_id, partner_id=partner_id)
+        ):
             raise MediaNotFoundException(
                 media_type="album",
                 detail=f"Album with id={album_id} not found, or you're not this album's creator.",
@@ -256,134 +265,98 @@ class AlbumService:
             Возникает в случае, если альбом с переданным UUID не существует
             или текущий пользователь не является создателем альбома.
         """
-        album = await self._album_repo.get_album_by_id(album_id, user_id)
-
-        if album is None:
+        if not await self._album_repo.delete(album_id, AccessContext(user_id=user_id)):
             raise MediaNotFoundException(
                 media_type="album",
                 detail=f"Album with id={album_id} not found, or you're not this album's creator.",
             )
 
-        await self._album_repo.delete_album_by_id(album_id)
-
-    async def attach(
-        self, album_id: UUID, files_uuids: list[UUID], user_id: UUID
+    async def attach_files(
+        self,
+        album_id: UUID,
+        files_ids: list[UUID],
+        user_id: UUID,
+        partner_id: UUID | None,
     ) -> None:
         """Прикрепляет медиа-файлы к альбому.
 
-        Проверяет:
-        1. Существование альбома;
-        2. Права пользователя на альбом (должен быть создателем или партнёром создателя);
-        3. Существование всех медиа-файлов;
-        4. Права пользователя на медиа-файлы (должен быть создателем).
+        Не добавляет файлы, если они не существуют, пользователь
+        не имеет прав на операции с ними или они уже прикреплены
+        к указанному альбому.
 
         Parameters
         ----------
         album_id : UUID
             UUID альбома.
-        files_uuids : list[UUID]
+        files_ids : list[UUID]
             Список UUID медиа-файлов для прикрепления.
         user_id : UUID
             UUID пользователя, выполняющего операцию.
+        partner_id : UUID | None
+            UUID партнёра пользователя, если есть.
 
         Raises
         ------
         MediaNotFoundException
-            Если альбом не существует или не все медиа-файлы найдены.
+            Если альбом недоступен или у пользователя нет прав
+            на один или несколько файлов.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        if not files_ids:
+            return
 
-        album = await self._album_repo.get_album_by_id(album_id, user_id, partner_id)
+        access_ctx = AccessContext(user_id=user_id, partner_id=partner_id)
 
-        if album is None:
+        if not await self._album_repo.get_one(album_id, access_ctx):
             raise MediaNotFoundException(
                 media_type="album",
                 detail=f"Album with id={album_id} not found, or you're lack of rights.",
             )
 
-        if not files_uuids:
-            return
+        await self._album_repo.attach_files(album_id, files_ids, access_ctx)
 
-        received_files_uuids = set(files_uuids)
-
-        files = await self._file_repo.get_files_by_ids(files_uuids, user_id)
-        found_files_uuids = {file.id for file in files}
-
-        if received_files_uuids != found_files_uuids:
-            missing_uuids = received_files_uuids - found_files_uuids
-
-            missing_list = ", ".join(str(muuid) for muuid in missing_uuids)
-            raise MediaNotFoundException(
-                media_type="file",
-                detail=(
-                    "One or more media files not found or you don't have "
-                    f"permission to attach them. Missing IDs: {missing_list}"
-                ),
-            )
-
-        attached_files_uuids = await self._album_repo.get_existing_album_items(
-            album_id, files_uuids
-        )
-
-        await self._album_repo.attach_files_to_album(
-            album_id, list(received_files_uuids - attached_files_uuids)
-        )
-
-    async def detach(
-        self, album_id: UUID, files_uuids: list[UUID], user_id: UUID
+    async def detach_files(
+        self,
+        album_id: UUID,
+        files_ids: list[UUID],
+        user_id: UUID,
+        partner_id: UUID | None,
     ) -> None:
         """Открепляет медиа-файлы от альбома.
 
-        Проверяет:
-        1. Существование альбома;
-        2. Права пользователя на альбом (должен быть создателем или партнёром создателя);
-        3. Прикрепление всех медиа-файлов;
-        4. Права пользователя на медиа-файлы (должен быть создателем).
+        Не открепляет файлы, если они не существуют, пользователь
+        не имеет прав на операции с ними или они не прикреплены
+        к указанному альбому.
+
+        Сначала пытается открепить все файлы единым запросом.
+        Если часть файлов не была откреплена, выполняет диагностику:
+        проверяет доступность альбома и наличие файлов в нём.
 
         Parameters
         ----------
         album_id : UUID
             UUID альбома.
-        files_uuids : list[UUID]
+        files_ids : list[UUID]
             Список UUID медиа-файлов для открепления.
         user_id : UUID
             UUID пользователя, выполняющего операцию.
+        partner_id : UUID | None
+            UUID партнёра пользователя, если есть.
 
         Raises
         ------
         MediaNotFoundException
-            Если альбом не существует или не все медиа-файлы найдены.
+            Если альбом недоступен или один или несколько файлов
+            не прикреплены к альбому.
         """
-        partner_id = await self._couple_request_repo.get_partner_id_by_user_id(user_id)
+        if not files_ids:
+            return
 
-        album = await self._album_repo.get_album_by_id(album_id, user_id, partner_id)
+        access_ctx = AccessContext(user_id=user_id, partner_id=partner_id)
 
-        if album is None:
+        if not await self._album_repo.get_one(album_id, access_ctx):
             raise MediaNotFoundException(
                 media_type="album",
                 detail=f"Album with id={album_id} not found, or you're lack of rights.",
             )
 
-        if not files_uuids:
-            return
-
-        received_files_uuids = set(files_uuids)
-        attached_files_uuids = await self._album_repo.get_existing_album_items(
-            album_id, files_uuids
-        )
-
-        if attached_files_uuids != received_files_uuids:
-            missing_uuids = received_files_uuids - attached_files_uuids
-
-            missing_list = ", ".join(str(muuid) for muuid in missing_uuids)
-            raise MediaNotFoundException(
-                media_type="file",
-                detail=(
-                    "One or more media files are not attached to media album. "
-                    f"Missing IDs: {missing_list}"
-                ),
-            )
-
-        await self._album_repo.detach_files_from_album(
-            album_id, list(received_files_uuids)
-        )
+        await self._album_repo.detach_files(album_id, files_ids, access_ctx)

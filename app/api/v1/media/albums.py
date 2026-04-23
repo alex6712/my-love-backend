@@ -4,10 +4,11 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Path, Query, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
+from app.core.dependencies.context import PartnerIdDependency
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.core.enums import SortOrder
-from app.schemas.dto.album import PatchAlbumDTO
+from app.schemas.dto.album import CreateAlbumDTO, UpdateAlbumDTO
 from app.schemas.v1.requests.albums import (
     AttachFilesRequest,
     CreateAlbumRequest,
@@ -33,6 +34,7 @@ router = APIRouter(
 async def get_albums(
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
     offset: Annotated[
         int,
         Query(
@@ -71,6 +73,8 @@ async def get_albums(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
     offset : int, optional
         Смещение от начала списка (количество пропускаемых альбомов).
     limit : int, optional
@@ -84,7 +88,9 @@ async def get_albums(
         Объект ответа, содержащий список доступных пользователю медиа альбомов
         в пределах заданной пагинации и общее количество найденных альбомов.
     """
-    albums, total = await services.album.get_albums(offset, limit, order, payload.sub)
+    albums, total = await services.album.get_albums(
+        offset, limit, order, payload.sub, partner_id
+    )
 
     return AlbumsResponse(
         albums=albums, total=total, detail=f"Found {total} album entries."
@@ -129,11 +135,8 @@ async def post_albums(
     StandardResponse
         Успешный ответ о создании нового альбома.
     """
-    services.album.create_album(
-        title=body.title,
-        description=body.description,
-        cover_url=body.cover_url,
-        is_private=body.is_private,
+    await services.album.create_album(
+        CreateAlbumDTO.from_request_schema(body),
         created_by=payload.sub,
     )
 
@@ -154,6 +157,7 @@ async def search_albums(
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
     threshold: Annotated[
         float,
         Query(ge=0.0, le=1.0, description="Порог сходства для поиска по триграммам."),
@@ -194,6 +198,8 @@ async def search_albums(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
     threshold : float, optional
         Порог сходства для поиска по триграммам.
     offset : int, optional
@@ -207,7 +213,7 @@ async def search_albums(
         Объект ответа, содержащий список найденных альбомов.
     """
     albums, total = await services.album.search_albums(
-        search_query, threshold, offset, limit, payload.sub
+        search_query, threshold, offset, limit, payload.sub, partner_id
     )
 
     return AlbumsResponse(
@@ -226,6 +232,7 @@ async def get_album(
     album_id: Annotated[UUID, Path(description="UUID запрашиваемого альбома.")],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
     offset: Annotated[
         int,
         Query(
@@ -264,6 +271,8 @@ async def get_album(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
     offset : int, optional
         Смещение от начала списка (количество пропускаемых элементов).
     limit : int, optional
@@ -274,7 +283,9 @@ async def get_album(
     AlbumResponse
         Подробная информация о конкретном медиа-альбоме.
     """
-    album = await services.album.get_album(album_id, offset, limit, payload.sub)
+    album = await services.album.get_album(
+        album_id, offset, limit, payload.sub, partner_id
+    )
 
     return AlbumResponse(
         album=album,
@@ -297,6 +308,7 @@ async def patch_album(
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
 ) -> StandardResponse:
     """Частичное изменение медиа альбома по его UUID.
 
@@ -321,6 +333,8 @@ async def patch_album(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
     -------
@@ -328,9 +342,7 @@ async def patch_album(
         Ответ о результате изменения медиа альбома.
     """
     await services.album.update_album(
-        album_id,
-        PatchAlbumDTO.from_request_schema(body),
-        payload.sub,
+        album_id, UpdateAlbumDTO.from_request_schema(body), payload.sub, partner_id
     )
 
     return StandardResponse(detail="Album info edited successfully.")
@@ -393,6 +405,7 @@ async def attach(
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
 ) -> StandardResponse:
     """Привязка медиа-файлов к медиа-альбому.
 
@@ -414,13 +427,17 @@ async def attach(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
     -------
     StandardResponse
         Ответ о результате добавления файлов к альбому.
     """
-    await services.album.attach(album_id, body.files_uuids, payload.sub)
+    await services.album.attach_files(
+        album_id, body.files_uuids, payload.sub, partner_id
+    )
 
     return StandardResponse(detail="Files successfully attached to album.")
 
@@ -441,6 +458,7 @@ async def detach(
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
 ) -> StandardResponse:
     """Отвязка медиа-файлов от медиа-альбома.
 
@@ -462,12 +480,16 @@ async def detach(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
     -------
     StandardResponse
         Ответ о результате удаления файлов из альбома.
     """
-    await services.album.detach(album_id, body.files_uuids, payload.sub)
+    await services.album.detach_files(
+        album_id, body.files_uuids, payload.sub, partner_id
+    )
 
     return StandardResponse(detail="Files successfully detached from album.")

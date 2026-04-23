@@ -1,10 +1,15 @@
 from app.core.enums import NoteType
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BasePatchDTO, BaseSQLModelDTO
+from app.schemas.dto.base import (
+    BaseCreateDTO,
+    BaseFilterDTO,
+    BaseSQLCoreDTO,
+    BaseUpdateDTO,
+)
 from app.schemas.dto.user import CreatorDTO
 
 
-class NoteDTO(BaseSQLModelDTO):
+class NoteDTO(BaseSQLCoreDTO):
     """DTO для представления пользовательских заметок.
 
     Attributes
@@ -26,7 +31,37 @@ class NoteDTO(BaseSQLModelDTO):
     creator: CreatorDTO
 
 
-class PatchNoteDTO(BasePatchDTO):
+class FilterNoteDTO(BaseFilterDTO):
+    """DTO для фильтрации заметок.
+
+    Attributes
+    ----------
+    type : NoteType | None
+        Тип заметки. Если `UNSET` - поле не изменяется.
+    """
+
+    type: Maybe[NoteType | None] = UNSET
+
+
+class CreateNoteDTO(BaseCreateDTO):
+    """DTO для создания новой заметки.
+
+    Attributes
+    ----------
+    type : NoteType
+        Тип заметки.
+    title : str
+        Заголовок заметки.
+    content : str
+        Содержание заметки.
+    """
+
+    type: NoteType
+    title: str
+    content: str
+
+
+class UpdateNoteDTO(BaseUpdateDTO):
     """DTO для частичного обновления заметки.
 
     Attributes

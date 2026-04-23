@@ -24,9 +24,9 @@ from app.core.docs import (
 )
 from app.core.rate_limiter import limiter
 from app.handlers import register_all_handlers
-from app.infrastructure.postgresql import async_postgresql_engine
-from app.infrastructure.redis import redis_client
-from app.infrastructure.s3 import get_s3_client
+from app.infra.postgres import async_engine
+from app.infra.redis import redis_client
+from app.infra.s3 import get_s3_client
 from app.schemas.v1.responses.validation_error import ValidationErrorResponse
 
 settings = get_settings()
@@ -106,7 +106,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
 
     yield
 
-    await async_postgresql_engine.dispose()
+    await async_engine.dispose()
     await redis_client.disconnect()
 
 

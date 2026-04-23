@@ -5,7 +5,7 @@ from fastapi import APIRouter, Body, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
-from app.schemas.dto.user import PatchProfileDTO
+from app.schemas.dto.user import UpdateUserDTO
 from app.schemas.v1.requests.users import PatchProfileRequest
 from app.schemas.v1.responses.standard import StandardResponse
 from app.schemas.v1.responses.user import UserResponse
@@ -124,7 +124,7 @@ async def patch_profile(
         Ответ об успешном изменении профиля.
     """
     await services.user.update_profile(
-        PatchProfileDTO.from_request_schema(body),
+        UpdateUserDTO.from_request_schema(body),
         payload.sub,
     )
 

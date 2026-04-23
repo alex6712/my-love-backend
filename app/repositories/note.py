@@ -1,17 +1,30 @@
 import asyncio
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy import delete, insert, select, update
 
-from app.core.enums import NoteType, SortOrder
-from app.models.note import NoteModel
-from app.repositories.interface import SharedResourceRepository
-from app.schemas.dto.note import NoteDTO, PatchNoteDTO
+from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET
+from app.core.enums import SortOrder
+from app.infra.postgres.tables.notes import notes_table
+from app.infra.postgres.tables.users import users_table
+from app.repositories.interface import (
+    AccessContext,
+    OwnedCreateMixin,
+    OwnedDeleteMixin,
+    OwnedFilteredReadMixin,
+    OwnedRepositoryInterface,
+    OwnedUpdateMixin,
+)
+from app.schemas.dto.note import CreateNoteDTO, FilterNoteDTO, NoteDTO, UpdateNoteDTO
 
 
-class NoteRepository(SharedResourceRepository):
+class NoteRepository(
+    OwnedRepositoryInterface,
+    OwnedFilteredReadMixin[FilterNoteDTO, NoteDTO],
+    OwnedCreateMixin[CreateNoteDTO, NoteDTO],
+    OwnedUpdateMixin[UpdateNoteDTO, NoteDTO],
+    OwnedDeleteMixin[NoteDTO],
+):
     """Репозиторий пользовательских заметок.
 
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
@@ -24,212 +37,250 @@ class NoteRepository(SharedResourceRepository):
 
     Methods
     -------
-    add_note(type, title, content, created_by)
-        Создание новой пользовательской заметки.
-    get_note_by_id(note_id, user_id, partner_id)
+    create(create_dto, created_by)
+        Создаёт новую заметку с привязкой к владельцу.
+    get_all(access_ctx, offset, limit, sort_order)
+        Возвращает постраничный список записей, доступных в рамках контекста.
+    get_one(record_id, access_ctx)
         Возвращает DTO пользовательской заметки по её id.
-    get_notes_by_creator(offset, limit, user_id, partner_id)
-        Возвращает список DTO пользовательских заметок по id их создателя.
-    count_notes_by_creator(user_id, partner_id)
+    count(access_ctx)
         Возвращает количество заметок по id их создателя.
-    update_note_by_id(note_id, title, content)
+    update(record_id, update_dto, access_ctx)
         Обновление атрибутов заметки в базе данных.
-    delete_note_by_id(note_id)
+    delete(record_id, access_ctx)
         Удаляет запись о пользовательской заметке из базы данных по её UUID.
     """
 
-    def __init__(self, session: AsyncSession):
-        super().__init__(session)
-
-    def add_note(
-        self,
-        type: NoteType,
-        title: str,
-        content: str,
-        created_by: UUID,
-    ) -> None:
-        """Создание новой пользовательской заметки.
-
-        Добавляет в базу данных запись о новой пользовательской заметке
-        и устанавливает переданные атрибуты.
+    async def create(self, create_dto: CreateNoteDTO, created_by: UUID) -> NoteDTO:
+        """Создаёт новую заметку с привязкой к владельцу.
 
         Parameters
         ----------
-        type : NoteType
-            Тип пользовательской заметки.
-        title : str
-            Заголовок пользовательской заметки.
-        content : str
-            Содержимое пользовательской заметки
+        create_dto : CreateNoteDTO
+            Данные для создания заметки.
         created_by : UUID
-            UUID пользователя, загрузившего заметку.
+            Идентификатор пользователя, создающего заметку.
+            Передаётся явно, так как извлекается из payload токена,
+            а не из схемы запроса.
+
+        Returns
+        -------
+        NoteDTO
+            Доменное DTO созданной заметки.
         """
-        self.session.add(
-            NoteModel(
-                type=type,
-                title=title,
-                content=content,
-                created_by=created_by,
+        insert_cte = (
+            insert(notes_table)
+            .values(**create_dto.to_create_values(), created_by=created_by)
+            .returning(notes_table)
+            .cte("insert_cte")
+        )
+        result = await self.connection.execute(
+            select(insert_cte, *self._creator_columns()).join(
+                users_table, users_table.c.id == insert_cte.c.created_by
             )
         )
+        row = result.mappings().one()
 
-    async def get_note_by_id(
-        self, note_id: UUID, user_id: UUID, partner_id: UUID | None = None
+        return NoteDTO.model_validate({**row, "creator": self._extract_creator(row)})
+
+    async def get_filtered(
+        self,
+        filter_dto: FilterNoteDTO,
+        access_ctx: AccessContext,
+        *,
+        offset: int = DEFAULT_OFFSET,
+        limit: int = DEFAULT_LIMIT,
+        sort_order: SortOrder = SortOrder.ASC,
+    ) -> tuple[list[NoteDTO], int]:
+        """Возвращает отфильтрованный постраничный список заметок и их общее количество.
+
+        Условие доступа и фильтры применяются на уровне запроса атомарно.
+        Общее количество возвращается без учёта пагинации - для формирования
+        метаданных ответа на клиенте.
+
+        Parameters
+        ----------
+        filter_dto : FilterNoteDTO
+            Параметры фильтрации. Пустой DTO возвращает все записи.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+        offset : int, optional
+            Количество пропускаемых записей, по умолчанию `DEFAULT_OFFSET`.
+        limit : int, optional
+            Максимальное количество возвращаемых записей, по умолчанию `DEFAULT_LIMIT`.
+        sort_order : SortOrder, optional
+            Направление сортировки по полю `created_at`,
+            по умолчанию SortOrder.ASC.
+
+        Returns
+        -------
+        tuple[list[NoteDTO], int]
+            Список DTO найденных заметок и общее количество записей,
+            соответствующих фильтрам. Пустой список и 0,
+            если заметок нет или доступ ко всем из них запрещён.
+        """
+        where_clauses = [
+            getattr(notes_table.c, field) == value
+            for field, value in filter_dto.to_filter_values().items()
+        ]
+        where_clauses.append(access_ctx.as_where_clause(notes_table.c.created_by))
+
+        result, total = await asyncio.gather(
+            self.connection.execute(
+                select(notes_table, *self._creator_columns())
+                .join(users_table, users_table.c.id == notes_table.c.created_by)
+                .where(*where_clauses)
+                .order_by(
+                    self._build_order_clause(notes_table.c.created_at, sort_order)
+                )
+                .slice(offset, offset + limit)
+            ),
+            self.connection.scalar(
+                self._build_count_query(notes_table, *where_clauses)
+            ),
+        )
+
+        return (
+            [
+                NoteDTO.model_validate({**row, "creator": self._extract_creator(row)})
+                for row in result.mappings().all()
+            ],
+            total or 0,
+        )
+
+    async def get_one(
+        self, record_id: UUID, access_ctx: AccessContext
     ) -> NoteDTO | None:
         """Возвращает DTO пользовательской заметки по её id.
 
         Parameters
         ----------
-        note_id : UUID
+        record_id : UUID
             UUID пользовательской заметки.
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
 
         Returns
         -------
         NoteDTO | None
-            DTO записи заметки или None, если заметка не найден.
+            DTO записи заметки или None, если заметка не найдена.
         """
-        note = await self.session.scalar(
-            select(NoteModel)
-            .options(selectinload(NoteModel.creator))
+        result = await self.connection.execute(
+            select(notes_table, *self._creator_columns())
+            .join(users_table, users_table.c.id == notes_table.c.created_by)
             .where(
-                NoteModel.id == note_id,
-                self._build_shared_clause(NoteModel, user_id, partner_id),
+                notes_table.c.id == record_id,
+                access_ctx.as_where_clause(notes_table.c.created_by),
             )
         )
 
-        return NoteDTO.model_validate(note) if note else None
+        if not (row := result.mappings().first()):
+            return None
 
-    async def get_notes_by_creator(
-        self,
-        note_type: NoteType | None,
-        offset: int,
-        limit: int,
-        user_id: UUID,
-        order: SortOrder,
-        partner_id: UUID | None = None,
-    ) -> tuple[list[NoteDTO], int]:
-        """Возвращает список DTO пользовательских заметок по id их создателя.
+        return NoteDTO.model_validate({**row, "creator": self._extract_creator(row)})
 
-        Parameters
-        ----------
-        note_type : NoteType | None
-            Тип заметок для получения.
-        offset : int
-            Смещение от начала списка.
-        limit : int
-            Количество возвращаемых заметок.
-        order : SortOrder
-            Направление сортировки заметок.
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя.
-
-        Returns
-        -------
-        tuple[list[NoteDTO], int]
-            Кортеж из списка DTO заметок и общего количества.
-        """
-        query = (
-            select(NoteModel)
-            .options(selectinload(NoteModel.creator))
-            .slice(offset, offset + limit)
-        )
-
-        query = query.order_by(self._build_order_clause(NoteModel.created_at, order))
-
-        where_clauses = [self._build_shared_clause(NoteModel, user_id, partner_id)]
-        if note_type:
-            where_clauses.append(NoteModel.type == note_type)
-
-        query = query.where(*where_clauses)
-        count_query = self._build_count_query(NoteModel, *where_clauses)
-
-        notes, total = await asyncio.gather(
-            self.session.scalars(query),
-            self.session.scalar(count_query),
-        )
-
-        return [NoteDTO.model_validate(note) for note in notes.all()], total or 0
-
-    async def count_notes_by_creator(
-        self,
-        user_id: UUID,
-        partner_id: UUID | None = None,
-    ) -> int:
+    async def count(self, access_ctx: AccessContext) -> int:
         """Возвращает количество заметок по id их создателя.
 
         Parameters
         ----------
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
 
         Returns
         -------
         int
             Количество доступных пользователю заметок.
         """
-        where_clause = self._build_shared_clause(NoteModel, user_id, partner_id)
-        count_query = self._build_count_query(NoteModel, where_clause)
+        return (
+            await self.connection.scalar(
+                self._build_count_query(
+                    notes_table, access_ctx.as_where_clause(notes_table.c.created_by)
+                )
+            )
+            or 0
+        )
 
-        return await self.session.scalar(count_query) or 0
-
-    async def update_note_by_id(
-        self,
-        note_id: UUID,
-        patch_note_dto: PatchNoteDTO,
-        user_id: UUID,
-        partner_id: UUID | None = None,
-    ) -> bool:
+    async def update(
+        self, record_id: UUID, update_dto: UpdateNoteDTO, access_ctx: AccessContext
+    ) -> NoteDTO | None:
         """Обновление атрибутов заметки в базе данных.
 
         Выполняет SQL-запрос UPDATE для изменения атрибутов заметки,
         фильтруя записи по идентификатору заметки и правам доступа
-        через `_build_shared_clause`.
+        через `access_ctx.as_where_clause`.
 
         Parameters
         ----------
         note_id : UUID
             UUID заметки к изменению.
-        patch_note_dto : PatchNoteDTO
+        patch_note_dto : UpdateNoteDTO
             DTO с полями для обновления. Только явно переданные поля
             попадают в SET-часть запроса через `to_update_values()`.
-        user_id : UUID
-            UUID текущего пользователя.
-        partner_id : UUID | None, optional
-            UUID партнёра текущего пользователя. Передаётся в
-            `_build_shared_clause` для проверки прав на заметки партнёра.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
 
         Returns
         -------
-        bool
-            True, если запись была обновлена, False - если заметка
-            не найдена или не прошла проверку прав доступа.
+        NoteDTO | None
+            Доменное DTO заметки, если она обновлена, None - в ином
+            случае.
         """
-        updated = await self.session.scalar(
-            update(NoteModel)
+        update_cte = (
+            update(notes_table)
             .where(
-                NoteModel.id == note_id,
-                self._build_shared_clause(NoteModel, user_id, partner_id),
+                notes_table.c.id == record_id,
+                access_ctx.as_where_clause(notes_table.c.created_by),
             )
-            .values(**patch_note_dto.to_update_values())
-            .returning(NoteModel.id)
+            .values(**update_dto.to_update_values())
+            .returning(notes_table)
+            .cte("update_cte")
+        )
+        result = await self.connection.execute(
+            select(update_cte, *self._creator_columns()).join(
+                users_table, users_table.c.id == update_cte.c.created_by
+            )
         )
 
-        return updated is not None
+        if not (row := result.mappings().first()):
+            return None
 
-    async def delete_note_by_id(self, note_id: UUID) -> None:
+        return NoteDTO.model_validate({**row, "creator": self._extract_creator(row)})
+
+    async def delete(
+        self, record_id: UUID, access_ctx: AccessContext
+    ) -> NoteDTO | None:
         """Удаляет запись о пользовательской заметке из базы данных по её UUID.
 
         Parameters
         ----------
         note_id : UUID
             UUID заметки для удаления.
+        access_ctx : AccessContext
+            Контекст доступа с идентификаторами владельца и партнёра.
+
+        NoteDTO
+        -------
+        FileDTO | None
+            Доменное DTO заметки, если она удалёна, None - в ином
+            случае.
         """
-        await self.session.execute(delete(NoteModel).where(NoteModel.id == note_id))
+        delete_cte = (
+            delete(notes_table)
+            .where(
+                notes_table.c.id == record_id,
+                access_ctx.as_where_clause(notes_table.c.created_by),
+            )
+            .returning(notes_table)
+            .cte("delete_cte")
+        )
+        result = await self.connection.execute(
+            select(delete_cte, *self._creator_columns()).join(
+                users_table, users_table.c.id == delete_cte.c.created_by
+            )
+        )
+
+        if not (row := result.mappings().first()):
+            return None
+
+        return NoteDTO.model_validate({**row, "creator": self._extract_creator(row)})

@@ -1,8 +1,15 @@
+from uuid import UUID
+
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BasePatchDTO, BaseSQLModelDTO
+from app.schemas.dto.base import (
+    BaseCreateDTO,
+    BaseFilterDTO,
+    BaseSQLCoreDTO,
+    BaseUpdateDTO,
+)
 
 
-class UserDTO(BaseSQLModelDTO):
+class UserDTO(BaseSQLCoreDTO):
     """DTO для представления пользователя системы.
 
     Attributes
@@ -61,8 +68,38 @@ class PartnerDTO(UserDTO):
     pass
 
 
-class PatchProfileDTO(BasePatchDTO):
-    """DTO для частичного обновления профиля пользователя.
+class FilterUserDTO(BaseFilterDTO):
+    """DTO для фильтрации пользователей.
+
+    Attributes
+    ----------
+    id : Maybe[UUID]
+        Идентификатор пользователя.
+    username : Maybe[str]
+        Имя пользователя.
+    """
+
+    id: Maybe[UUID] = UNSET
+    username: Maybe[str] = UNSET
+
+
+class CreateUserDTO(BaseCreateDTO):
+    """DTO для создания нового пользователя.
+
+    Attributes
+    ----------
+    username : str
+        Имя пользователя.
+    password_hash : str
+        Хэш пароля пользователя.
+    """
+
+    username: str
+    password_hash: str
+
+
+class UpdateUserDTO(BaseUpdateDTO):
+    """DTO для частичного обновления пользователя.
 
     Attributes
     ----------
@@ -71,7 +108,10 @@ class PatchProfileDTO(BasePatchDTO):
         Временно не обрабатывается.
     avatar_url : Maybe[str]
         Новый URL аватара пользователя. Если `UNSET` - поле не изменяется.
+    password_hash : Maybe[str]
+        Новый хэшированный пароль пользователя. Если `UNSET` - поле не изменяется.
     """
 
     # first_name: Maybe[str] = UNSET
     avatar_url: Maybe[str] = UNSET
+    password_hash: Maybe[str] = UNSET

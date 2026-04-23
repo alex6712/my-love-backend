@@ -3,7 +3,13 @@ from uuid import UUID
 
 from app.core.enums import DownloadFileErrorCode, FileStatus, UploadFileErrorCode
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BaseDTO, BaseErrorDTO, BasePatchDTO, BaseSQLModelDTO
+from app.schemas.dto.base import (
+    BaseCreateDTO,
+    BaseDTO,
+    BaseErrorDTO,
+    BaseSQLCoreDTO,
+    BaseUpdateDTO,
+)
 from app.schemas.dto.user import CreatorDTO
 
 
@@ -18,11 +24,14 @@ class InternalFileMetadataDTO(BaseDTO):
         Наименование медиа-файла.
     description : str | None
         Описание медиа-файла.
+    geo_data : dict[str, Any] | None, optional
+        Данные о местоположении сохранённого медиа
     """
 
     content_type: str
     title: str
     description: str | None
+    geo_data: dict[str, Any] | None = None
 
 
 class FileMetadataDTO(InternalFileMetadataDTO):
@@ -37,7 +46,7 @@ class FileMetadataDTO(InternalFileMetadataDTO):
     client_ref_id: str
 
 
-class FileDTO(BaseSQLModelDTO, InternalFileMetadataDTO):
+class FileDTO(BaseSQLCoreDTO, InternalFileMetadataDTO):
     """DTO для представления медиа-файла.
 
     Attributes
@@ -46,24 +55,43 @@ class FileDTO(BaseSQLModelDTO, InternalFileMetadataDTO):
         Путь до файла внутри бакета приложения.
     status : FileStatus
         Текущий статус медиа-файла.
-    geo_data : dict[str, Any] | None
-        Данные о местоположении сохранённого медиа
     creator : CreatorDTO
         DTO пользователя, создавшего медиа-файл.
     """
 
     object_key: str
     status: FileStatus
-    geo_data: dict[str, Any] | None
 
     creator: CreatorDTO
 
 
-class PatchFileDTO(BasePatchDTO):
+class CreateFileDTO(BaseCreateDTO, InternalFileMetadataDTO):
+    """DTO для создания нового файла.
+
+    Объединяет базовые поля создания сущности (`BaseCreateDTO`)
+    и метаданные медиа-файла (`InternalFileMetadataDTO`).
+    Также содержит информацию, необходимую для доступа к
+    объекту в файловом хранилище.
+
+    Attributes
+    ----------
+    object_key : str
+        Уникальный ключ объекта в файловом хранилище.
+    status : FileStatus
+        Статус создаваемой записи медиа-файла.
+    """
+
+    object_key: str
+    status: FileStatus
+
+
+class UpdateFileDTO(BaseUpdateDTO):
     """DTO для частичного обновления медиа-файла.
 
     Attributes
     ----------
+    status : FileStatus
+        Новый статус медиа-файла. Если `UNSET`- поле не изменяется.
     title : Maybe[str]
         Новое наименование файла. Если `UNSET`- поле не изменяется.
     description : Maybe[str | None]
@@ -71,6 +99,7 @@ class PatchFileDTO(BasePatchDTO):
         Может быть явно передано как None для удаления описания.
     """
 
+    status: Maybe[FileStatus] = UNSET
     title: Maybe[str] = UNSET
     description: Maybe[str | None] = UNSET
 

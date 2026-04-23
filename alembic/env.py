@@ -13,7 +13,7 @@ from alembic import context
 sys.path.append(str(Path(__file__).parent.parent))
 
 from app.config import Settings, get_settings
-from app.models.base import BaseModel
+from app.infra.postgres.tables import metadata as target_metadata
 
 config = context.config
 settings: Settings = get_settings()
@@ -22,8 +22,6 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 logger = logging.getLogger("alembic.env")
-
-target_metadata = BaseModel.metadata
 
 
 def run_migrations_offline() -> None:

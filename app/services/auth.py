@@ -17,7 +17,6 @@ from app.core.exceptions.auth import (
     TokenRevokedException,
     TokenSignatureExpiredException,
 )
-from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.core.security import (
     create_jwt,
     hash_,
@@ -26,17 +25,24 @@ from app.core.security import (
     verify,
 )
 from app.core.types import TokenType
-from app.infrastructure.postgresql import UnitOfWork
-from app.infrastructure.redis import RedisClient
-from app.repositories.couple_request import CoupleRequestRepository
+from app.infra.postgres.uow import UnitOfWork
+from app.infra.redis import RedisClient
+from app.repositories.couple import CoupleRepository
 from app.repositories.user import UserRepository
 from app.repositories.user_session import UserSessionRepository
+from app.schemas.dto.couple import FilterCoupleDTO
 from app.schemas.dto.payload import (
     AccessTokenPayload,
     AnyTokenPayload,
     RefreshTokenPayload,
 )
 from app.schemas.dto.token import Tokens
+from app.schemas.dto.user import CreateUserDTO, FilterUserDTO, UpdateUserDTO
+from app.schemas.dto.user_session import (
+    CreateUserSessionDTO,
+    FilterUserSessionDTO,
+    UpdateUserSessionDTO,
+)
 
 
 class AuthService:
@@ -55,7 +61,7 @@ class AuthService:
     ----------
     _redis_client : RedisClient
         Клиент для работы с Redis (blacklist access-токенов).
-    _couple_request_repo : CoupleRequestRepository
+    _couple_repo : CoupleRepository
         Репозиторий пар между пользователями.
     _user_repo : UserRepository
         Репозиторий пользователей.
@@ -84,7 +90,7 @@ class AuthService:
         self._redis_client = redis_client
         self._settings = settings
 
-        self._couple_request_repo = unit_of_work.get_repository(CoupleRequestRepository)
+        self._couple_repo = unit_of_work.get_repository(CoupleRepository)
         self._user_repo = unit_of_work.get_repository(UserRepository)
         self._user_session_repo = unit_of_work.get_repository(UserSessionRepository)
 
@@ -103,12 +109,9 @@ class AuthService:
         UsernameAlreadyExistsException
            Пользователь с переданным username уже существует.
         """
-        if await self._user_repo.user_exists_by_username(username):
-            raise UsernameAlreadyExistsException(
-                detail=f"User with username={username} already exists."
-            )
-
-        self._user_repo.add_user(username, hash_(password))
+        await self._user_repo.create(
+            CreateUserDTO(username=username, password_hash=hash_(password))
+        )
 
     async def login(self, username: str, password: str) -> Tokens:
         """Аутентифицирует пользователя и возвращает JWT.
@@ -136,15 +139,15 @@ class AuthService:
         IncorrectUsernameOrPasswordException
             Не найден пользователь или несовпадение пароля и его хеша в БД.
         """
-        user = await self._user_repo.get_user_by_username(username)
+        user = await self._user_repo.get_one_filtered(FilterUserDTO(username=username))
 
         if user is None or not verify(password, user.password_hash):
             raise IncorrectUsernameOrPasswordException(
                 detail="Incorrect username or password."
             )
 
-        couple = await self._couple_request_repo.get_active_couple_by_partner_id(
-            user.id
+        couple = await self._couple_repo.get_one_filtered(
+            FilterCoupleDTO(user_id=user.id)
         )
 
         current_time = datetime.now(timezone.utc)
@@ -156,8 +159,14 @@ class AuthService:
             user.id, current_time, session_id := uuid4(), exp=expires_at
         )
 
-        await self._user_session_repo.add_user_session(
-            session_id, user.id, hash_token(refresh_token), expires_at, current_time
+        await self._user_session_repo.create(
+            CreateUserSessionDTO(
+                id=session_id,
+                user_id=user.id,
+                refresh_token_hash=hash_token(refresh_token),
+                expires_at=expires_at,
+                last_used_at=current_time,
+            )
         )
 
         return Tokens(
@@ -207,8 +216,8 @@ class AuthService:
 
         payload = self._validate_token(refresh_token, "refresh")
 
-        couple = await self._couple_request_repo.get_active_couple_by_partner_id(
-            payload.sub
+        couple = await self._couple_repo.get_one_filtered(
+            FilterCoupleDTO(user_id=payload.sub)
         )
 
         current_time = datetime.now(timezone.utc)
@@ -221,13 +230,13 @@ class AuthService:
         )
 
         # атомарное обновление хэша токена обновления
-        updated = (
-            await self._user_session_repo.update_user_session_by_refresh_token_hash(
-                hash_token(refresh_token),
-                hash_token(new_refresh_token),
-                expires_at,
-                current_time,
-            )
+        updated = await self._user_session_repo.update_filtered(
+            FilterUserSessionDTO(refresh_token_hash=hash_token(refresh_token)),
+            UpdateUserSessionDTO(
+                refresh_token_hash=hash_token(new_refresh_token),
+                expires_at=expires_at,
+                last_used_at=current_time,
+            ),
         )
 
         if not updated:
@@ -293,7 +302,7 @@ class AuthService:
                 jti=payload.jti, ttl=ttl, token_type=token_type
             )
 
-        await self._user_session_repo.delete_user_session_by_id(payload.session_id)
+        await self._user_session_repo.delete(payload.session_id)
 
     async def logout(self, payload: AccessTokenPayload) -> None:
         """Завершает текущую сессию пользователя.
@@ -337,7 +346,7 @@ class AuthService:
         PasswordUpdateFailedException
             Если обновление пароля в БД не было применено.
         """
-        user = await self._user_repo.get_user_by_id(payload.sub)
+        user = await self._user_repo.get_one(payload.sub)
 
         if user is None or not verify(current_password, user.password_hash):
             raise IncorrectPasswordException(detail="Current password is incorrect.")
@@ -347,11 +356,9 @@ class AuthService:
                 detail="New password must differ from current."
             )
 
-        updated = await self._user_repo.update_password_hash(
-            payload.sub, hash_(new_password)
-        )
-
-        if not updated:
+        if not await self._user_repo.update(
+            payload.sub, UpdateUserDTO(password_hash=hash_(new_password))
+        ):
             raise PasswordUpdateFailedException(
                 detail="Failed to update password: no rows were affected."
             )
