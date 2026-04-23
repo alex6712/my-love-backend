@@ -31,6 +31,9 @@ from app.schemas.dto.user import PartnerDTO
 
 type PartnerPrefix = Literal["first_user", "second_user"]
 
+first_users_table = users_table.alias("first_users")
+second_users_table = users_table.alias("second_users")
+
 
 class CoupleRepository(
     RepositoryInterfaceNew,
@@ -106,9 +109,27 @@ class CoupleRepository(
         }
 
     async def create(self, create_dto: CreateCoupleDTO) -> CoupleDTO:
-        first_users_table = users_table.alias("first_users")
-        second_users_table = users_table.alias("second_users")
+        """Создаёт пару и атомарно добавляет обоих участников.
 
+        Выполняет три операции в рамках одного запроса через цепочку CTE:
+
+        1. `insert_couple_cte` - вставляет запись в `couples`;
+        2. `insert_members_cte` - вставляет двух участников в
+        `couple_members` через `INSERT ... FROM SELECT`,
+        назначая им слоты `1` и `2`;
+        3. Итоговый `SELECT` - возвращает пару с данными обоих
+        участников через JOIN с `users`.
+
+        Parameters
+        ----------
+        create_dto : CreateCoupleDTO
+            DTO с данными для создания пары.
+
+        Returns
+        -------
+        CoupleDTO
+            Созданная пара с вложенными DTO первого и второго участников.
+        """
         insert_couple_cte = (
             insert(couples_table)
             .values(**create_dto.to_create_values())
@@ -117,12 +138,12 @@ class CoupleRepository(
         )
         member_rows = select(
             insert_couple_cte.c.id.label("couple_id"),
-            literal(create_dto.first_user).label("user_id"),
+            literal(create_dto.first_user_id).label("user_id"),
             literal(1).label("slot"),
         ).union_all(
             select(
                 insert_couple_cte.c.id.label("couple_id"),
-                literal(create_dto.second_user).label("user_id"),
+                literal(create_dto.second_user_id).label("user_id"),
                 literal(2).label("slot"),
             )
         )
@@ -132,31 +153,32 @@ class CoupleRepository(
             .returning(couple_members_table)
             .cte("insert_members_cte")
         )
-
-        first_members_table = insert_members_cte.alias("first_members")
-        second_members_table = insert_members_cte.alias("second_members")
-
         result = await self.connection.execute(
             select(
                 insert_couple_cte,
                 *self._partner_columns(first_users_table, "first_user"),
                 *self._partner_columns(second_users_table, "second_user"),
             )
-            .select_from(insert_couple_cte)
+            # присоединяем таблицу couple_members по id пары для получения
+            # пользователя в слоте 1
             .join(
-                first_members_table,
+                first_members_table := insert_members_cte.alias("first_members"),
                 (insert_couple_cte.c.id == first_members_table.c.couple_id)
                 & (first_members_table.c.slot == 1),
             )
+            # получаем первого пользователя по его id
             .join(
                 first_users_table,
-                first_users_table.c.id == first_members_table.c.user_id,
+                first_members_table.c.user_id == first_users_table.c.id,
             )
+            # присоединяем таблицу couple_members по id пары для получения
+            # пользователя в слоте 2
             .join(
-                second_members_table,
+                second_members_table := insert_members_cte.alias("second_members"),
                 (insert_couple_cte.c.id == second_members_table.c.couple_id)
                 & (second_members_table.c.slot == 2),
             )
+            # получаем второго пользователя по его id
             .join(
                 second_users_table,
                 second_members_table.c.user_id == second_users_table.c.id,

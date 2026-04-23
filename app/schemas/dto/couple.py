@@ -103,16 +103,16 @@ class CreateCoupleDTO(BaseCreateDTO):
 
     Attributes
     ----------
-    first_user : UUID
+    first_user_id : UUID
         Идентификатор первого пользователя члена пары.
-    second_user : UUID
+    second_user_id : UUID
         Идентификатор второго пользователя члена пары.
     relationship_started_on : date | None
         Дата начала отношений, указанная пользователями. None, если не задана.
     """
 
-    first_user: UUID
-    second_user: UUID
+    first_user_id: UUID
+    second_user_id: UUID
     relationship_started_on: date | None
 
 
