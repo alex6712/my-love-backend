@@ -51,7 +51,7 @@ class FileRepository(
         Возвращает количество медиа-файлов, доступных в рамках контекста доступа.
     get_all(access_ctx, offset, limit, sort_order)
         Возвращает постраничный список медиа-файлов и их общее количество.
-    get_by_id(record_id, access_ctx)
+    get_one(record_id, access_ctx)
         Получает медиа-файл по его UUID с учётом прав доступа.
     get_by_ids(record_ids, access_ctx)
         Получает список медиа-файлов по UUID с учётом прав доступа.
@@ -91,7 +91,7 @@ class FileRepository(
         )
         result = await self.connection.execute(
             select(insert_cte, *self._creator_columns()).join(
-                users_table, insert_cte.c.created_by == users_table.c.id
+                users_table, users_table.c.id == insert_cte.c.created_by
             )
         )
         row = result.mappings().one()
@@ -138,7 +138,7 @@ class FileRepository(
         )
         result = await self.connection.execute(
             select(insert_cte, *self._creator_columns()).join(
-                users_table, insert_cte.c.created_by == users_table.c.id
+                users_table, users_table.c.id == insert_cte.c.created_by
             )
         )
         rows = result.mappings().all()
@@ -207,7 +207,7 @@ class FileRepository(
         result, total = await asyncio.gather(
             self.connection.execute(
                 select(files_table, *self._creator_columns())
-                .join(users_table, files_table.c.created_by == users_table.c.id)
+                .join(users_table, users_table.c.id == files_table.c.created_by)
                 .where(where_clause)
                 .order_by(
                     self._build_order_clause(files_table.c.created_at, sort_order)
@@ -225,7 +225,7 @@ class FileRepository(
             total or 0,
         )
 
-    async def get_by_id(
+    async def get_one(
         self, record_id: UUID, access_ctx: AccessContext
     ) -> FileDTO | None:
         """Получает медиа-файл по его UUID.
@@ -247,7 +247,7 @@ class FileRepository(
         """
         result = await self.connection.execute(
             select(files_table, *self._creator_columns())
-            .join(users_table, files_table.c.created_by == users_table.c.id)
+            .join(users_table, users_table.c.id == files_table.c.created_by)
             .where(
                 files_table.c.id == record_id,
                 access_ctx.as_where_clause(files_table.c.created_by),
@@ -283,7 +283,7 @@ class FileRepository(
         """
         result = await self.connection.execute(
             select(files_table, *self._creator_columns())
-            .join(users_table, files_table.c.created_by == users_table.c.id)
+            .join(users_table, users_table.c.id == files_table.c.created_by)
             .where(
                 files_table.c.id.in_(record_ids),
                 access_ctx.as_where_clause(files_table.c.created_by),
@@ -333,7 +333,7 @@ class FileRepository(
         )
         result = await self.connection.execute(
             select(update_cte, *self._creator_columns()).join(
-                users_table, update_cte.c.created_by == users_table.c.id
+                users_table, users_table.c.id == update_cte.c.created_by
             )
         )
 
@@ -370,7 +370,7 @@ class FileRepository(
         )
         result = await self.connection.execute(
             select(delete_cte, *self._creator_columns()).join(
-                users_table, delete_cte.c.created_by == users_table.c.id
+                users_table, users_table.c.id == delete_cte.c.created_by
             )
         )
 
@@ -408,7 +408,7 @@ class FileRepository(
         )
         result = await self.connection.execute(
             select(delete_cte, *self._creator_columns()).join(
-                users_table, delete_cte.c.created_by == users_table.c.id
+                users_table, users_table.c.id == delete_cte.c.created_by
             )
         )
 

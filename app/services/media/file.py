@@ -667,7 +667,7 @@ class FileService:
         """
         access_ctx = AccessContext(user_id=user_id)
 
-        file = await self._file_repo.get_by_id(file_id, access_ctx)
+        file = await self._file_repo.get_one(file_id, access_ctx)
         if file is None:
             raise MediaNotFoundException(
                 media_type="file",
@@ -733,7 +733,7 @@ class FileService:
             Статус файла в БД не распознан бизнес-логикой. Сигнализирует
             о баге или рассинхроне схемы БД с кодом приложения.
         """
-        file = await self._file_repo.get_by_id(
+        file = await self._file_repo.get_one(
             file_id, AccessContext(user_id=user_id, partner_id=partner_id)
         )
 

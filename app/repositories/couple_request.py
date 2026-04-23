@@ -158,10 +158,10 @@ class CoupleRequestRepository(
                     *self._partner_columns(recipients_table, "recipient"),
                 )
                 .join(
-                    initiators_table, insert_cte.c.initiator_id == initiators_table.c.id
+                    initiators_table, initiators_table.c.id == insert_cte.c.initiator_id
                 )
                 .join(
-                    recipients_table, insert_cte.c.recipient_id == recipients_table.c.id
+                    recipients_table, recipients_table.c.id == insert_cte.c.recipient_id
                 )
             )
             row = result.mappings().one()
@@ -238,11 +238,11 @@ class CoupleRequestRepository(
                 )
                 .join(
                     initiators_table,
-                    couple_requests_table.c.initiator_id == initiators_table.c.id,
+                    initiators_table.c.id == couple_requests_table.c.initiator_id,
                 )
                 .join(
                     recipients_table,
-                    couple_requests_table.c.recipient_id == recipients_table.c.id,
+                    recipients_table.c.id == couple_requests_table.c.recipient_id,
                 )
                 .where(*where_clauses)
                 .order_by(
@@ -310,8 +310,8 @@ class CoupleRequestRepository(
                 *self._partner_columns(initiators_table, "initiator"),
                 *self._partner_columns(recipients_table, "recipient"),
             )
-            .join(initiators_table, update_cte.c.initiator_id == initiators_table.c.id)
-            .join(recipients_table, update_cte.c.recipient_id == recipients_table.c.id)
+            .join(initiators_table, initiators_table.c.id == update_cte.c.initiator_id)
+            .join(recipients_table, recipients_table.c.id == update_cte.c.recipient_id)
         )
 
         if not (row := result.mappings().first()):

@@ -30,14 +30,19 @@ from app.infra.redis import RedisClient
 from app.repositories.couple import CoupleRepository
 from app.repositories.user import UserRepository
 from app.repositories.user_session import UserSessionRepository
+from app.schemas.dto.couple import FilterCoupleDTO
 from app.schemas.dto.payload import (
     AccessTokenPayload,
     AnyTokenPayload,
     RefreshTokenPayload,
 )
 from app.schemas.dto.token import Tokens
-from app.schemas.dto.user import CreateUserDTO, UpdateUserDTO
-from app.schemas.dto.user_session import CreateUserSessionDTO, UpdateUserSessionDTO
+from app.schemas.dto.user import CreateUserDTO, FilterUserDTO, UpdateUserDTO
+from app.schemas.dto.user_session import (
+    CreateUserSessionDTO,
+    FilterUserSessionDTO,
+    UpdateUserSessionDTO,
+)
 
 
 class AuthService:
@@ -134,14 +139,16 @@ class AuthService:
         IncorrectUsernameOrPasswordException
             Не найден пользователь или несовпадение пароля и его хеша в БД.
         """
-        user = await self._user_repo.get_by_username(username)
+        user = await self._user_repo.get_one_filtered(FilterUserDTO(username=username))
 
         if user is None or not verify(password, user.password_hash):
             raise IncorrectUsernameOrPasswordException(
                 detail="Incorrect username or password."
             )
 
-        couple = await self._couple_repo.get_couple_by_user_id(user.id)
+        couple = await self._couple_repo.get_one_filtered(
+            FilterCoupleDTO(user_id=user.id)
+        )
 
         current_time = datetime.now(timezone.utc)
         expires_at = current_time + timedelta(
@@ -209,7 +216,9 @@ class AuthService:
 
         payload = self._validate_token(refresh_token, "refresh")
 
-        couple = await self._couple_repo.get_couple_by_user_id(payload.sub)
+        couple = await self._couple_repo.get_one_filtered(
+            FilterCoupleDTO(user_id=payload.sub)
+        )
 
         current_time = datetime.now(timezone.utc)
         expires_at = current_time + timedelta(
@@ -221,8 +230,8 @@ class AuthService:
         )
 
         # атомарное обновление хэша токена обновления
-        updated = await self._user_session_repo.update_by_refresh_token_hash(
-            hash_token(refresh_token),
+        updated = await self._user_session_repo.update_filtered(
+            FilterUserSessionDTO(refresh_token_hash=hash_token(refresh_token)),
             UpdateUserSessionDTO(
                 refresh_token_hash=hash_token(new_refresh_token),
                 expires_at=expires_at,
@@ -337,7 +346,7 @@ class AuthService:
         PasswordUpdateFailedException
             Если обновление пароля в БД не было применено.
         """
-        user = await self._user_repo.get_by_id(payload.sub)
+        user = await self._user_repo.get_one(payload.sub)
 
         if user is None or not verify(current_password, user.password_hash):
             raise IncorrectPasswordException(detail="Current password is incorrect.")

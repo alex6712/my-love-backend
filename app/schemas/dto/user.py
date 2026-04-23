@@ -1,5 +1,12 @@
+from uuid import UUID
+
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BaseCreateDTO, BaseSQLCoreDTO, BaseUpdateDTO
+from app.schemas.dto.base import (
+    BaseCreateDTO,
+    BaseFilterDTO,
+    BaseSQLCoreDTO,
+    BaseUpdateDTO,
+)
 
 
 class UserDTO(BaseSQLCoreDTO):
@@ -59,6 +66,21 @@ class PartnerDTO(UserDTO):
     """
 
     pass
+
+
+class FilterUserDTO(BaseFilterDTO):
+    """DTO для фильтрации пользователей.
+
+    Attributes
+    ----------
+    id : Maybe[UUID]
+        Идентификатор пользователя.
+    username : Maybe[str]
+        Имя пользователя.
+    """
+
+    id: Maybe[UUID] = UNSET
+    username: Maybe[str] = UNSET
 
 
 class CreateUserDTO(BaseCreateDTO):

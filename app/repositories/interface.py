@@ -1,12 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Protocol, Sequence, TypeVar
+from typing import Any, Generic, Sequence, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import Column, FromClause, Label, RowMapping, Select, func, select
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
-from sqlalchemy.orm import Mapped
-from sqlalchemy.orm.attributes import InstrumentedAttribute
+from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.sql.elements import ColumnElement, UnaryExpression
 
 from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET
@@ -23,136 +21,6 @@ EntityDTO = TypeVar("EntityDTO", bound=BaseSQLCoreDTO)
 FilterDTO = TypeVar("FilterDTO", bound=BaseFilterDTO)
 CreateDTO = TypeVar("CreateDTO", bound=BaseCreateDTO)
 UpdateDTO = TypeVar("UpdateDTO", bound=BaseUpdateDTO)
-
-
-class RepositoryInterface(ABC):
-    """Интерфейс репозитория.
-
-    Реализация паттерна Репозиторий. Является интерфейсом доступа к данным (DAO).
-
-    Attributes
-    ----------
-    session : AsyncSession
-        Объект асинхронной сессии запроса.
-    """
-
-    def __init__(self, session: AsyncSession):
-        self.session = session
-
-    @staticmethod
-    def _build_count_query(
-        model_class: type[Any], *where_clauses: ColumnElement[bool]
-    ) -> Select[tuple[int]]:
-        """Создаёт запрос подсчёта записей для пользователя и его партнёра.
-
-        Parameters
-        ----------
-        model_class : Any
-            Класс модели для подсчёта.
-        where_clauses : ColumnElement[bool]
-            Условие WHERE для фильтрации.
-
-        Returns
-        -------
-        Select[tuple[int]]
-            Запрос для подсчёта общего количества записей.
-        """
-        query = select(func.count()).select_from(model_class)
-
-        if not where_clauses:
-            return query
-
-        return query.where(*where_clauses)
-
-    @staticmethod
-    def _build_order_clause(
-        column: InstrumentedAttribute[Any], order: SortOrder
-    ) -> UnaryExpression[Any]:
-        """Создаёт выражение сортировки по переданной колонке.
-
-        Parameters
-        ----------
-        column : InstrumentedAttribute[Any]
-            Колонка модели, по которой выполняется сортировка.
-        order : SortOrder
-            Направление сортировки.
-
-        Returns
-        -------
-        UnaryExpression[Any]
-            Выражение сортировки по переданной колонке в заданном направлении.
-        """
-        return column.desc() if order == SortOrder.DESC else column.asc()
-
-
-class HasCreatedBy(Protocol):
-    """Протокол для типизации SQLAlchemy моделей с атрибутом created_by.
-
-    Определяет структурный интерфейс для моделей, которые содержат информацию
-    о создателе записи в виде колонки `created_by` типа `UUID`.
-
-    Протокол использует механизм "утиной типизации" и позволяет
-    использовать любой класс, имеющий атрибут `created_by: Mapped[UUID]`,
-    в качестве аргумента для методов, ожидающих такие модели.
-
-    Notes
-    -----
-    Это runtime-проверяемый протокол, что позволяет использовать `isinstance()`
-    для проверки соответствия классов протоколу во время выполнения программы.
-    """
-
-    created_by: Mapped[UUID]
-
-
-class SharedResourceRepository(RepositoryInterface):
-    """Базовый репозиторий для работы с ресурсами, доступными нескольким пользователям.
-
-    Предоставляет общие методы для построения SQL-условий фильтрации по полю `created_by`,
-    позволяя ограничивать доступ к ресурсам на уровне записей в зависимости от
-    пользователя и его партнёра.
-
-    Этот репозиторий предназначен для наследования и использования в репозиториях,
-    работающих с моделями, которые соответствуют протоколу `HasCreatedBy`.
-
-    Methods
-    -------
-    _build_shared_clause(model_class, user_id, partner_id=None)
-        Строит условия WHERE для фильтрации записей по создателю.
-
-    Inherits
-    --------
-    RepositoryInterface : abc.ABC
-        Базовый интерфейс репозитория с общими методами доступа к данным.
-    """
-
-    @staticmethod
-    def _build_shared_clause(
-        model_class: type[HasCreatedBy], user_id: UUID, partner_id: UUID | None = None
-    ) -> ColumnElement[bool]:
-        """Создаёт условие WHERE для фильтрации записей по создателю и партнёру.
-
-        Генерирует SQLAlchemy выражение для ограничения выборки записей модели
-        только теми, которые были созданы указанным пользователем или его партнёром.
-
-        Parameters
-        ----------
-        model_class : type[HasCreatedBy]
-            Класс SQLAlchemy модели, соответствующий протоколу `HasCreatedBy`.
-        user_id : UUID
-            UUID пользователя, для которого выполняется фильтрация.
-        partner_id : UUID | None, optional
-            UUID партнёра пользователя. Если передан, фильтрация будет включать
-            записи, созданные как пользователем, так и его партнёром.
-
-        Returns
-        -------
-        ColumnElement[bool]
-            Объект SQLAlchemy выражения для использования в WHERE-условиях.
-        """
-        if partner_id:
-            return model_class.created_by.in_([user_id, partner_id])
-
-        return model_class.created_by == user_id
 
 
 class AccessContext(BaseModel):
@@ -423,7 +291,7 @@ class ReadOneMixin(ABC, Generic[EntityDTO]):
     """
 
     @abstractmethod
-    async def get_by_id(self, record_id: UUID) -> EntityDTO | None:
+    async def get_one(self, record_id: UUID) -> EntityDTO | None:
         """Возвращает запись по идентификатору.
 
         Parameters
@@ -435,6 +303,36 @@ class ReadOneMixin(ABC, Generic[EntityDTO]):
         -------
         EntityDTO | None
             Доменное DTO найденной записи или None, если запись не найдена.
+        """
+        ...
+
+
+class FilteredReadOneMixin(ABC, Generic[FilterDTO, EntityDTO]):
+    """Миксин для получения одной сущности по фильтрам.
+
+    Type Parameters
+    ---------------
+    FilterDTO
+        DTO с полями фильтрации.
+    EntityDTO
+        DTO возвращаемой сущности.
+    """
+
+    @abstractmethod
+    async def get_one_filtered(self, filter_dto: FilterDTO) -> EntityDTO | None:
+        """Возвращает одну сущность, соответствующую переданным фильтрам.
+
+        Parameters
+        ----------
+        filter_dto : FilterDTO
+            DTO с полями фильтрации.
+
+        Returns
+        -------
+        EntityDTO
+            Найденная сущность.
+        None
+            Если ни одна запись не соответствует фильтрам.
         """
         ...
 
@@ -577,7 +475,7 @@ class OwnedReadMixin(ABC, Generic[EntityDTO]):
         ...
 
     @abstractmethod
-    async def get_by_id(
+    async def get_one(
         self, record_id: UUID, access_ctx: AccessContext
     ) -> EntityDTO | None:
         """Возвращает запись по идентификатору при наличии прав доступа.

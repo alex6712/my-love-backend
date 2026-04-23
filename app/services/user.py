@@ -45,7 +45,7 @@ class UserService:
         UserDTO
             Информация о текущем пользователе.
         """
-        user = await self._user_repo.get_by_id(user_id)
+        user = await self._user_repo.get_one(user_id)
         if user is None:
             raise UserNotFoundException(f"User with id={user_id} not found.")
 

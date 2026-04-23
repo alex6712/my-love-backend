@@ -1,7 +1,10 @@
+import importlib
+import pkgutil
 from datetime import datetime
+from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import Column, ForeignKey, MetaData, text
+from sqlalchemy import Column, ForeignKey, MetaData, Table, text
 from sqlalchemy.types import DateTime, Uuid
 
 metadata = MetaData()
@@ -86,3 +89,43 @@ def owned_columns() -> tuple[Column[UUID]]:
             comment="UUID пользователя-владельца ресурса",
         ),
     )
+
+
+"""Автоматический импорт таблиц SQLAlchemy для Alembic-миграций.
+
+Следующий код обеспечивает автоматическое обнаружение и регистрацию всех таблиц,
+что необходимо для корректной работы Alembic.
+
+При импорте данного модуля происходит сканирование всех Python-файлов
+в текущем каталоге и автоматический импорт определённых в них таблиц.
+
+Notes
+-----
+Принцип работы:
+1. Сканирование текущего каталога на наличие таблиц `sqlalchemy.Table`;
+2. Исключение специальных файлов (`__init__.py`);
+3. Динамический импорт каждого обнаруженного модуля;
+4. Поиск в модуле объектов, являющихся объектами `Table`;
+5. Добавление найденных объектов в глобальное пространство имён.
+
+Это позволяет Alembic автоматически видеть все таблицы без необходимости
+явного импорта каждой из них в `__init__.py`. При добавлении новой таблицы
+достаточно создать файл с объектом класса Table, и он будет
+обнаружен при следующем запуске.
+"""
+
+package_dir = Path(__file__).resolve().parent
+modules = pkgutil.iter_modules([str(package_dir)])
+
+for _, module_name, is_pkg in modules:
+    if module_name == "__init__" or is_pkg:
+        continue
+
+    module = importlib.import_module(f".{module_name}", package=__package__)
+
+    for attr_name in dir(module):
+        attr = getattr(module, attr_name)
+        if isinstance(attr, Table):
+            globals()[attr_name] = attr
+
+__all__ = [name for name in globals() if not name.startswith("_")]  # type: ignore

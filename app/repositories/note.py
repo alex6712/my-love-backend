@@ -41,7 +41,7 @@ class NoteRepository(
         Создаёт новую заметку с привязкой к владельцу.
     get_all(access_ctx, offset, limit, sort_order)
         Возвращает постраничный список записей, доступных в рамках контекста.
-    get_by_id(record_id, access_ctx)
+    get_one(record_id, access_ctx)
         Возвращает DTO пользовательской заметки по её id.
     count(access_ctx)
         Возвращает количество заметок по id их создателя.
@@ -76,7 +76,7 @@ class NoteRepository(
         )
         result = await self.connection.execute(
             select(insert_cte, *self._creator_columns()).join(
-                users_table, insert_cte.c.created_by == users_table.c.id
+                users_table, users_table.c.id == insert_cte.c.created_by
             )
         )
         row = result.mappings().one()
@@ -128,7 +128,7 @@ class NoteRepository(
         result, total = await asyncio.gather(
             self.connection.execute(
                 select(notes_table, *self._creator_columns())
-                .join(users_table, notes_table.c.created_by == users_table.c.id)
+                .join(users_table, users_table.c.id == notes_table.c.created_by)
                 .where(*where_clauses)
                 .order_by(
                     self._build_order_clause(notes_table.c.created_at, sort_order)
@@ -148,7 +148,7 @@ class NoteRepository(
             total or 0,
         )
 
-    async def get_by_id(
+    async def get_one(
         self, record_id: UUID, access_ctx: AccessContext
     ) -> NoteDTO | None:
         """Возвращает DTO пользовательской заметки по её id.
@@ -167,7 +167,7 @@ class NoteRepository(
         """
         result = await self.connection.execute(
             select(notes_table, *self._creator_columns())
-            .join(users_table, notes_table.c.created_by == users_table.c.id)
+            .join(users_table, users_table.c.id == notes_table.c.created_by)
             .where(
                 notes_table.c.id == record_id,
                 access_ctx.as_where_clause(notes_table.c.created_by),
@@ -238,7 +238,7 @@ class NoteRepository(
         )
         result = await self.connection.execute(
             select(update_cte, *self._creator_columns()).join(
-                users_table, update_cte.c.created_by == users_table.c.id
+                users_table, users_table.c.id == update_cte.c.created_by
             )
         )
 
@@ -276,7 +276,7 @@ class NoteRepository(
         )
         result = await self.connection.execute(
             select(delete_cte, *self._creator_columns()).join(
-                users_table, delete_cte.c.created_by == users_table.c.id
+                users_table, users_table.c.id == delete_cte.c.created_by
             )
         )
 

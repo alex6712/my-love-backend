@@ -73,6 +73,21 @@ class FilterCoupleRequestDTO(BaseFilterDTO):
     status: Maybe[CoupleRequestStatus] = UNSET
 
 
+class FilterCoupleDTO(BaseFilterDTO):
+    """DTO для фильтрации пар.
+
+    Attributes
+    ----------
+    couple_id : Maybe[UUID]
+        Идентификатор пары.
+    user_id : Maybe[UUID]
+        Идентификатор одного из участников пары.
+    """
+
+    couple_id: Maybe[UUID] = UNSET
+    user_id: Maybe[UUID] = UNSET
+
+
 class CreateCoupleRequestDTO(BaseCreateDTO):
     """DTO для создания запроса на пару.
 

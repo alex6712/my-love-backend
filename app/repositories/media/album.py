@@ -54,7 +54,7 @@ class AlbumRepository(
     -------
     create(create_dto, created_by)
         Создаёт новый альбом с привязкой к владельцу.
-    get_by_id(record_id, access_ctx)
+    get_one(record_id, access_ctx)
         Возвращает DTO альбома по его UUID.
     get_all(access_ctx, offset, limit, sort_order)
         Возвращает постраничный список альбомов и их общее количество.
@@ -102,7 +102,7 @@ class AlbumRepository(
         )
         result = await self.connection.execute(
             select(insert_cte, *self._creator_columns()).join(
-                users_table, insert_cte.c.created_by == users_table.c.id
+                users_table, users_table.c.id == insert_cte.c.created_by
             )
         )
         row = result.mappings().one()
@@ -146,7 +146,7 @@ class AlbumRepository(
         result, total = await asyncio.gather(
             self.connection.execute(
                 select(albums_table, *self._creator_columns())
-                .join(users_table, albums_table.c.created_by == users_table.c.id)
+                .join(users_table, users_table.c.id == albums_table.c.created_by)
                 .where(where_clause)
                 .order_by(
                     self._build_order_clause(albums_table.c.created_at, sort_order)
@@ -164,7 +164,7 @@ class AlbumRepository(
             total or 0,
         )
 
-    async def get_by_id(
+    async def get_one(
         self, record_id: UUID, access_ctx: AccessContext
     ) -> AlbumDTO | None:
         """Получает DTO альбома по его UUID.
@@ -186,7 +186,7 @@ class AlbumRepository(
         """
         result = await self.connection.execute(
             select(albums_table, *self._creator_columns())
-            .join(users_table, albums_table.c.created_by == users_table.c.id)
+            .join(users_table, users_table.c.id == albums_table.c.created_by)
             .where(
                 albums_table.c.id == record_id,
                 access_ctx.as_where_clause(albums_table.c.created_by),
@@ -256,7 +256,7 @@ class AlbumRepository(
 
         query = (
             select(albums_table, *self._creator_columns())
-            .join(users_table, albums_table.c.created_by == users_table.c.id)
+            .join(users_table, users_table.c.id == albums_table.c.created_by)
             .order_by(
                 # полные вхождения в списке идут выше
                 case((or_(*ilikes), 1.0), else_=0.0).desc(),
@@ -340,7 +340,7 @@ class AlbumRepository(
             # альбом с данными создателя
             self.connection.execute(
                 select(albums_table, *self._creator_columns())
-                .join(users_table, albums_table.c.created_by == users_table.c.id)
+                .join(users_table, users_table.c.id == albums_table.c.created_by)
                 .where(
                     albums_table.c.id == record_id,
                     access_ctx.as_where_clause(albums_table.c.created_by),
@@ -349,9 +349,9 @@ class AlbumRepository(
             # постраничная выборка файлов альбома с данными их создателей
             self.connection.execute(
                 select(files_table, *self._creator_columns())
-                .join(users_table, files_table.c.created_by == users_table.c.id)
+                .join(users_table, users_table.c.id == files_table.c.created_by)
                 .join(
-                    album_items_table, files_table.c.id == album_items_table.c.file_id
+                    album_items_table, album_items_table.c.file_id == files_table.c.id
                 )
                 .where(items_where_clause)
                 .slice(offset, offset + limit)
@@ -360,7 +360,7 @@ class AlbumRepository(
             self.connection.scalar(
                 self._build_count_query(
                     album_items_table.join(
-                        files_table, album_items_table.c.file_id == files_table.c.id
+                        files_table, files_table.c.id == album_items_table.c.file_id
                     ),
                     items_where_clause,
                 )
@@ -420,7 +420,7 @@ class AlbumRepository(
         )
         result = await self.connection.execute(
             select(update_cte, *self._creator_columns()).join(
-                users_table, update_cte.c.created_by == users_table.c.id
+                users_table, users_table.c.id == update_cte.c.created_by
             )
         )
 
@@ -457,7 +457,7 @@ class AlbumRepository(
         )
         result = await self.connection.execute(
             select(delete_cte, *self._creator_columns()).join(
-                users_table, delete_cte.c.created_by == users_table.c.id
+                users_table, users_table.c.id == delete_cte.c.created_by
             )
         )
 

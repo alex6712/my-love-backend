@@ -6,11 +6,13 @@ from app.infra.postgres.tables.user_sessions import user_sessions_table
 from app.repositories.interface import (
     CreateMixin,
     DeleteMixin,
+    FilteredUpdateMixin,
     ReadOneMixin,
     RepositoryInterfaceNew,
 )
 from app.schemas.dto.user_session import (
     CreateUserSessionDTO,
+    FilterUserSessionDTO,
     UpdateUserSessionDTO,
     UserSessionDTO,
 )
@@ -20,6 +22,7 @@ class UserSessionRepository(
     RepositoryInterfaceNew,
     CreateMixin[CreateUserSessionDTO, UserSessionDTO],
     ReadOneMixin[UserSessionDTO],
+    FilteredUpdateMixin[FilterUserSessionDTO, UpdateUserSessionDTO, UserSessionDTO],
     DeleteMixin[UserSessionDTO],
 ):
     """Репозиторий для управления пользовательскими сессиями.
@@ -31,7 +34,7 @@ class UserSessionRepository(
     -------
     create(create_dto)
         Создаёт новую пользовательскую сессию.
-    get_by_id(record_id)
+    get_one(record_id)
         Возвращает DTO пользовательской сессии по её идентификатору.
     update_by_refresh_token_hash(refresh_token_hash, update_dto)
         Обновляет данные сессии по хэшу токена обновления.
@@ -60,7 +63,7 @@ class UserSessionRepository(
 
         return UserSessionDTO.model_validate(result.mappings().one())
 
-    async def get_by_id(self, record_id: UUID) -> UserSessionDTO | None:
+    async def get_one(self, record_id: UUID) -> UserSessionDTO | None:
         """Возвращает DTO пользовательской сессии по её идентификатору.
 
         Parameters
@@ -82,9 +85,9 @@ class UserSessionRepository(
 
         return UserSessionDTO.model_validate(row)
 
-    async def update_by_refresh_token_hash(
+    async def update_filtered(
         self,
-        refresh_token_hash: str,
+        filter_dto: FilterUserSessionDTO,
         update_dto: UpdateUserSessionDTO,
     ) -> UserSessionDTO | None:
         """Обновляет данные сессии по хэшу токена обновления.
@@ -111,7 +114,12 @@ class UserSessionRepository(
         """
         result = await self.connection.execute(
             update(user_sessions_table)
-            .where(user_sessions_table.c.refresh_token_hash == refresh_token_hash)
+            .where(
+                *[
+                    getattr(user_sessions_table.c, field) == value
+                    for field, value in filter_dto.to_filter_values().items()
+                ]
+            )
             .values(**update_dto.to_update_values())
             .returning(user_sessions_table)
         )

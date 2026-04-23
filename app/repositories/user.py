@@ -1,26 +1,30 @@
-import asyncio
 from uuid import UUID
 
 from sqlalchemy import insert, select, update
 from sqlalchemy.exc import IntegrityError
 
-from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET
-from app.core.enums import SortOrder
 from app.core.exceptions.user import UsernameAlreadyExistsException
 from app.infra.postgres import get_constraint_name
 from app.infra.postgres.tables.users import users_table
 from app.repositories.interface import (
     CreateMixin,
-    ReadMixin,
+    FilteredReadOneMixin,
+    ReadOneMixin,
     RepositoryInterfaceNew,
     UpdateMixin,
 )
-from app.schemas.dto.user import CreateUserDTO, UpdateUserDTO, UserWithCredentialsDTO
+from app.schemas.dto.user import (
+    CreateUserDTO,
+    FilterUserDTO,
+    UpdateUserDTO,
+    UserWithCredentialsDTO,
+)
 
 
 class UserRepository(
     RepositoryInterfaceNew,
-    ReadMixin[UserWithCredentialsDTO],
+    ReadOneMixin[UserWithCredentialsDTO],
+    FilteredReadOneMixin[FilterUserDTO, UserWithCredentialsDTO],
     CreateMixin[CreateUserDTO, UserWithCredentialsDTO],
     UpdateMixin[UpdateUserDTO, UserWithCredentialsDTO],
 ):
@@ -38,10 +42,10 @@ class UserRepository(
     -------
     create(create_dto)
         Добавляет в базу данных новую запись о пользователе.
-    get_by_id(record_id)
+    get_one(record_id)
         Возвращает DTO пользователя по его id.
-    get_by_username(username)
-        Возвращает DTO пользователя по его username.
+    get_one_filtered(filter_do)
+        Возвращает DTO пользователя по фильтру.
     update(record_id, update_dto)
         Обновляет данные пользователя по его идентификатору.
     """
@@ -82,51 +86,7 @@ class UserRepository(
 
         return UserWithCredentialsDTO.model_validate(result.mappings().one())
 
-    async def get_all(
-        self,
-        *,
-        offset: int = DEFAULT_OFFSET,
-        limit: int = DEFAULT_LIMIT,
-        sort_order: SortOrder = SortOrder.DESC,
-    ) -> tuple[list[UserWithCredentialsDTO], int]:
-        """Возвращает постраничный список всех DTO пользователей
-        и их общее количество.
-
-        Parameters
-        ----------
-        offset : int, optional
-            Количество пропускаемых записей, по умолчанию `DEFAULT_OFFSET`.
-        limit : int, optional
-            Максимальное количество возвращаемых записей, по умолчанию `DEFAULT_LIMIT`.
-        sort_order : SortOrder, optional
-            Направление сортировки по полю `created_at`,
-            по умолчанию SortOrder.DESC.
-
-        Returns
-        -------
-        tuple[list[UserWithCredentialsDTO], int]
-            Список DTO пользователей и общее количество записей без учёта пагинации.
-        """
-        result, total = await asyncio.gather(
-            self.connection.execute(
-                select(users_table)
-                .order_by(
-                    self._build_order_clause(users_table.c.created_at, sort_order)
-                )
-                .slice(offset, offset + limit)
-            ),
-            self.connection.scalar(self._build_count_query(users_table)),
-        )
-
-        return (
-            [
-                UserWithCredentialsDTO.model_validate(row)
-                for row in result.mappings().all()
-            ],
-            total or 0,
-        )
-
-    async def get_by_id(self, record_id: UUID) -> UserWithCredentialsDTO | None:
+    async def get_one(self, record_id: UUID) -> UserWithCredentialsDTO | None:
         """Возвращает DTO пользователя по его id.
 
         Parameters
@@ -148,13 +108,15 @@ class UserRepository(
 
         return UserWithCredentialsDTO.model_validate(row)
 
-    async def get_by_username(self, username: str) -> UserWithCredentialsDTO | None:
-        """Возвращает DTO пользователя по его username.
+    async def get_one_filtered(
+        self, filter_dto: FilterUserDTO
+    ) -> UserWithCredentialsDTO | None:
+        """Возвращает DTO пользователя по переданному фильтру.
 
         Parameters
         ----------
-        username : str
-            Логин пользователя, уникальное имя.
+        filter_dto : FilterUserDTO
+            Параметры фильтрации.
 
         Returns
         -------
@@ -162,7 +124,12 @@ class UserRepository(
             DTO записи пользователя, None - если пользователь не найден.
         """
         result = await self.connection.execute(
-            select(users_table).where(users_table.c.username == username)
+            select(users_table).where(
+                *[
+                    getattr(users_table.c, field) == value
+                    for field, value in filter_dto.to_filter_values().items()
+                ]
+            )
         )
 
         if not (row := result.mappings().first()):

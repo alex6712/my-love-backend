@@ -306,7 +306,7 @@ class AlbumService:
 
         access_ctx = AccessContext(user_id=user_id, partner_id=partner_id)
 
-        if not await self._album_repo.get_by_id(album_id, access_ctx):
+        if not await self._album_repo.get_one(album_id, access_ctx):
             raise MediaNotFoundException(
                 media_type="album",
                 detail=f"Album with id={album_id} not found, or you're lack of rights.",
@@ -353,7 +353,7 @@ class AlbumService:
 
         access_ctx = AccessContext(user_id=user_id, partner_id=partner_id)
 
-        if not await self._album_repo.get_by_id(album_id, access_ctx):
+        if not await self._album_repo.get_one(album_id, access_ctx):
             raise MediaNotFoundException(
                 media_type="album",
                 detail=f"Album with id={album_id} not found, or you're lack of rights.",

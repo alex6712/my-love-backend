@@ -2,7 +2,12 @@ from datetime import datetime
 from uuid import UUID
 
 from app.core.types import UNSET, Maybe
-from app.schemas.dto.base import BaseCreateDTO, BaseSQLCoreDTO, BaseUpdateDTO
+from app.schemas.dto.base import (
+    BaseCreateDTO,
+    BaseFilterDTO,
+    BaseSQLCoreDTO,
+    BaseUpdateDTO,
+)
 
 
 class UserSessionDTO(BaseSQLCoreDTO):
@@ -24,6 +29,24 @@ class UserSessionDTO(BaseSQLCoreDTO):
     refresh_token_hash: str
     expires_at: datetime
     last_used_at: datetime
+
+
+class FilterUserSessionDTO(BaseFilterDTO):
+    """DTO для фильтрации пользовательских сессий.
+
+    Attributes
+    ----------
+    id : Maybe[UUID]
+        Идентификатор сессии.
+    user_id : Maybe[UUID]
+        Идентификатор пользователя, которому принадлежит сессия.
+    refresh_token_hash : Maybe[str]
+        Хэш refresh-токена сессии.
+    """
+
+    id: Maybe[UUID] = UNSET
+    user_id: Maybe[UUID] = UNSET
+    refresh_token_hash: Maybe[str] = UNSET
 
 
 class CreateUserSessionDTO(BaseCreateDTO):
