@@ -10,7 +10,7 @@ from app.repositories.interface import (
     CreateMixin,
     FilteredReadOneMixin,
     ReadOneMixin,
-    RepositoryInterfaceNew,
+    RepositoryInterface,
     UpdateMixin,
 )
 from app.schemas.dto.user import (
@@ -22,7 +22,7 @@ from app.schemas.dto.user import (
 
 
 class UserRepository(
-    RepositoryInterfaceNew,
+    RepositoryInterface,
     ReadOneMixin[UserWithCredentialsDTO],
     FilteredReadOneMixin[FilterUserDTO, UserWithCredentialsDTO],
     CreateMixin[CreateUserDTO, UserWithCredentialsDTO],

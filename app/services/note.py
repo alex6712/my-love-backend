@@ -98,7 +98,7 @@ class NoteService:
             Кортеж из списка заметок и общего количества.
         """
         return await self._note_repo.get_filtered(
-            FilterNoteDTO(type=note_type),
+            FilterNoteDTO(type=note_type) if note_type else FilterNoteDTO(),
             AccessContext(user_id=user_id, partner_id=partner_id),
             offset=offset,
             limit=limit,

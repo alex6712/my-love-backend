@@ -241,6 +241,7 @@ class CoupleService:
             await self._couple_request_repo.get_filtered(
                 FilterCoupleRequestDTO(
                     recipient_id=user_id,
+                    status=CoupleRequestStatus.PENDING,
                 )
             )
         )[0]

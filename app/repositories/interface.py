@@ -63,7 +63,7 @@ class AccessContext(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class RepositoryInterfaceNew(ABC):
+class RepositoryInterface(ABC):
     """Базовый класс всех репозиториев.
 
     Реализует паттерн Repository (DAO). Хранит подключение к базе данных
@@ -126,7 +126,7 @@ class RepositoryInterfaceNew(ABC):
         return column.desc() if order == SortOrder.DESC else column.asc()
 
 
-class OwnedRepositoryInterface(RepositoryInterfaceNew):
+class OwnedRepositoryInterface(RepositoryInterface):
     """Интерфейс репозитория для сущностей с ограниченным доступом.
 
     Предназначен для сущностей, видимых только владельцу и его партнёру.

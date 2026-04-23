@@ -69,7 +69,8 @@ class BaseFilterDTO(BaseDTO):
     {'note_type': <NoteType.WISHLIST: ...>}
     """
 
-    def __init__(self):
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
         self._cached_values: dict[str, Any] | None = None
 
     def _build_filter_values(self) -> dict[str, Any]:
@@ -220,7 +221,8 @@ class BaseUpdateDTO(BaseRequestDTO):
     {'title': 'Новый заголовок', 'content': None}
     """
 
-    def __init__(self):
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
         self._cached_values: dict[str, Any] | None = None
 
     @classmethod

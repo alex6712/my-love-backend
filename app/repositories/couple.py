@@ -11,7 +11,7 @@ from app.infra.postgres.tables.users import users_table
 from app.repositories.interface import (
     CreateMixin,
     FilteredReadOneMixin,
-    RepositoryInterfaceNew,
+    RepositoryInterface,
 )
 from app.schemas.dto.couple import (
     CoupleDTO,
@@ -26,7 +26,7 @@ second_users_table = users_table.alias("second_users")
 
 
 class CoupleRepository(
-    RepositoryInterfaceNew,
+    RepositoryInterface,
     CreateMixin[CreateCoupleDTO, CoupleDTO],
     FilteredReadOneMixin[FilterCoupleDTO, CoupleDTO],
 ):
@@ -86,11 +86,10 @@ class CoupleRepository(
         """
         return {
             "id": row[f"_{prefix}_id"],
+            "created_at": row[f"_{prefix}_created_at"],
             "username": row[f"_{prefix}_username"],
             "avatar_url": row[f"_{prefix}_avatar_url"],
             "is_active": row[f"_{prefix}_is_active"],
-            "created_at": row[f"_{prefix}_created_at"],
-            "updated_at": row[f"_{prefix}_updated_at"],
         }
 
     async def create(self, create_dto: CreateCoupleDTO) -> CoupleDTO:

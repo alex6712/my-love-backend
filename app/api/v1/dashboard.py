@@ -1,6 +1,7 @@
 from fastapi import APIRouter, status
 
 from app.core.dependencies.auth import StrictAuthenticationDependency
+from app.core.dependencies.context import PartnerIdDependency
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
 from app.schemas.v1.responses.dashboard import DashboardResponse
@@ -22,6 +23,7 @@ router = APIRouter(
 async def get_dashboard(
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
+    partner_id: PartnerIdDependency,
 ) -> DashboardResponse:
     """Получение агрегированных данных для главной страницы приложения.
 
@@ -47,6 +49,8 @@ async def get_dashboard(
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
+    partner_id : UUID | None
+        Идентификатор партнёра, или None если пользователь не состоит в паре.
 
     Returns
     -------
@@ -55,8 +59,8 @@ async def get_dashboard(
     """
     user_id = payload.sub
 
-    files_count = await services.file.count_files(user_id)
-    notes_count = await services.note.count_notes(user_id)
+    files_count = await services.file.count_files(user_id, partner_id)
+    notes_count = await services.note.count_notes(user_id, partner_id)
 
     return DashboardResponse(
         files_count=files_count,

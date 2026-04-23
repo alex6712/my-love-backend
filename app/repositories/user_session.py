@@ -8,7 +8,7 @@ from app.repositories.interface import (
     DeleteMixin,
     FilteredUpdateMixin,
     ReadOneMixin,
-    RepositoryInterfaceNew,
+    RepositoryInterface,
 )
 from app.schemas.dto.user_session import (
     CreateUserSessionDTO,
@@ -19,7 +19,7 @@ from app.schemas.dto.user_session import (
 
 
 class UserSessionRepository(
-    RepositoryInterfaceNew,
+    RepositoryInterface,
     CreateMixin[CreateUserSessionDTO, UserSessionDTO],
     ReadOneMixin[UserSessionDTO],
     FilteredUpdateMixin[FilterUserSessionDTO, UpdateUserSessionDTO, UserSessionDTO],

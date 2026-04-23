@@ -24,7 +24,7 @@ from app.repositories.interface import (
     CreateMixin,
     FilteredReadMixin,
     FilteredUpdateMixin,
-    RepositoryInterfaceNew,
+    RepositoryInterface,
 )
 from app.schemas.dto.couple import (
     CoupleRequestDTO,
@@ -40,7 +40,7 @@ recipients_table = users_table.alias("recipients")
 
 
 class CoupleRequestRepository(
-    RepositoryInterfaceNew,
+    RepositoryInterface,
     CreateMixin[CreateCoupleRequestDTO, CoupleRequestDTO],
     FilteredReadMixin[FilterCoupleRequestDTO, CoupleRequestDTO],
     FilteredUpdateMixin[
@@ -113,11 +113,10 @@ class CoupleRequestRepository(
         """
         return {
             "id": row[f"_{prefix}_id"],
+            "created_at": row[f"_{prefix}_created_at"],
             "username": row[f"_{prefix}_username"],
             "avatar_url": row[f"_{prefix}_avatar_url"],
             "is_active": row[f"_{prefix}_is_active"],
-            "created_at": row[f"_{prefix}_created_at"],
-            "updated_at": row[f"_{prefix}_updated_at"],
         }
 
     async def create(self, create_dto: CreateCoupleRequestDTO) -> CoupleRequestDTO:

@@ -1,14 +1,12 @@
 from typing import Any, Self, TypeVar, cast
 
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-)
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from app.core.exceptions.base import UnitOfWorkContextClosedException
-from app.infra.postgres import AsyncSessionMaker
+from app.infra.postgres import async_engine
+from app.repositories.interface import RepositoryInterface
 
-T = TypeVar("T", bound=Any)
+T = TypeVar("T", bound=RepositoryInterface)
 
 
 class UnitOfWork:
@@ -38,20 +36,18 @@ class UnitOfWork:
         Если попытаться получить доступ к сессии вне контекстного менеджера.
     """
 
-    def __init__(
-        self, session_maker: async_sessionmaker[AsyncSession] = AsyncSessionMaker
-    ):
-        self.session_maker = session_maker
-        self._session: AsyncSession | None = None
+    def __init__(self, engine: AsyncEngine = async_engine):
+        self.engine = engine
+        self._connection: AsyncConnection | None = None
 
-        self._repos: dict[type[Any], Any] = {}
+        self._repos: dict[type[RepositoryInterface], RepositoryInterface] = {}
 
     @property
-    def session(self) -> AsyncSession:
-        if self._session is None:
+    def connection(self) -> AsyncConnection:
+        if self._connection is None:
             raise UnitOfWorkContextClosedException()
 
-        return self._session
+        return self._connection
 
     async def __aenter__(self) -> Self:
         """Вход в асинхронный контекст.
@@ -63,7 +59,8 @@ class UnitOfWork:
         UnitOfWork
             Текущий экземпляр `UnitOfWork`.
         """
-        self._session = self.session_maker()
+        self._connection = await self.engine.connect()
+        await self._connection.begin()
         return self
 
     async def __aexit__(self, exc_type: Any, *_: Any) -> None:
@@ -83,9 +80,9 @@ class UnitOfWork:
             else:
                 await self.commit()
         finally:
-            await self.session.close()
+            await self.connection.close()
 
-            self._session = None
+            self._connection = None
             self._repos.clear()
 
     async def commit(self) -> None:
@@ -108,7 +105,7 @@ class UnitOfWork:
         менеджера, если не возникло исключений. Явный вызов может потребоваться
         для промежуточных фиксаций в рамках одной транзакции.
         """
-        await self.session.commit()
+        await self.connection.commit()
 
     async def rollback(self) -> None:
         """Отменить все изменения в текущей транзакции.
@@ -130,7 +127,7 @@ class UnitOfWork:
         если в блоке `async with` возникло исключение. Явный вызов может быть
         полезен для отката промежуточных изменений без выхода из контекста.
         """
-        await self.session.rollback()
+        await self.connection.rollback()
 
     def get_repository(self, repo_type: type[T]) -> T:
         """Получить экземпляр репозитория для работы с базой данных.
@@ -149,6 +146,6 @@ class UnitOfWork:
             Экземпляр репозитория, связанный с текущей сессией.
         """
         if repo_type not in self._repos:
-            self._repos[repo_type] = repo_type(self.session)
+            self._repos[repo_type] = repo_type(self.connection)
 
         return cast(T, self._repos[repo_type])

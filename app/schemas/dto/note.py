@@ -37,10 +37,10 @@ class FilterNoteDTO(BaseFilterDTO):
     Attributes
     ----------
     type : NoteType | None
-        Тип заметки. Если `None` - фильтр не применяется.
+        Тип заметки. Если `UNSET` - поле не изменяется.
     """
 
-    type: NoteType | None
+    type: Maybe[NoteType | None] = UNSET
 
 
 class CreateNoteDTO(BaseCreateDTO):
