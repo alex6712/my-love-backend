@@ -302,7 +302,7 @@ class CoupleRequestRepository(
         )
         result = await self.connection.execute(
             select(
-                couple_requests_table,
+                update_cte,
                 *self._partner_columns(initiators_table, "initiator"),
                 *self._partner_columns(recipients_table, "recipient"),
             )

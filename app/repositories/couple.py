@@ -144,7 +144,6 @@ class CoupleRepository(
                     *self._partner_columns(first_users_table, "first_user"),
                     *self._partner_columns(second_users_table, "second_user"),
                 )
-                .select_from(insert_couple_cte)
                 # получаем первого пользователя
                 .join(
                     m1 := insert_members_cte.alias("m1"),
