@@ -60,7 +60,7 @@ class CreateAlbumDTO(BaseCreateDTO):
     cover_url : str | None
         URL обложки альбома.
     is_private : bool
-        Видимость альбома (True — личный, False — публичный).
+        Видимость альбома (True - личный, False - публичный).
 
     Notes
     -----

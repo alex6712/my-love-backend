@@ -6,7 +6,8 @@ from fastapi import APIRouter, Body, Path, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
-from app.schemas.v1.requests.couples import CreateCoupleRequest
+from app.schemas.dto.couple import UpdateCoupleDTO
+from app.schemas.v1.requests.couples import CreateCoupleRequest, PatchCoupleRequest
 from app.schemas.v1.responses.couple import CoupleRequestsResponse
 from app.schemas.v1.responses.partner import PartnerResponse
 from app.schemas.v1.responses.standard import StandardResponse
@@ -106,14 +107,14 @@ async def create_couple_request(
 
 
 @router.post(
-    "/{couple_id}/accept",
+    "/{couple_request_id}/accept",
     response_model=StandardResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Подтверждение регистрации новой пары между пользователями.",
     response_description="Регистрация пары подтверждена",
 )
 async def accept_couple_request(
-    couple_id: Annotated[
+    couple_request_id: Annotated[
         UUID, Path(description="UUID принимаемого приглашения в пару.")
     ],
     services: ServiceManagerDependency,
@@ -126,7 +127,7 @@ async def accept_couple_request(
 
     Parameters
     ----------
-    couple_id : UUID
+    couple_request_id : UUID
         UUID запроса на создание пары.
     services : ServiceManager
         Менеджер сервисов уровня запроса (request-scoped).
@@ -143,20 +144,20 @@ async def accept_couple_request(
     StandardResponse
         Отчёт об успешном создании новой пары.
     """
-    await services.couple.accept_couple_request(couple_id, payload.sub)
+    await services.couple.accept_couple_request(couple_request_id, payload.sub)
 
     return StandardResponse(detail="Couple register successfully.")
 
 
 @router.post(
-    "/{couple_id}/decline",
+    "/{couple_request_id}/decline",
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
     summary="Отказ регистрации новой пары между пользователями.",
     response_description="В регистрации пары отказано",
 )
 async def decline_couple_request(
-    couple_id: Annotated[
+    couple_request_id: Annotated[
         UUID, Path(description="UUID отклоняемого приглашения в пару.")
     ],
     services: ServiceManagerDependency,
@@ -169,7 +170,7 @@ async def decline_couple_request(
 
     Parameters
     ----------
-    couple_id : UUID
+    couple_request_id : UUID
         UUID запроса на создание пары.
     services : ServiceManager
         Менеджер сервисов уровня запроса (request-scoped).
@@ -186,7 +187,7 @@ async def decline_couple_request(
     StandardResponse
         Отчёт об успешном отклонении запроса.
     """
-    await services.couple.decline_couple_request(couple_id, payload.sub)
+    await services.couple.decline_couple_request(couple_request_id, payload.sub)
 
     return StandardResponse(detail="Couple register declined.")
 
@@ -232,3 +233,54 @@ async def get_couple_requests(
         detail = f"Found {len(requests)} couple requests."
 
     return CoupleRequestsResponse(requests=requests, detail=detail)
+
+
+@router.patch(
+    "/{couple_id}",
+    response_model=StandardResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Обновление деталей пары между пользователями.",
+    response_description="Детали пары успешно изменены",
+)
+async def patch_couple(
+    couple_id: Annotated[UUID, Path(description="UUID изменяемой пары.")],
+    body: Annotated[
+        PatchCoupleRequest, Body(description="Схема запроса на изменение деталей пары.")
+    ],
+    services: ServiceManagerDependency,
+    payload: StrictAuthenticationDependency,
+) -> StandardResponse:
+    """Изменение деталей пары между пользователями.
+
+    Проверяет привязку текущего пользователя к паре с переданным UUID,
+    изменяет только переданные атрибуты при достатке прав.
+    Все поля в теле запроса опциональны - передаются только те атрибуты,
+    которые необходимо изменить.
+
+    Parameters
+    ----------
+    note_id : UUID
+        UUID пары к изменению.
+    body : PatchCoupleRequest
+        Схема частичного обновления данных о паре.
+        Содержит только те поля, которые нужно обновить.
+    services : ServiceManager
+        Менеджер сервисов уровня запроса (request-scoped).
+
+        Предоставляет доступ к бизнес-сервисам приложения
+        (например, auth, user, note, file и др.) через единый
+        контейнер зависимостей.
+    payload : AccessTokenPayload
+        Полезная нагрузка (payload) токена доступа.
+        Получена автоматически из зависимости на строгую аутентификацию.
+
+    Returns
+    -------
+    StandardResponse
+        Успешный ответ о результате изменения деталей пары.
+    """
+    await services.couple.update_couple(
+        couple_id, UpdateCoupleDTO.from_request_schema(body), payload.sub
+    )
+
+    return StandardResponse(detail="Couple details updated successfully.")

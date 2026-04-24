@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from sqlalchemy import FromClause, Label, RowMapping, insert, literal, select
+from sqlalchemy import FromClause, Label, RowMapping, insert, literal, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.types import Uuid
 
@@ -11,12 +11,14 @@ from app.infra.postgres.tables.users import users_table
 from app.repositories.interface import (
     CreateMixin,
     FilteredReadOneMixin,
+    FilteredUpdateMixin,
     RepositoryInterface,
 )
 from app.schemas.dto.couple import (
     CoupleDTO,
     CreateCoupleDTO,
     FilterCoupleDTO,
+    UpdateCoupleDTO,
 )
 
 type PartnerPrefix = Literal["first_user", "second_user"]
@@ -29,6 +31,7 @@ class CoupleRepository(
     RepositoryInterface,
     CreateMixin[CreateCoupleDTO, CoupleDTO],
     FilteredReadOneMixin[FilterCoupleDTO, CoupleDTO],
+    FilteredUpdateMixin[FilterCoupleDTO, UpdateCoupleDTO, CoupleDTO],
 ):
     """Репозиторий пар между пользователями.
 
@@ -210,13 +213,11 @@ class CoupleRepository(
                 couples_table,
                 couples_table.c.id == couple_members_table.c.couple_id,
             )
-            # первый участник
             .join(
                 m1 := couple_members_table.alias("m1"),
                 (m1.c.couple_id == couples_table.c.id) & (m1.c.slot == 1),
             )
             .join(first_users_table, first_users_table.c.id == m1.c.user_id)
-            # второй участник
             .join(
                 m2 := couple_members_table.alias("m2"),
                 (m2.c.couple_id == couples_table.c.id) & (m2.c.slot == 2),
@@ -228,6 +229,72 @@ class CoupleRepository(
                     for field, value in filter_dto.to_filter_values().items()
                 ]
             )
+        )
+
+        if not (row := result.mappings().first()):
+            return None
+
+        return CoupleDTO.model_validate(
+            {
+                **row,
+                "first_user": self._extract_partner(row, "first_user"),
+                "second_user": self._extract_partner(row, "second_user"),
+            }
+        )
+
+    async def update_filtered(
+        self, filter_dto: FilterCoupleDTO, update_dto: UpdateCoupleDTO
+    ) -> CoupleDTO | None:
+        """Обновляет пару по фильтрам и возвращает актуальное состояние.
+
+        Применяет изменения через CTE (`update_cte`), затем присоединяет
+        участников через двойной self-join `couple_members` (алиасы
+        `m1` и `m2`) и `users` для каждого из них.
+
+        Если запись не найдена - возвращает `None` вместо исключения,
+        делегируя решение об ошибке вышестоящему слою.
+
+        Parameters
+        ----------
+        filter_dto : FilterCoupleDTO
+            DTO с полями фильтрации для поиска обновляемой записи.
+        update_dto : UpdateCoupleDTO
+            DTO с обновляемыми полями.
+
+        Returns
+        -------
+        CoupleDTO | None
+            Обновлённая пара с вложенными DTO обоих участников или None,
+            если ни одна пара не соответствует фильтрам.
+        """
+        update_cte = (
+            update(couples_table)
+            .values(**update_dto.to_update_values())
+            .where(
+                *[
+                    getattr(couples_table.c, field) == value
+                    for field, value in filter_dto.to_filter_values().items()
+                ]
+            )
+            .returning(couples_table)
+            .cte("update_cte")
+        )
+        result = await self.connection.execute(
+            select(
+                update_cte,
+                *self._partner_columns(first_users_table, "first_user"),
+                *self._partner_columns(second_users_table, "second_user"),
+            )
+            .join(
+                m1 := couple_members_table.alias("m1"),
+                (m1.c.couple_id == update_cte.c.id) & (m1.c.slot == 1),
+            )
+            .join(first_users_table, first_users_table.c.id == m1.c.user_id)
+            .join(
+                m2 := couple_members_table.alias("m2"),
+                (m2.c.couple_id == update_cte.c.id) & (m2.c.slot == 2),
+            )
+            .join(second_users_table, second_users_table.c.id == m2.c.user_id)
         )
 
         if not (row := result.mappings().first()):

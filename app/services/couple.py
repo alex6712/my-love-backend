@@ -3,8 +3,10 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from app.core.enums import CoupleRequestStatus
+from app.core.exceptions.base import NothingToUpdateException
 from app.core.exceptions.couple import (
     CoupleAlreadyExistsException,
+    CoupleNotFoundException,
     CoupleRequestNotFoundException,
 )
 from app.core.exceptions.user import UserNotFoundException
@@ -18,6 +20,7 @@ from app.schemas.dto.couple import (
     CreateCoupleRequestDTO,
     FilterCoupleDTO,
     FilterCoupleRequestDTO,
+    UpdateCoupleDTO,
     UpdateCoupleRequestDTO,
 )
 from app.schemas.dto.user import FilterUserDTO, PartnerDTO
@@ -245,3 +248,38 @@ class CoupleService:
                 )
             )
         )[0]
+
+    async def update_couple(
+        self, couple_id: UUID, update_dto: UpdateCoupleDTO, user_id: UUID
+    ) -> None:
+        """Частичное обновление атрибутов пары по её UUID.
+
+        Получает идентификатор пары и текущего пользователя и передаёт данные
+        в репозиторий для обновления пары с учётом прав доступа.
+        Обновляет только явно переданные поля (не равные `UNSET`).
+
+        Parameters
+        ----------
+        couple_id : UUID
+            UUID пары к изменению.
+        update_dto : UpdateCoupleDTO
+            DTO с полями для обновления. Содержит только явно переданные поля.
+        user_id : UUID
+            UUID пользователя, инициирующего изменение пары.
+
+        Raises
+        ------
+        NothingToUpdateException
+            Не было передано ни одного поля на обновление.
+        CoupleNotFoundException
+            Если пара не найдена или пользователь не является её членом.
+        """
+        if update_dto.is_empty():
+            raise NothingToUpdateException(detail="No fields provided for update.")
+
+        if not await self._couple_repo.update_filtered(
+            FilterCoupleDTO(couple_id=couple_id, user_id=user_id), update_dto
+        ):
+            raise CoupleNotFoundException(
+                detail=f"Couple request with id={couple_id} not found.",
+            )

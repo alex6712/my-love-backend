@@ -385,13 +385,13 @@ class FilteredReadMixin(ABC, Generic[FilterDTO, EntityDTO]):
     для пагинации на клиенте.
 
     В отличие от :class:`OwnedFilteredReadMixin`, не требует
-    :class:`AccessContext` — фильтрация определяется исключительно
+    :class:`AccessContext` - фильтрация определяется исключительно
     параметрами -filter_dto-.
 
     Type Parameters
     ---------------
     FilterDTO : TypeVar
-        Тип DTO с параметрами фильтрации. Специфичен для домена —
+        Тип DTO с параметрами фильтрации. Специфичен для домена -
         определяется в конкретном интерфейсе репозитория.
     EntityDTO : TypeVar
         Тип доменного DTO возвращаемой сущности.

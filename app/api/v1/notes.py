@@ -192,7 +192,7 @@ async def count(
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
     summary="Частичное изменение пользовательской заметки.",
-    response_description="Заметка успешно изменено",
+    response_description="Заметка успешно изменена",
 )
 async def patch_notes(
     note_id: Annotated[UUID, Path(description="UUID изменяемой заметки.")],
