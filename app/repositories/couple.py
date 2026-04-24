@@ -2,6 +2,7 @@ from typing import Any, Literal
 
 from sqlalchemy import FromClause, Label, RowMapping, insert, literal, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.types import Uuid
 
 from app.core.exceptions.couple import CoupleAlreadyExistsException
 from app.infra.postgres.tables.couple_members import couple_members_table
@@ -121,12 +122,16 @@ class CoupleRepository(
         )
         member_rows = select(
             insert_couple_cte.c.id.label("couple_id"),
-            literal(create_dto.first_user_id).label("user_id"),
+            literal(create_dto.first_user_id, type_=Uuid(as_uuid=True)).label(
+                "user_id"
+            ),
             literal(1).label("slot"),
         ).union_all(
             select(
                 insert_couple_cte.c.id.label("couple_id"),
-                literal(create_dto.second_user_id).label("user_id"),
+                literal(create_dto.second_user_id, type_=Uuid(as_uuid=True)).label(
+                    "user_id"
+                ),
                 literal(2).label("slot"),
             )
         )
