@@ -78,13 +78,13 @@ class FilterCoupleDTO(BaseFilterDTO):
 
     Attributes
     ----------
-    id : Maybe[UUID]
+    couple_id : Maybe[UUID]
         Идентификатор пары.
     user_id : Maybe[UUID]
         Идентификатор одного из участников пары.
     """
 
-    id: Maybe[UUID] = UNSET
+    couple_id: Maybe[UUID] = UNSET
     user_id: Maybe[UUID] = UNSET
 
 

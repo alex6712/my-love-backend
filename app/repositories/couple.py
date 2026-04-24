@@ -1,6 +1,15 @@
 from typing import Any, Literal
 
-from sqlalchemy import FromClause, Label, RowMapping, insert, literal, select, update
+from sqlalchemy import (
+    ColumnElement,
+    FromClause,
+    Label,
+    RowMapping,
+    insert,
+    literal,
+    select,
+    update,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.types import Uuid
 
@@ -267,15 +276,23 @@ class CoupleRepository(
             Обновлённая пара с вложенными DTO обоих участников или None,
             если ни одна пара не соответствует фильтрам.
         """
+        filter_values = filter_dto.to_filter_values()
+        where_clauses: list[ColumnElement[bool]] = []
+        if (couple_id := filter_values.get("couple_id")) is not None:
+            where_clauses.append(couples_table.c.id == couple_id)
+        if (user_id := filter_values.get("user_id")) is not None:
+            where_clauses.append(
+                couples_table.c.id.in_(
+                    select(couple_members_table).where(
+                        couple_members_table.c.user_id == user_id
+                    )
+                )
+            )
+
         update_cte = (
             update(couples_table)
             .values(**update_dto.to_update_values())
-            .where(
-                *[
-                    getattr(couples_table.c, field) == value
-                    for field, value in filter_dto.to_filter_values().items()
-                ]
-            )
+            .where(*where_clauses)
             .returning(couples_table)
             .cte("update_cte")
         )

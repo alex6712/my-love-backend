@@ -278,7 +278,7 @@ class CoupleService:
             raise NothingToUpdateException(detail="No fields provided for update.")
 
         if not await self._couple_repo.update_filtered(
-            FilterCoupleDTO(id=couple_id, user_id=user_id), update_dto
+            FilterCoupleDTO(couple_id=couple_id, user_id=user_id), update_dto
         ):
             raise CoupleNotFoundException(
                 detail=f"Couple request with id={couple_id} not found.",
