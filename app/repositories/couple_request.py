@@ -17,7 +17,6 @@ from app.core.exceptions.couple import (
     CoupleNotSelfException,
     CoupleRequestAlreadyExistsException,
 )
-from app.infra.postgres import get_constraint_name
 from app.infra.postgres.tables.couple_requests import couple_requests_table
 from app.infra.postgres.tables.users import users_table
 from app.repositories.interface import (
@@ -165,13 +164,11 @@ class CoupleRequestRepository(
             )
             row = result.mappings().one()
         except IntegrityError as e:
-            constraint = get_constraint_name(e)
-
-            if constraint == "uq_couple_request_pending":
+            if "uq_couple_request_pending" in str(e):
                 raise CoupleRequestAlreadyExistsException(
                     detail=f"Pending request from {create_dto.initiator_id} to {create_dto.recipient_id} already exists!"
                 ) from e
-            elif constraint == "ck_couple_not_self":
+            elif "ck_couple_not_self" in str(e):
                 raise CoupleNotSelfException(
                     detail="Cannot register couple with yourself!"
                 ) from e

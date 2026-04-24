@@ -4,7 +4,6 @@ from sqlalchemy import FromClause, Label, RowMapping, insert, literal, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions.couple import CoupleAlreadyExistsException
-from app.infra.postgres import get_constraint_name
 from app.infra.postgres.tables.couple_members import couple_members_table
 from app.infra.postgres.tables.couples import couples_table
 from app.infra.postgres.tables.users import users_table
@@ -145,6 +144,7 @@ class CoupleRepository(
                     *self._partner_columns(first_users_table, "first_user"),
                     *self._partner_columns(second_users_table, "second_user"),
                 )
+                .select_from(insert_couple_cte)
                 # получаем первого пользователя
                 .join(
                     m1 := insert_members_cte.alias("m1"),
@@ -160,9 +160,7 @@ class CoupleRepository(
             )
             row = result.mappings().one()
         except IntegrityError as e:
-            constraint_name = get_constraint_name(e)
-
-            if constraint_name == "uq_one_couple_per_user":
+            if "uq_one_couple_per_user" in str(e):
                 raise CoupleAlreadyExistsException(
                     detail=f"User {create_dto.first_user_id} or {create_dto.second_user_id} is already in couple!",
                 ) from e

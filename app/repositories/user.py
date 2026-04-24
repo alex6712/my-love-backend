@@ -4,7 +4,6 @@ from sqlalchemy import insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions.user import UsernameAlreadyExistsException
-from app.infra.postgres import get_constraint_name
 from app.infra.postgres.tables.users import users_table
 from app.repositories.interface import (
     CreateMixin,
@@ -75,9 +74,7 @@ class UserRepository(
                 .returning(users_table)
             )
         except IntegrityError as e:
-            constraint = get_constraint_name(e)
-
-            if constraint == "uq_users_username":
+            if "uq_users_username" in str(e):
                 raise UsernameAlreadyExistsException(
                     detail=f"User with username={create_dto.username} already exists."
                 ) from e
