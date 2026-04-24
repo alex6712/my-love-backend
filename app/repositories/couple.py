@@ -283,7 +283,7 @@ class CoupleRepository(
         if (user_id := filter_values.get("user_id")) is not None:
             where_clauses.append(
                 couples_table.c.id.in_(
-                    select(couple_members_table).where(
+                    select(couple_members_table.c.couple_id).where(
                         couple_members_table.c.user_id == user_id
                     )
                 )
