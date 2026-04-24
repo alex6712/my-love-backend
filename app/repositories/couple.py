@@ -115,7 +115,7 @@ class CoupleRepository(
         """
         insert_couple_cte = (
             insert(couples_table)
-            .values(**create_dto.to_create_values())
+            .values(relationship_started_on=create_dto.relationship_started_on)
             .returning(couples_table)
             .cte("insert_couple_cte")
         )
