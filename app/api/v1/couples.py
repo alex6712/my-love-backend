@@ -259,7 +259,7 @@ async def patch_couple(
 
     Parameters
     ----------
-    note_id : UUID
+    couple_id : UUID
         UUID пары к изменению.
     body : PatchCoupleRequest
         Схема частичного обновления данных о паре.
