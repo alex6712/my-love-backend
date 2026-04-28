@@ -28,9 +28,10 @@ from app.core.types import TokenType
 from app.infra.postgres.uow import UnitOfWork
 from app.infra.redis import RedisClient
 from app.repositories.couple import CoupleRepository
+from app.repositories.interface import PublicAccessContext
 from app.repositories.user import UserRepository
 from app.repositories.user_session import UserSessionRepository
-from app.schemas.dto.couple import FilterCoupleDTO
+from app.schemas.dto.couple import FilterOneCoupleDTO
 from app.schemas.dto.payload import (
     AccessTokenPayload,
     AnyTokenPayload,
@@ -146,8 +147,8 @@ class AuthService:
                 detail="Incorrect username or password."
             )
 
-        couple = await self._couple_repo.get_one_filtered(
-            FilterCoupleDTO(user_id=user.id)
+        couple = await self._couple_repo.read_one(
+            FilterOneCoupleDTO(user_id=user.id), PublicAccessContext()
         )
 
         current_time = datetime.now(timezone.utc)
@@ -216,8 +217,8 @@ class AuthService:
 
         payload = self._validate_token(refresh_token, "refresh")
 
-        couple = await self._couple_repo.get_one_filtered(
-            FilterCoupleDTO(user_id=payload.sub)
+        couple = await self._couple_repo.read_one(
+            FilterOneCoupleDTO(user_id=payload.sub), PublicAccessContext()
         )
 
         current_time = datetime.now(timezone.utc)

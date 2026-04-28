@@ -2,9 +2,11 @@ import asyncio
 from typing import Any, Literal
 
 from sqlalchemy import (
+    ColumnElement,
     FromClause,
     Label,
     RowMapping,
+    Select,
     insert,
     select,
     update,
@@ -17,18 +19,15 @@ from app.core.exceptions.couple import (
     CoupleNotSelfException,
     CoupleRequestAlreadyExistsException,
 )
+from app.core.types import is_set
 from app.infra.postgres.tables.couple_requests import couple_requests_table
 from app.infra.postgres.tables.users import users_table
-from app.repositories.interface import (
-    CreateMixin,
-    FilteredReadMixin,
-    FilteredUpdateMixin,
-    RepositoryInterface,
-)
+from app.repositories.interface import AccessContext, Creator, Reader, Updater
 from app.schemas.dto.couple import (
     CoupleRequestDTO,
     CreateCoupleRequestDTO,
-    FilterCoupleRequestDTO,
+    FilterManyCoupleRequestsDTO,
+    FilterOneCoupleRequestDTO,
     UpdateCoupleRequestDTO,
 )
 
@@ -39,11 +38,10 @@ recipients_table = users_table.alias("recipients")
 
 
 class CoupleRequestRepository(
-    RepositoryInterface,
-    CreateMixin[CreateCoupleRequestDTO, CoupleRequestDTO],
-    FilteredReadMixin[FilterCoupleRequestDTO, CoupleRequestDTO],
-    FilteredUpdateMixin[
-        FilterCoupleRequestDTO, UpdateCoupleRequestDTO, CoupleRequestDTO
+    Creator[CreateCoupleRequestDTO],
+    Reader[FilterOneCoupleRequestDTO, FilterManyCoupleRequestsDTO, CoupleRequestDTO],
+    Updater[
+        FilterOneCoupleRequestDTO, FilterManyCoupleRequestsDTO, UpdateCoupleRequestDTO
     ],
 ):
     """Репозиторий запросов на создание пар между пользователями.
@@ -66,12 +64,11 @@ class CoupleRequestRepository(
         Обновление статуса входящего запроса на создание пары.
     """
 
-    @staticmethod
-    def _partner_columns(alias: FromClause, prefix: PartnerPrefix) -> list[Label[Any]]:
+    @classmethod
+    def _partner_columns(
+        cls, alias: FromClause, prefix: PartnerPrefix
+    ) -> list[Label[Any]]:
         """Именованные колонки пользователя для SELECT.
-
-        Используется префикс `_`, чтобы не конфликтовать с
-        `initiator_id` / `recipient_id` из `couple_requests_table`.
 
         Parameters
         ----------
@@ -85,16 +82,19 @@ class CoupleRequestRepository(
         list[Label[Any]]
             Список лейблированных колонок users_table.
         """
-        return [
-            alias.c.id.label(f"_{prefix}_id"),
-            alias.c.created_at.label(f"_{prefix}_created_at"),
-            alias.c.username.label(f"_{prefix}_username"),
-            alias.c.avatar_url.label(f"_{prefix}_avatar_url"),
-            alias.c.is_active.label(f"_{prefix}_is_active"),
-        ]
+        return cls._label_columns(
+            [
+                alias.c.id,
+                alias.c.created_at,
+                alias.c.username,
+                alias.c.avatar_url,
+                alias.c.is_active,
+            ],
+            prefix,
+        )
 
-    @staticmethod
-    def _extract_partner(row: RowMapping, prefix: PartnerPrefix) -> dict[str, Any]:
+    @classmethod
+    def _extract_partner(cls, row: RowMapping, prefix: PartnerPrefix) -> dict[str, Any]:
         """Извлекает данные партнёра из плоской строки JOIN-результата.
 
         Parameters
@@ -110,19 +110,12 @@ class CoupleRequestRepository(
         dict[str, Any]
             Словарь с данными партнёра, готовый для вложенной валидации DTO.
         """
-        return {
-            "id": row[f"_{prefix}_id"],
-            "created_at": row[f"_{prefix}_created_at"],
-            "username": row[f"_{prefix}_username"],
-            "avatar_url": row[f"_{prefix}_avatar_url"],
-            "is_active": row[f"_{prefix}_is_active"],
-        }
+        return cls._extract_prefixed(
+            row, prefix, ["id", "created_at", "username", "avatar_url", "is_active"]
+        )
 
-    async def create(self, create_dto: CreateCoupleRequestDTO) -> CoupleRequestDTO:
+    async def create_one(self, create_dto: CreateCoupleRequestDTO) -> bool:
         """Создаёт новый запрос на создание пары.
-
-        Вставляет запись в `couple_requests` и сразу возвращает её
-        вместе с данными обоих участников через JOIN с `users`.
 
         Parameters
         ----------
@@ -131,8 +124,8 @@ class CoupleRequestRepository(
 
         Returns
         -------
-        CoupleRequestDTO
-            Созданный запрос на пару с вложенными DTO инициатора и реципиента.
+        bool
+            True если запрос успешно создан.
 
         Raises
         ------
@@ -143,26 +136,9 @@ class CoupleRequestRepository(
             Если `initiator_id == recipient_id` (нарушение `ck_couple_not_self`).
         """
         try:
-            insert_cte = (
-                insert(couple_requests_table)
-                .values(**create_dto.to_create_values())
-                .returning(couple_requests_table)
-                .cte("insert_cte")
-            )
             result = await self.connection.execute(
-                select(
-                    insert_cte,
-                    *self._partner_columns(initiators_table, "initiator"),
-                    *self._partner_columns(recipients_table, "recipient"),
-                )
-                .join(
-                    initiators_table, initiators_table.c.id == insert_cte.c.initiator_id
-                )
-                .join(
-                    recipients_table, recipients_table.c.id == insert_cte.c.recipient_id
-                )
+                insert(couple_requests_table).values(**create_dto.to_create_values())
             )
-            row = result.mappings().one()
         except IntegrityError as e:
             if "uq_couple_request_pending" in str(e):
                 raise CoupleRequestAlreadyExistsException(
@@ -175,6 +151,104 @@ class CoupleRequestRepository(
 
             raise
 
+        return result.rowcount == 1
+
+    @classmethod
+    def _filter_one_to_clauses(
+        cls, filter_dto: FilterOneCoupleRequestDTO
+    ) -> list[ColumnElement[bool]]:
+        where_clauses = cls._get_where_clauses()
+
+        if is_set(filter_dto.id):
+            where_clauses.append(couple_requests_table.c.id == filter_dto.id)
+        if is_set(filter_dto.initiator_id):
+            where_clauses.append(
+                couple_requests_table.c.initiator_id == filter_dto.initiator_id
+            )
+        if is_set(filter_dto.recipient_id):
+            where_clauses.append(
+                couple_requests_table.c.recipient_id == filter_dto.recipient_id
+            )
+        if is_set(filter_dto.status):
+            where_clauses.append(couple_requests_table.c.status == filter_dto.status)
+
+        return where_clauses
+
+    @classmethod
+    def _filter_many_to_clauses(
+        cls, filter_dto: FilterManyCoupleRequestsDTO
+    ) -> list[ColumnElement[bool]]:
+        where_clauses = cls._get_where_clauses()
+
+        if is_set(filter_dto.ids):
+            where_clauses.append(couple_requests_table.c.id.in_(filter_dto.ids))
+        if is_set(filter_dto.initiator_ids):
+            where_clauses.append(
+                couple_requests_table.c.initiator_id.in_(filter_dto.initiator_ids)
+            )
+        if is_set(filter_dto.recipient_ids):
+            where_clauses.append(
+                couple_requests_table.c.recipient_id.in_(filter_dto.recipient_ids)
+            )
+        if is_set(filter_dto.statuses):
+            where_clauses.append(
+                couple_requests_table.c.status.in_(filter_dto.statuses)
+            )
+
+        return where_clauses
+
+    @classmethod
+    def _build_read_statement(cls, *where_clauses: ColumnElement[bool]) -> Select[Any]:
+        """Строит SELECT-запрос для чтения запроса с обоими участниками.
+
+        Применяет фильтры из `filter_dto`, затем выполняет join `users_table`
+        (алиасы `initiators_table` и `recipients_table`) для получения
+        инициатора и реципиента.
+
+        Используется в `read_one_for_update` и `read_many` во избежание
+        дублирования логики построения запроса.
+
+        Parameters
+        ----------
+        where_clauses : list[ColumnElement[bool]]
+            Выражения для передачи в WHERE-часть запроса.
+
+        Returns
+        -------
+        Select[Any]
+            Готовый SELECT-запрос без исполнения.
+        """
+        return (
+            select(
+                couple_requests_table,
+                *cls._partner_columns(initiators_table, "initiator"),
+                *cls._partner_columns(recipients_table, "recipient"),
+            )
+            .join(
+                initiators_table,
+                initiators_table.c.id == couple_requests_table.c.initiator_id,
+            )
+            .join(
+                recipients_table,
+                recipients_table.c.id == couple_requests_table.c.recipient_id,
+            )
+            .where(*where_clauses)
+        )
+
+    async def read_one_for_update(
+        self, filter_dto: FilterOneCoupleRequestDTO, access_ctx: AccessContext
+    ) -> CoupleRequestDTO | None:
+        _ = access_ctx
+
+        result = await self.connection.execute(
+            self._build_read_statement(
+                *self._filter_one_to_clauses(filter_dto)
+            ).with_for_update()
+        )
+
+        if not (row := result.mappings().first()):
+            return None
+
         return CoupleRequestDTO.model_validate(
             {
                 **row,
@@ -183,15 +257,16 @@ class CoupleRequestRepository(
             }
         )
 
-    async def get_filtered(
+    async def read_many(
         self,
-        filter_dto: FilterCoupleRequestDTO,
+        filter_dto: FilterManyCoupleRequestsDTO,
+        access_ctx: AccessContext,
         *,
         offset: int = DEFAULT_OFFSET,
         limit: int = DEFAULT_LIMIT,
         sort_order: SortOrder = SortOrder.DESC,
     ) -> tuple[list[CoupleRequestDTO], int]:
-        """Возвращает отфильтрованный список заявок на пару с общим их количеством.
+        """Возвращает отфильтрованный список запросов на пару с общим их количеством.
 
         Выполняет два запроса параллельно: выборку страницы с JOIN-ами на обоих
         партнёров и подсчёт общего количества записей без учёта пагинации.
@@ -200,6 +275,8 @@ class CoupleRequestRepository(
         ----------
         filter_dto : FilterCoupleRequestDTO
             Параметры фильтрации. Пустой DTO возвращает все записи.
+        access_ctx : AccessContext
+            Контекст доступа. Игнорируется.
         offset : int, optional
             Количество пропускаемых записей, по умолчанию `DEFAULT_OFFSET`.
         limit : int, optional
@@ -211,7 +288,7 @@ class CoupleRequestRepository(
         Returns
         -------
         tuple[list[CoupleRequestDTO], int]
-            Список DTO заявок на текущей странице и общее количество записей,
+            Список DTO запросов на текущей странице и общее количество записей,
             удовлетворяющих фильтру. Второй элемент равен `0`, если записей нет.
 
         Notes
@@ -220,27 +297,13 @@ class CoupleRequestRepository(
         извлекаемые через JOIN с таблицей пользователей (под алиасами
         `initiators_table` и `recipients_table`).
         """
-        where_clauses = [
-            getattr(couple_requests_table.c, field) == value
-            for field, value in filter_dto.to_filter_values().items()
-        ]
+        _ = access_ctx
+
+        where_clauses = self._filter_many_to_clauses(filter_dto)
 
         result, total = await asyncio.gather(
             self.connection.execute(
-                select(
-                    couple_requests_table,
-                    *self._partner_columns(initiators_table, "initiator"),
-                    *self._partner_columns(recipients_table, "recipient"),
-                )
-                .join(
-                    initiators_table,
-                    initiators_table.c.id == couple_requests_table.c.initiator_id,
-                )
-                .join(
-                    recipients_table,
-                    recipients_table.c.id == couple_requests_table.c.recipient_id,
-                )
-                .where(*where_clauses)
+                self._build_read_statement(*where_clauses)
                 .order_by(
                     self._build_order_clause(
                         couple_requests_table.c.created_at, sort_order
@@ -267,13 +330,16 @@ class CoupleRequestRepository(
             total or 0,
         )
 
-    async def update_filtered(
-        self, filter_dto: FilterCoupleRequestDTO, update_dto: UpdateCoupleRequestDTO
-    ) -> CoupleRequestDTO | None:
+    async def update_one(
+        self,
+        filter_dto: FilterOneCoupleRequestDTO,
+        update_dto: UpdateCoupleRequestDTO,
+        access_ctx: AccessContext,
+    ) -> bool:
         """Обновляет запрос на создание пары по его идентификатору.
 
         Применяет переданные изменения к записи в `couple_requests`
-        и возвращает актуальное состояние с данными обоих участников.
+        и возвращает подтверждение успешности операции.
 
         Parameters
         ----------
@@ -288,35 +354,12 @@ class CoupleRequestRepository(
             Обновлённый запрос на пару с вложенными DTO инициатора и реципиента
             или None, если запрос не найден.
         """
-        where_clauses = [
-            getattr(couple_requests_table.c, field) == value
-            for field, value in filter_dto.to_filter_values().items()
-        ]
+        _ = access_ctx
 
-        update_cte = (
+        result = await self.connection.execute(
             update(couple_requests_table)
             .values(**update_dto.to_update_values())
-            .where(*where_clauses)
-            .returning(couple_requests_table)
-            .cte("update_cte")
-        )
-        result = await self.connection.execute(
-            select(
-                update_cte,
-                *self._partner_columns(initiators_table, "initiator"),
-                *self._partner_columns(recipients_table, "recipient"),
-            )
-            .join(initiators_table, initiators_table.c.id == update_cte.c.initiator_id)
-            .join(recipients_table, recipients_table.c.id == update_cte.c.recipient_id)
+            .where(*self._filter_one_to_clauses(filter_dto))
         )
 
-        if not (row := result.mappings().first()):
-            return None
-
-        return CoupleRequestDTO.model_validate(
-            {
-                **row,
-                "initiator": self._extract_partner(row, "initiator"),
-                "recipient": self._extract_partner(row, "recipient"),
-            }
-        )
+        return result.rowcount == 1

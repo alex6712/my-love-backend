@@ -1,11 +1,13 @@
 from datetime import date, datetime
+from typing import Annotated
 from uuid import UUID
 
 from app.core.enums import CoupleRequestStatus
-from app.core.types import UNSET, Maybe
+from app.core.types import UNIQUE, UNSET, Maybe
 from app.schemas.dto.base import (
     BaseCreateDTO,
-    BaseFilterDTO,
+    BaseFilterManyDTO,
+    BaseFilterOneDTO,
     BaseSQLCoreDTO,
     BaseUpdateDTO,
 )
@@ -52,13 +54,14 @@ class CoupleDTO(BaseSQLCoreDTO):
     relationship_started_on: date | None
 
 
-class FilterCoupleRequestDTO(BaseFilterDTO):
+class FilterOneCoupleRequestDTO(BaseFilterOneDTO):
     """DTO для фильтрации заявок на пару.
 
     Attributes
     ----------
     id : Maybe[UUID]
-        Идентификатор запроса.
+        Идентификатор запроса. Является уникальным полем - достаточно передать
+        только его для однозначного нахождения записи.
     initiator_id : Maybe[UUID]
         Идентификатор инициатора запроса.
     recipient_id : Maybe[UUID]
@@ -67,25 +70,39 @@ class FilterCoupleRequestDTO(BaseFilterDTO):
         Статус запроса.
     """
 
-    id: Maybe[UUID] = UNSET
+    id: Annotated[Maybe[UUID], UNIQUE] = UNSET
+
     initiator_id: Maybe[UUID] = UNSET
     recipient_id: Maybe[UUID] = UNSET
     status: Maybe[CoupleRequestStatus] = UNSET
 
 
-class FilterCoupleDTO(BaseFilterDTO):
-    """DTO для фильтрации пар.
+class FilterOneCoupleDTO(BaseFilterOneDTO):
+    """DTO для поиска одной записи пары по идентификатору пары или пользователя.
+
+    Требует передачи хотя бы одного из уникальных полей: `couple_id` или
+    `user_id`. Используется в сервисах, где пару можно найти как по её
+    собственному идентификатору, так и по идентификатору одного из участников.
 
     Attributes
     ----------
     couple_id : Maybe[UUID]
-        Идентификатор пары.
+        Идентификатор пары. Является уникальным полем - достаточно передать
+        только его для однозначного нахождения записи.
     user_id : Maybe[UUID]
-        Идентификатор одного из участников пары.
+        Идентификатор пользователя, входящего в пару. Является уникальным
+        полем - достаточно передать только его для однозначного нахождения записи.
     """
 
-    couple_id: Maybe[UUID] = UNSET
-    user_id: Maybe[UUID] = UNSET
+    couple_id: Annotated[Maybe[UUID], UNIQUE] = UNSET
+    user_id: Annotated[Maybe[UUID], UNIQUE] = UNSET
+
+
+class FilterManyCoupleRequestsDTO(BaseFilterManyDTO):
+    ids: Maybe[list[UUID]] = UNSET
+    initiator_ids: Maybe[list[UUID]] = UNSET
+    recipient_ids: Maybe[list[UUID]] = UNSET
+    statuses: Maybe[list[CoupleRequestStatus]] = UNSET
 
 
 class CreateCoupleRequestDTO(BaseCreateDTO):
