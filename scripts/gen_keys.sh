@@ -31,7 +31,11 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
-source <(grep -v '^#' "$ENV_FILE" | sed -E 's/^([^=]*)=(.*)$/export \1="\2"/')
+PRIVATE_SIGNATURE_KEY_PASSWORD=$(
+    grep -m1 '^PRIVATE_SIGNATURE_KEY_PASSWORD=' "$ENV_FILE" \
+    | cut -d'=' -f2- \
+    | tr -d '"'
+)
 
 if [ -z "$PRIVATE_SIGNATURE_KEY_PASSWORD" ]; then
     echo "Error: There's no PRIVATE_SIGNATURE_KEY_PASSWORD variable in .env"
