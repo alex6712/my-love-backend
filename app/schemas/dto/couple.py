@@ -24,8 +24,8 @@ class CoupleRequestDTO(BaseSQLCoreDTO):
         DTO пользователя-инициатора.
     recipient : PartnerDTO
         DTO пользователя-реципиента.
-    status : CoupleStatus
-        Текущий статус пары.
+    status : CoupleRequestStatus
+        Текущий статус запроса на пару.
     accepted_at : datetime | None
         Дата и время принятия приглашения в пару.
     """
@@ -99,6 +99,23 @@ class FilterOneCoupleDTO(BaseFilterOneDTO):
 
 
 class FilterManyCoupleRequestsDTO(BaseFilterManyDTO):
+    """DTO для фильтрации множества запросов на пару.
+
+    Все поля опциональны — пустой DTO возвращает все записи.
+    При передаче нескольких полей условия комбинируются через AND.
+
+    Attributes
+    ----------
+    ids : Maybe[list[UUID]]
+        Список идентификаторов запросов.
+    initiator_ids : Maybe[list[UUID]]
+        Список идентификаторов инициаторов.
+    recipient_ids : Maybe[list[UUID]]
+        Список идентификаторов получателей.
+    statuses : Maybe[list[CoupleRequestStatus]]
+        Список статусов запросов.
+    """
+
     ids: Maybe[list[UUID]] = UNSET
     initiator_ids: Maybe[list[UUID]] = UNSET
     recipient_ids: Maybe[list[UUID]] = UNSET
@@ -129,16 +146,12 @@ class CreateCoupleRequestDTO(BaseCreateDTO):
 class CreateCoupleDTO(BaseCreateDTO):
     """DTO для создания пары.
 
-    Идентификаторы пользователей хранятся в лексикографическом порядке:
-    `user_low_id` всегда меньше `user_high_id`. Это обеспечивает
-    уникальность пары независимо от порядка передачи участников.
-
     Attributes
     ----------
     first_user_id : UUID
-        Идентификатор первого пользователя члена пары.
+        Идентификатор первого участника пары (слот 1).
     second_user_id : UUID
-        Идентификатор второго пользователя члена пары.
+        Идентификатор второго участника пары (слот 2).
     relationship_started_on : date | None
         Дата начала отношений, указанная пользователями. None, если не задана.
     """
