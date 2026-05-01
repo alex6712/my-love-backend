@@ -717,17 +717,17 @@ class FileService:
         PresignedURLDTO
             DTO с идентификатором файла и сгенерированной presigned URL.
             Время жизни ссылки определяется настройкой
-            ``settings.PRESIGNED_URL_EXPIRATION``.
+            `settings.PRESIGNED_URL_EXPIRATION`.
 
         Raises
         ------
         MediaNotFoundException
             Файл не найден, был удалён или недоступен пользователю.
         FileUploadPendingException
-            Файл ещё не загружен в хранилище (статус ``PENDING``).
+            Файл ещё не загружен в хранилище (статус `PENDING`).
             Клиент может повторить запрос позже.
         FileUploadFailedException
-            Загрузка файла завершилась ошибкой (статус ``FAILED``).
+            Загрузка файла завершилась ошибкой (статус `FAILED`).
             Повторный запрос без повторной загрузки файла бессмысленен.
         FileInvalidStatusException
             Статус файла в БД не распознан бизнес-логикой. Сигнализирует
@@ -784,9 +784,9 @@ class FileService:
         DownloadFilesResult
             Кортеж из двух списков:
 
-            - ``successful`` - presigned URL для файлов, успешно прошедших
+            - `successful` - presigned URL для файлов, успешно прошедших
             валидацию и генерацию ссылки;
-            - ``failed`` - ошибки для файлов, которые не удалось обработать.
+            - `failed` - ошибки для файлов, которые не удалось обработать.
         """
         files = {
             file.id: file
@@ -854,18 +854,18 @@ class FileService:
         Returns
         -------
         FileDTO
-            Если файл существует и имеет статус ``UPLOADED``.
+            Если файл существует и имеет статус `UPLOADED`.
 
         Raises
         ------
         MediaNotFoundException
             Файл не найден или недоступен пользователю.
         FileUploadPendingException
-            Файл ещё загружается (статус ``PENDING``).
+            Файл ещё загружается (статус `PENDING`).
         FileUploadFailedException
-            Загрузка завершилась ошибкой (статус ``FAILED``).
+            Загрузка завершилась ошибкой (статус `FAILED`).
         FileDeletedException
-            Файл был удалён (статус ``DELETED``).
+            Файл был удалён (статус `DELETED`).
         FileInvalidStatusException
             Файл находится в неожиданном статусе.
         """
@@ -917,10 +917,10 @@ class FileService:
         DownloadFileErrorDTO
             DTO с кодом ошибки, соответствующим типу исключения:
 
-            - :class:`MediaNotFoundException` -> ``NOT_FOUND``
-            - :class:`FileUploadPendingException` -> ``UPLOAD_PENDING``
-            - :class:`FileUploadFailedException` -> ``UPLOAD_FAILED``
-            - :class:`FileDeletedException` -> ``FILE_DELETED``
+            - :class:`MediaNotFoundException` -> `NOT_FOUND`
+            - :class:`FileUploadPendingException` -> `UPLOAD_PENDING`
+            - :class:`FileUploadFailedException` -> `UPLOAD_FAILED`
+            - :class:`FileDeletedException` -> `FILE_DELETED`
 
         Raises
         ------

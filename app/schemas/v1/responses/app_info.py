@@ -6,7 +6,7 @@ from .standard import StandardResponse
 class AppInfoResponse(StandardResponse):
     """Модель ответа на запрос информации о приложении.
 
-    См. ``StandardResponse`` для получения информации об унаследованных атрибутах.
+    См. `StandardResponse` для получения информации об унаследованных атрибутах.
 
     See Also
     --------

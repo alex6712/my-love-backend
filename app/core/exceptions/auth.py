@@ -65,7 +65,7 @@ class _PasswordException(_CredentialsException):
 
     Notes
     -----
-    Автоматически устанавливает ``credentials_type="password"``.
+    Автоматически устанавливает `credentials_type="password"`.
     Используется как базовый класс для конкретных исключений,
     связанных с паролем.
     """

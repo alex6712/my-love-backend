@@ -67,7 +67,7 @@ type PresignedURLsUploadBatchResponse = PresignedURLsBatchResponse[
 
 Параметризованный псевдоним :class:`PresignedURLsBatchResponse`,
 где успешные результаты представлены как :class:`PresignedURLWithRefDTO`
-(содержит ``client_ref_id`` для корреляции с исходным запросом),
+(содержит `client_ref_id` для корреляции с исходным запросом),
 а ошибки - как :class:`UploadFileErrorDTO`.
 """
 

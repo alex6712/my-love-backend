@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
 from sqlalchemy import (
     ColumnElement,
@@ -153,10 +153,37 @@ class CoupleRequestRepository(
 
         return result.rowcount == 1
 
+    async def create_many(self, create_dtos: Sequence[CreateCoupleRequestDTO]) -> int:
+        """Не поддерживается для данной сущности.
+
+        Не предусмотрено создание множества запросов за одну транзакцию,
+        т.к. один пользователь не может состоять более чем в одной паре.
+        """
+        raise NotImplementedError(
+            "Method 'create_many' is not implemented in CoupleRequestRepository"
+        )
+
     @classmethod
     def _filter_one_to_clauses(
         cls, filter_dto: FilterOneCoupleRequestDTO
     ) -> list[ColumnElement[bool]]:
+        """Преобразует DTO фильтрации в список WHERE-условий для `couple_requests`.
+
+        Начинает с базовых условий через `_get_where_clauses()`, затем
+        добавляет условия по заполненным полям `filter_dto`.
+
+        Parameters
+        ----------
+        filter_dto : FilterOneCoupleRequestDTO
+            DTO с полями фильтрации. Поддерживает `id`, `initiator_id`,
+            `recipient_id` и `status`.
+
+        Returns
+        -------
+        list[ColumnElement[bool]]
+            Список WHERE-условий, готовый для передачи в `_build_read_statement`
+            или непосредственно в `.where(*clauses)`.
+        """
         where_clauses = cls._get_where_clauses()
 
         if is_set(filter_dto.id):
@@ -175,33 +202,10 @@ class CoupleRequestRepository(
         return where_clauses
 
     @classmethod
-    def _filter_many_to_clauses(
-        cls, filter_dto: FilterManyCoupleRequestsDTO
-    ) -> list[ColumnElement[bool]]:
-        where_clauses = cls._get_where_clauses()
-
-        if is_set(filter_dto.ids):
-            where_clauses.append(couple_requests_table.c.id.in_(filter_dto.ids))
-        if is_set(filter_dto.initiator_ids):
-            where_clauses.append(
-                couple_requests_table.c.initiator_id.in_(filter_dto.initiator_ids)
-            )
-        if is_set(filter_dto.recipient_ids):
-            where_clauses.append(
-                couple_requests_table.c.recipient_id.in_(filter_dto.recipient_ids)
-            )
-        if is_set(filter_dto.statuses):
-            where_clauses.append(
-                couple_requests_table.c.status.in_(filter_dto.statuses)
-            )
-
-        return where_clauses
-
-    @classmethod
     def _build_read_statement(cls, *where_clauses: ColumnElement[bool]) -> Select[Any]:
         """Строит SELECT-запрос для чтения запроса с обоими участниками.
 
-        Применяет фильтры из `filter_dto`, затем выполняет join `users_table`
+        Принимает готовые WHERE-условия и выполняет JOIN `users_table`
         (алиасы `initiators_table` и `recipients_table`) для получения
         инициатора и реципиента.
 
@@ -235,9 +239,41 @@ class CoupleRequestRepository(
             .where(*where_clauses)
         )
 
+    async def read_one(
+        self, filter_dto: FilterOneCoupleRequestDTO, access_ctx: AccessContext
+    ) -> CoupleRequestDTO | None:
+        """Не поддерживается для данной сущности.
+
+        Не предусмотрено чтение данных одного запроса без его блокировки,
+        т.к. не существует пользовательского сценария просмотра одного
+        отдельного запроса.
+        """
+        raise NotImplementedError(
+            "Method 'create_many' is not implemented in CoupleRequestRepository"
+        )
+
     async def read_one_for_update(
         self, filter_dto: FilterOneCoupleRequestDTO, access_ctx: AccessContext
     ) -> CoupleRequestDTO | None:
+        """Возвращает запрос на пару с блокировкой строки для последующего изменения.
+
+        Делегирует построение запроса в `_build_read_statement`.
+        Устанавливает `SELECT ... FOR UPDATE` - строка блокируется
+        до завершения транзакции. Должен вызываться внутри транзакции.
+
+        Parameters
+        ----------
+        filter_dto : FilterOneCoupleRequestDTO
+            DTO с полями фильтрации.
+        access_ctx : AccessContext
+            Контекст доступа. Игнорируется.
+
+        Returns
+        -------
+        CoupleRequestDTO | None
+            Найденный запрос на пару с вложенными DTO инициатора и реципиента
+            или None, если ни один запрос не соответствует фильтрам.
+        """
         _ = access_ctx
 
         result = await self.connection.execute(
@@ -299,7 +335,22 @@ class CoupleRequestRepository(
         """
         _ = access_ctx
 
-        where_clauses = self._filter_many_to_clauses(filter_dto)
+        where_clauses = self._get_where_clauses()
+
+        if is_set(filter_dto.ids):
+            where_clauses.append(couple_requests_table.c.id.in_(filter_dto.ids))
+        if is_set(filter_dto.initiator_ids):
+            where_clauses.append(
+                couple_requests_table.c.initiator_id.in_(filter_dto.initiator_ids)
+            )
+        if is_set(filter_dto.recipient_ids):
+            where_clauses.append(
+                couple_requests_table.c.recipient_id.in_(filter_dto.recipient_ids)
+            )
+        if is_set(filter_dto.statuses):
+            where_clauses.append(
+                couple_requests_table.c.status.in_(filter_dto.statuses)
+            )
 
         result, total = await asyncio.gather(
             self.connection.execute(
@@ -336,23 +387,24 @@ class CoupleRequestRepository(
         update_dto: UpdateCoupleRequestDTO,
         access_ctx: AccessContext,
     ) -> bool:
-        """Обновляет запрос на создание пары по его идентификатору.
+        """Обновляет запрос на создание пары по фильтрам.
 
-        Применяет переданные изменения к записи в `couple_requests`
-        и возвращает подтверждение успешности операции.
+        Если запись не найдена - возвращает `False`, делегируя
+        решение об ошибке вышестоящему слою.
 
         Parameters
         ----------
-        record_id : UUID
-            Идентификатор обновляемого запроса.
+        filter_dto : FilterOneCoupleRequestDTO
+            DTO с полями фильтрации для поиска обновляемой записи.
         update_dto : UpdateCoupleRequestDTO
             DTO с обновляемыми полями.
+        access_ctx : AccessContext
+            Контекст доступа. Игнорируется.
 
         Returns
         -------
-        CoupleRequestDTO | None
-            Обновлённый запрос на пару с вложенными DTO инициатора и реципиента
-            или None, если запрос не найден.
+        bool
+            True если запрос найден и успешно обновлён.
         """
         _ = access_ctx
 
@@ -363,3 +415,18 @@ class CoupleRequestRepository(
         )
 
         return result.rowcount == 1
+
+    async def update_many(
+        self,
+        filter_dto: FilterManyCoupleRequestsDTO,
+        update_dto: UpdateCoupleRequestDTO,
+        access_ctx: AccessContext,
+    ) -> int:
+        """Не поддерживается для данной сущности.
+
+        Не предусмотрено обновление множества запросов за одну транзакцию,
+        т.к. один пользователь не может состоять более чем в одной паре.
+        """
+        raise NotImplementedError(
+            "Method 'update_many' is not implemented in CoupleRepository"
+        )

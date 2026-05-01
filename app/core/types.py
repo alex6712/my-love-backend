@@ -88,12 +88,6 @@ def is_set(field: T | Unset) -> TypeIs[T]:
         `True`, если значение поля не является экземпляром `Unset`,
         то есть было явно передано (включая `None`).
         `False`, если поле содержит `UNSET` - значение не было передано.
-
-    Examples
-    --------
-    >>> dto = FilterOneCoupleDTO(couple_id=some_uuid)
-    >>> dto.is_set(dto.couple_id)
-    True
     """
     return not isinstance(field, Unset)
 
