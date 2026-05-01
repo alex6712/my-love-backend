@@ -58,6 +58,8 @@ class BaseFilterDTO(BaseDTO):
     отличать «поле не передано» от «поле передано как None».
     """
 
+    pass
+
 
 class BaseFilterOneDTO(BaseFilterDTO):
     """Базовый DTO для фильтрации одиночной записи.
@@ -110,10 +112,12 @@ class BaseFilterOneDTO(BaseFilterDTO):
         ]
         if not unique_fields:
             raise TypeError(f"{type(self).__name__}: no fields marked as UNIQUE")
+
         if not any(getattr(self, name) for name in unique_fields):
             raise ValueError(
                 f"{type(self).__name__}: at least one unique field must be set: {unique_fields}"
             )
+
         return self
 
 

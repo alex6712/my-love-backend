@@ -122,14 +122,13 @@ class CoupleService:
             raise UserNotFoundException(
                 detail=f"User with username={recipient_username} not found."
             )
-        recipient_id = recipient_user.id
 
         first_couple, second_couple = await asyncio.gather(
             *[
                 self._couple_repo.read_one(
                     FilterOneCoupleDTO(user_id=user_id), PublicAccessContext()
                 )
-                for user_id in (initiator_id, recipient_id)
+                for user_id in (initiator_id, recipient_user.id)
             ],
         )
 
@@ -143,7 +142,7 @@ class CoupleService:
         await self._couple_request_repo.create_one(
             CreateCoupleRequestDTO(
                 initiator_id=initiator_id,
-                recipient_id=recipient_id,
+                recipient_id=recipient_user.id,
                 status=CoupleRequestStatus.PENDING,
                 accepted_at=None,
             )
