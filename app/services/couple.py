@@ -175,7 +175,7 @@ class CoupleService:
             filter_dto := FilterOneCoupleRequestDTO(
                 id=couple_request_id,
                 recipient_id=user_id,
-                status=CoupleRequestStatus.PENDING,
+                statuses=[CoupleRequestStatus.PENDING],
             ),
             PublicAccessContext(),
         )
@@ -230,7 +230,7 @@ class CoupleService:
             FilterOneCoupleRequestDTO(
                 id=couple_request_id,
                 recipient_id=user_id,
-                status=CoupleRequestStatus.PENDING,
+                statuses=[CoupleRequestStatus.PENDING],
             ),
             UpdateCoupleRequestDTO(status=CoupleRequestStatus.DECLINED),
             PublicAccessContext(),
@@ -295,7 +295,7 @@ class CoupleService:
             raise NothingToUpdateException(detail="No fields provided for update.")
 
         if not await self._couple_repo.update_one(
-            FilterOneCoupleDTO(couple_id=couple_id, user_id=user_id),
+            FilterOneCoupleDTO(id=couple_id, user_id=user_id),
             update_dto,
             PublicAccessContext(),
         ):

@@ -1,16 +1,41 @@
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Iterable, Sequence, TypeVar
+from collections.abc import Collection
+from typing import Any, Generic, Iterable, Sequence, TypeVar, cast
 from uuid import UUID
 
 from pydantic import BaseModel
-from sqlalchemy import Column, FromClause, Label, RowMapping, Select, func, select, true
+from sqlalchemy import (
+    Column,
+    FromClause,
+    Label,
+    RowMapping,
+    Select,
+    Table,
+    func,
+    select,
+    true,
+)
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.sql.elements import ColumnElement, UnaryExpression
 
 from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET
 from app.core.enums import SortOrder
+from app.core.filtering import (
+    EQ,
+    IN,
+    ColumnAlias,
+    EqOp,
+    FilterOp,
+    GteOp,
+    InOp,
+    IsNullOp,
+    LikeOp,
+    LteOp,
+)
+from app.core.types import is_set
 from app.schemas.dto.base import (
     BaseCreateDTO,
+    BaseFilterDTO,
     BaseFilterManyDTO,
     BaseFilterOneDTO,
     BaseSQLCoreDTO,
@@ -247,6 +272,124 @@ class RepositoryInterface(ABC):
             Пустой список - базовая реализация не накладывает ограничений.
         """
         return []
+
+    @staticmethod
+    def _build_filter_clauses(
+        filter_dto: BaseFilterDTO, table: Table
+    ) -> list[ColumnElement[bool]]:
+        """Преобразует filter DTO в список WHERE-условий SQLAlchemy.
+
+        Читает метаданные полей DTO из `Annotated`-аннотаций и строит
+        соответствующие выражения SQLAlchemy Core. Поля со значением `UNSET`
+        пропускаются. Оператор определяется маркером `FilterOp` в метаданных;
+        если маркер отсутствует - выбирается дефолтный по типу значения:
+        `IN` для списков, `EQ` для скаляров.
+
+        Parameters
+        ----------
+        filter_dto : BaseFilterDTO
+            DTO с критериями фильтрации. Поддерживает `BaseFilterOneDTO`
+            и `BaseFilterManyDTO`.
+        table : Table
+            Таблица SQLAlchemy Core, по которой строятся условия.
+            Колонки разрешаются через `table.c`.
+
+        Returns
+        -------
+        list[ColumnElement[bool]]
+            Список WHERE-условий для передачи в `.where(*clauses)`.
+            Пустой список означает отсутствие фильтров.
+
+        Raises
+        ------
+        AttributeError
+            Если имя поля DTO (или псевдоним из `ColumnAlias`) не соответствует
+            ни одной колонке в переданной таблице.
+        NotImplementedError
+            Если в метаданных поля обнаружен неизвестный подкласс `FilterOp`.
+
+        Notes
+        -----
+        Маркеры читаются из `field_info.metadata` в порядке объявления.
+        Берётся первый найденный экземпляр `FilterOp` и первый `ColumnAlias`.
+
+        Examples
+        --------
+        >>> clauses = self._build_filter_clauses(filter_dto, users_table)
+        >>> query = select(users_table).where(*clauses)
+        """
+        clauses: list[ColumnElement[bool]] = []
+
+        for field_name, field_info in type(filter_dto).model_fields.items():
+            if not is_set(value := getattr(filter_dto, field_name)):
+                continue
+
+            metadata = field_info.metadata
+
+            alias = next(
+                (m.name for m in metadata if isinstance(m, ColumnAlias)), field_name
+            )
+            op = next((m for m in metadata if isinstance(m, FilterOp)), None)
+
+            column = table.c[alias]
+            clause = RepositoryInterface.__resolve_clause(column, op, value)
+            clauses.append(clause)
+
+        return clauses
+
+    @staticmethod
+    def __resolve_clause(
+        column: ColumnElement[Any],
+        op: FilterOp | None,
+        value: Any,
+    ) -> ColumnElement[bool]:
+        """Строит одно WHERE-условие по колонке, оператору и значению.
+
+        Parameters
+        ----------
+        column : ColumnElement[Any]
+            Колонка SQLAlchemy, по которой строится условие.
+        op : FilterOp | None
+            Маркер оператора из метаданных поля.
+            Если `None` - оператор выбирается по типу `value`.
+        value : Any
+            Значение фильтра. Не может быть `Unset`.
+
+        Returns
+        -------
+        ColumnElement[bool]
+            Готовое выражение для WHERE.
+
+        Raises
+        ------
+        NotImplementedError
+            Если передан неизвестный подкласс `FilterOp`.
+        """
+        if op is None:
+            op = IN if isinstance(value, Collection) else EQ
+
+        match op:
+            case EqOp():
+                return column == value
+            case InOp():
+                return column.in_(
+                    cast(
+                        Collection[Any],
+                        value if isinstance(value, Collection) else [value],
+                    )
+                )
+            case LikeOp():
+                return column.ilike(f"%{value}%")
+            case GteOp():
+                return column >= value
+            case LteOp():
+                return column <= value
+            case IsNullOp():
+                return column.is_(None) if value else column.is_not(None)
+            case _:
+                raise NotImplementedError(
+                    f"Unknown filter operator: {type(op).__name__}"
+                )
 
 
 class Creator(RepositoryInterface, Generic[CreateDTO]):

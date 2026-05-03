@@ -1,4 +1,4 @@
-from typing import Any, Literal, TypeIs, TypeVar
+from typing import Any, Literal, Self, TypeIs, TypeVar
 
 from pydantic_core import core_schema
 
@@ -31,7 +31,7 @@ class Unset:
 
     _instance = None
 
-    def __new__(cls) -> "Unset":
+    def __new__(cls) -> Self:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
 

@@ -3,6 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 from app.core.enums import CoupleRequestStatus
+from app.core.filtering import ColumnAlias
 from app.core.types import UNIQUE, UNSET, Maybe
 from app.schemas.dto.base import (
     BaseCreateDTO,
@@ -74,19 +75,19 @@ class FilterOneCoupleRequestDTO(BaseFilterOneDTO):
 
     initiator_id: Maybe[UUID] = UNSET
     recipient_id: Maybe[UUID] = UNSET
-    status: Maybe[CoupleRequestStatus] = UNSET
+    statuses: Annotated[Maybe[list[CoupleRequestStatus]], ColumnAlias("status")] = UNSET
 
 
 class FilterOneCoupleDTO(BaseFilterOneDTO):
     """DTO для поиска одной записи пары по идентификатору пары или пользователя.
 
-    Требует передачи хотя бы одного из уникальных полей: `couple_id` или
+    Требует передачи хотя бы одного из уникальных полей: `id` или
     `user_id`. Используется в сервисах, где пару можно найти как по её
     собственному идентификатору, так и по идентификатору одного из участников.
 
     Attributes
     ----------
-    couple_id : Maybe[UUID]
+    id : Maybe[UUID]
         Идентификатор пары. Является уникальным полем - достаточно передать
         только его для однозначного нахождения записи.
     user_id : Maybe[UUID]
@@ -94,14 +95,14 @@ class FilterOneCoupleDTO(BaseFilterOneDTO):
         полем - достаточно передать только его для однозначного нахождения записи.
     """
 
-    couple_id: Annotated[Maybe[UUID], UNIQUE] = UNSET
+    id: Annotated[Maybe[UUID], UNIQUE, ColumnAlias("couple_id")] = UNSET
     user_id: Annotated[Maybe[UUID], UNIQUE] = UNSET
 
 
 class FilterManyCoupleRequestsDTO(BaseFilterManyDTO):
     """DTO для фильтрации множества запросов на пару.
 
-    Все поля опциональны — пустой DTO возвращает все записи.
+    Все поля опциональны - пустой DTO возвращает все записи.
     При передаче нескольких полей условия комбинируются через AND.
 
     Attributes
@@ -116,10 +117,10 @@ class FilterManyCoupleRequestsDTO(BaseFilterManyDTO):
         Список статусов запросов.
     """
 
-    ids: Maybe[list[UUID]] = UNSET
-    initiator_ids: Maybe[list[UUID]] = UNSET
-    recipient_ids: Maybe[list[UUID]] = UNSET
-    statuses: Maybe[list[CoupleRequestStatus]] = UNSET
+    ids: Annotated[Maybe[list[UUID]], ColumnAlias("id")] = UNSET
+    initiator_ids: Annotated[Maybe[list[UUID]], ColumnAlias("initiator_id")] = UNSET
+    recipient_ids: Annotated[Maybe[list[UUID]], ColumnAlias("recipient_id")] = UNSET
+    statuses: Annotated[Maybe[list[CoupleRequestStatus]], ColumnAlias("status")] = UNSET
 
 
 class CreateCoupleRequestDTO(BaseCreateDTO):

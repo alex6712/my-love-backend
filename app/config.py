@@ -1,5 +1,6 @@
 from functools import lru_cache
 from os.path import abspath
+from typing import Self
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ec import (
@@ -161,7 +162,7 @@ class Settings(BaseSettings):
     PUBLIC_SIGNATURE_KEY: SkipValidation[EllipticCurvePublicKey] = None  # type: ignore
 
     @model_validator(mode="after")
-    def load_keys(self) -> "Settings":
+    def load_keys(self) -> Self:
         """Загружает приватный и публичный ключи после инициализации модели"""
         public_key_path = abspath("keys/public_key.pem")
 

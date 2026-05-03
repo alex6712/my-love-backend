@@ -55,7 +55,7 @@ class BaseFilterDTO(BaseDTO):
     Notes
     -----
     Поля фильтра по умолчанию должны иметь значение `UNSET`, чтобы
-    отличать «поле не передано» от «поле передано как None».
+    отличать "поле не передано" от "поле передано как None".
     """
 
     pass
@@ -115,7 +115,7 @@ class BaseFilterOneDTO(BaseFilterDTO):
         if not unique_fields:
             raise TypeError(f"{class_.__name__}: no fields marked as UNIQUE")
 
-        if not any(getattr(self, name) for name in unique_fields):
+        if all(isinstance(getattr(self, name), Unset) for name in unique_fields):
             raise ValueError(
                 f"{class_.__name__}: at least one unique field must be set: {unique_fields}"
             )

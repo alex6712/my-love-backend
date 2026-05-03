@@ -1,3 +1,5 @@
+from typing import Self
+
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.validators import ValidatedPassword, ValidatedUsername
@@ -68,7 +70,7 @@ class ChangePasswordRequest(BaseModel):
     )
 
     @model_validator(mode="after")
-    def passwords_match(self) -> "ChangePasswordRequest":
+    def passwords_match(self) -> Self:
         """Проверяет совпадение нового пароля и его подтверждения."""
         if self.new_password != self.confirm_password:
             raise ValueError("Passwords do not match")

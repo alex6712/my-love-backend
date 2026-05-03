@@ -19,7 +19,6 @@ from app.core.exceptions.couple import (
     CoupleNotSelfException,
     CoupleRequestAlreadyExistsException,
 )
-from app.core.types import is_set
 from app.infra.postgres.tables.couple_requests import couple_requests_table
 from app.infra.postgres.tables.users import users_table
 from app.repositories.interface import AccessContext, Creator, Reader, Updater
@@ -164,44 +163,6 @@ class CoupleRequestRepository(
         )
 
     @classmethod
-    def _filter_one_to_clauses(
-        cls, filter_dto: FilterOneCoupleRequestDTO
-    ) -> list[ColumnElement[bool]]:
-        """Преобразует DTO фильтрации в список WHERE-условий для `couple_requests`.
-
-        Начинает с базовых условий через `_get_where_clauses()`, затем
-        добавляет условия по заполненным полям `filter_dto`.
-
-        Parameters
-        ----------
-        filter_dto : FilterOneCoupleRequestDTO
-            DTO с полями фильтрации. Поддерживает `id`, `initiator_id`,
-            `recipient_id` и `status`.
-
-        Returns
-        -------
-        list[ColumnElement[bool]]
-            Список WHERE-условий, готовый для передачи в `_build_read_statement`
-            или непосредственно в `.where(*clauses)`.
-        """
-        where_clauses = cls._get_where_clauses()
-
-        if is_set(filter_dto.id):
-            where_clauses.append(couple_requests_table.c.id == filter_dto.id)
-        if is_set(filter_dto.initiator_id):
-            where_clauses.append(
-                couple_requests_table.c.initiator_id == filter_dto.initiator_id
-            )
-        if is_set(filter_dto.recipient_id):
-            where_clauses.append(
-                couple_requests_table.c.recipient_id == filter_dto.recipient_id
-            )
-        if is_set(filter_dto.status):
-            where_clauses.append(couple_requests_table.c.status == filter_dto.status)
-
-        return where_clauses
-
-    @classmethod
     def _build_read_statement(cls, *where_clauses: ColumnElement[bool]) -> Select[Any]:
         """Строит SELECT-запрос для чтения запроса с обоими участниками.
 
@@ -278,7 +239,7 @@ class CoupleRequestRepository(
 
         result = await self.connection.execute(
             self._build_read_statement(
-                *self._filter_one_to_clauses(filter_dto)
+                *self._build_filter_clauses(filter_dto, couple_requests_table)
             ).with_for_update()
         )
 
@@ -335,22 +296,7 @@ class CoupleRequestRepository(
         """
         _ = access_ctx
 
-        where_clauses = self._get_where_clauses()
-
-        if is_set(filter_dto.ids):
-            where_clauses.append(couple_requests_table.c.id.in_(filter_dto.ids))
-        if is_set(filter_dto.initiator_ids):
-            where_clauses.append(
-                couple_requests_table.c.initiator_id.in_(filter_dto.initiator_ids)
-            )
-        if is_set(filter_dto.recipient_ids):
-            where_clauses.append(
-                couple_requests_table.c.recipient_id.in_(filter_dto.recipient_ids)
-            )
-        if is_set(filter_dto.statuses):
-            where_clauses.append(
-                couple_requests_table.c.status.in_(filter_dto.statuses)
-            )
+        where_clauses = self._build_filter_clauses(filter_dto, couple_requests_table)
 
         result, total = await asyncio.gather(
             self.connection.execute(
@@ -411,7 +357,7 @@ class CoupleRequestRepository(
         result = await self.connection.execute(
             update(couple_requests_table)
             .values(**update_dto.to_update_values())
-            .where(*self._filter_one_to_clauses(filter_dto))
+            .where(*self._build_filter_clauses(filter_dto, couple_requests_table))
         )
 
         return result.rowcount == 1
