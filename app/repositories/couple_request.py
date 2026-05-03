@@ -249,7 +249,7 @@ class CoupleRequestRepository(
         отдельного запроса.
         """
         raise NotImplementedError(
-            "Method 'create_many' is not implemented in CoupleRequestRepository"
+            "Method 'read_one' is not implemented in CoupleRequestRepository"
         )
 
     async def read_one_for_update(

@@ -105,17 +105,19 @@ class BaseFilterOneDTO(BaseFilterDTO):
         ValueError
             Если все уникальные поля содержат `UNSET`.
         """
+        class_ = type(self)
+
         unique_fields = [
             name
-            for name, field_info in type(self).model_fields.items()
+            for name, field_info in class_.model_fields.items()
             if any(isinstance(m, UniqueField) for m in field_info.metadata)
         ]
         if not unique_fields:
-            raise TypeError(f"{type(self).__name__}: no fields marked as UNIQUE")
+            raise TypeError(f"{class_.__name__}: no fields marked as UNIQUE")
 
         if not any(getattr(self, name) for name in unique_fields):
             raise ValueError(
-                f"{type(self).__name__}: at least one unique field must be set: {unique_fields}"
+                f"{class_.__name__}: at least one unique field must be set: {unique_fields}"
             )
 
         return self
