@@ -184,15 +184,14 @@ class CoupleService:
                 detail=f"Failed to accept pending couple request with id={couple_request_id}.",
             )
 
-        updated = await self._couple_request_repo.update_one(
+        if not await self._couple_request_repo.update_one(
             filter_dto,
             UpdateCoupleRequestDTO(
                 status=CoupleRequestStatus.ACCEPTED,
                 accepted_at=datetime.now(timezone.utc),
             ),
             PublicAccessContext(),
-        )
-        if not updated:
+        ):
             raise CoupleRequestNotFoundException(
                 detail=f"Failed to accept pending couple request with id={couple_request_id}.",
             )
@@ -226,7 +225,7 @@ class CoupleService:
         CoupleRequestNotFoundException
             Если запрос с переданным UUID не найден в запросах к текущему пользователю.
         """
-        updated = await self._couple_request_repo.update_one(
+        if not await self._couple_request_repo.update_one(
             FilterOneCoupleRequestDTO(
                 id=couple_request_id,
                 recipient_id=user_id,
@@ -234,8 +233,7 @@ class CoupleService:
             ),
             UpdateCoupleRequestDTO(status=CoupleRequestStatus.DECLINED),
             PublicAccessContext(),
-        )
-        if not updated:
+        ):
             raise CoupleRequestNotFoundException(
                 detail=f"Couple request with id={couple_request_id} not found.",
             )
