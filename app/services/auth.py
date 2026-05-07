@@ -41,7 +41,7 @@ from app.schemas.dto.token import Tokens
 from app.schemas.dto.user import CreateUserDTO, FilterOneUserDTO, UpdateUserDTO
 from app.schemas.dto.user_session import (
     CreateUserSessionDTO,
-    FilterUserSessionDTO,
+    FilterOneUserSessionDTO,
     UpdateUserSessionDTO,
 )
 
@@ -160,7 +160,7 @@ class AuthService:
             user.id, current_time, session_id := uuid4(), exp=expires_at
         )
 
-        await self._user_session_repo.create(
+        await self._user_session_repo.create_one(
             CreateUserSessionDTO(
                 id=session_id,
                 user_id=user.id,
@@ -217,10 +217,6 @@ class AuthService:
 
         payload = self._validate_token(refresh_token, "refresh")
 
-        couple = await self._couple_repo.read_one(
-            FilterOneCoupleDTO(user_id=payload.sub), PublicAccessContext()
-        )
-
         current_time = datetime.now(timezone.utc)
         expires_at = current_time + timedelta(
             days=self._settings.REFRESH_TOKEN_LIFETIME_DAYS
@@ -231,20 +227,24 @@ class AuthService:
         )
 
         # атомарное обновление хэша токена обновления
-        updated = await self._user_session_repo.update_filtered(
-            FilterUserSessionDTO(refresh_token_hash=hash_token(refresh_token)),
+        updated = await self._user_session_repo.update_one(
+            FilterOneUserSessionDTO(refresh_token_hash=hash_token(refresh_token)),
             UpdateUserSessionDTO(
                 refresh_token_hash=hash_token(new_refresh_token),
                 expires_at=expires_at,
                 last_used_at=current_time,
             ),
+            PublicAccessContext(),
         )
-
         if not updated:
             raise InvalidTokenException(
                 detail="There's no active session which token hash equals passed one's hash.",
                 token_type="refresh",
             )
+
+        couple = await self._couple_repo.read_one(
+            FilterOneCoupleDTO(user_id=payload.sub), PublicAccessContext()
+        )
 
         return Tokens(
             access=create_jwt(
@@ -303,7 +303,9 @@ class AuthService:
                 jti=payload.jti, ttl=ttl, token_type=token_type
             )
 
-        await self._user_session_repo.delete(payload.session_id)
+        await self._user_session_repo.delete_one(
+            FilterOneUserSessionDTO(id=payload.session_id), PublicAccessContext()
+        )
 
     async def logout(self, payload: AccessTokenPayload) -> None:
         """Завершает текущую сессию пользователя.

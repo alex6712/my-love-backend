@@ -1,10 +1,13 @@
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
-from app.core.types import UNSET, Maybe
+from app.core.filtering import ColumnAlias
+from app.core.types import UNIQUE, UNSET, Maybe
 from app.schemas.dto.base import (
     BaseCreateDTO,
-    BaseFilterDTO,
+    BaseFilterManyDTO,
+    BaseFilterOneDTO,
     BaseSQLCoreDTO,
     BaseUpdateDTO,
 )
@@ -31,22 +34,53 @@ class UserSessionDTO(BaseSQLCoreDTO):
     last_used_at: datetime
 
 
-class FilterUserSessionDTO(BaseFilterDTO):
-    """DTO для фильтрации пользовательских сессий.
+class FilterOneUserSessionDTO(BaseFilterOneDTO):
+    """DTO для поиска одной записи сессии пользователя.
+
+    Требует передачи хотя бы одного из уникальных полей: `id` или `refresh_token_hash`.
+    Используется в сервисах, где сессию можно найти по её идентификатору или по уникальному
+    хэшу рефреш-токена.
 
     Attributes
     ----------
     id : Maybe[UUID]
-        Идентификатор сессии.
-    user_id : Maybe[UUID]
-        Идентификатор пользователя, которому принадлежит сессия.
+        Идентификатор сессии. Является уникальным полем - достаточно передать только его
+        для однозначного нахождения записи.
     refresh_token_hash : Maybe[str]
-        Хэш refresh-токена сессии.
+        Хэш рефреш-токена. Является уникальным полем - достаточно передать только его
+        для однозначного нахождения записи.
+    user_id : Maybe[UUID]
+        Идентификатор пользователя, к которому относится сессия. Не является уникальным
+        для поиска одной записи, но может использоваться для дополнительной фильтрации.
     """
 
-    id: Maybe[UUID] = UNSET
+    id: Annotated[Maybe[UUID], UNIQUE] = UNSET
+    refresh_token_hash: Annotated[Maybe[str], UNIQUE] = UNSET
+
     user_id: Maybe[UUID] = UNSET
-    refresh_token_hash: Maybe[str] = UNSET
+
+
+class FilterManyUserSessionsDTO(BaseFilterManyDTO):
+    """DTO для фильтрации множества сессий пользователей.
+
+    Все поля опциональны — пустой DTO возвращает все записи.
+    При передаче нескольких полей условия комбинируются через AND.
+
+    Attributes
+    ----------
+    ids : Maybe[list[UUID]]
+        Список идентификаторов сессий.
+    user_ids : Maybe[list[UUID]]
+        Список идентификаторов пользователей.
+    refresh_token_hashes : Maybe[list[str]]
+        Список хэшей рефреш-токенов.
+    """
+
+    ids: Annotated[Maybe[list[UUID]], ColumnAlias("id")] = UNSET
+    user_ids: Annotated[Maybe[list[UUID]], ColumnAlias("user_id")] = UNSET
+    refresh_token_hashes: Annotated[
+        Maybe[list[str]], ColumnAlias("refresh_token_hash")
+    ] = UNSET
 
 
 class CreateUserSessionDTO(BaseCreateDTO):

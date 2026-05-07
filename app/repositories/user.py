@@ -105,7 +105,8 @@ class UserRepository(
         Returns
         -------
         UserWithCredentialsDTO | None
-            DTO записи пользователя, None - если пользователь с таким UUID не найден.
+            DTO записи пользователя, None - если пользователь по заданному фильтру
+            не найден.
         """
         result = await self.connection.execute(
             select(users_table).where(

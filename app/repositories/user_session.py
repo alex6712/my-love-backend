@@ -1,29 +1,25 @@
-from uuid import UUID
+from typing import Sequence
 
 from sqlalchemy import delete, insert, select, update
 
+from app.core.consts import DEFAULT_LIMIT, DEFAULT_OFFSET
+from app.core.enums import SortOrder
 from app.infra.postgres.tables.user_sessions import user_sessions_table
-from app.repositories.interface import (
-    CreateMixin,
-    DeleteMixin,
-    FilteredUpdateMixin,
-    ReadOneMixin,
-    RepositoryInterface,
-)
+from app.repositories.interface import AccessContext, Creator, Deleter, Reader, Updater
 from app.schemas.dto.user_session import (
     CreateUserSessionDTO,
-    FilterUserSessionDTO,
+    FilterManyUserSessionsDTO,
+    FilterOneUserSessionDTO,
     UpdateUserSessionDTO,
     UserSessionDTO,
 )
 
 
 class UserSessionRepository(
-    RepositoryInterface,
-    CreateMixin[CreateUserSessionDTO, UserSessionDTO],
-    ReadOneMixin[UserSessionDTO],
-    FilteredUpdateMixin[FilterUserSessionDTO, UpdateUserSessionDTO, UserSessionDTO],
-    DeleteMixin[UserSessionDTO],
+    Creator[CreateUserSessionDTO],
+    Reader[FilterOneUserSessionDTO, FilterManyUserSessionsDTO, UserSessionDTO],
+    Updater[FilterOneUserSessionDTO, FilterManyUserSessionsDTO, UpdateUserSessionDTO],
+    Deleter[FilterOneUserSessionDTO, FilterManyUserSessionsDTO],
 ):
     """Репозиторий для управления пользовательскими сессиями.
 
@@ -32,17 +28,21 @@ class UserSessionRepository(
 
     Methods
     -------
-    create(create_dto)
+    create_one(create_dto)
         Создаёт новую пользовательскую сессию.
-    get_one(record_id)
-        Возвращает DTO пользовательской сессии по её идентификатору.
-    update_by_refresh_token_hash(refresh_token_hash, update_dto)
-        Обновляет данные сессии по хэшу токена обновления.
-    delete(record_id)
-        Удаляет сессию по её идентификатору.
+    read_one(filter_dto, access_ctx)
+        Возвращает DTO пользовательской сессии или None, если запись не найдена.
+    update_one(filter_dto, update_dto, access_ctx)
+        Обновляет данные пользовательской сессии.
+    update_many(filter_dto, update_dto, access_ctx)
+        Обновляет данные множества пользовательских сессий.
+    delete_one(filter_dto, access_ctx)
+        Удаляет запись о пользовательской сессии из базы данных.
+    delete_many(filter_dto, access_ctx)
+        Удаляет множество записей о пользовательских сессиях из базы данных.
     """
 
-    async def create(self, create_dto: CreateUserSessionDTO) -> UserSessionDTO:
+    async def create_one(self, create_dto: CreateUserSessionDTO) -> bool:
         """Создаёт новую пользовательскую сессию.
 
         Parameters
@@ -52,32 +52,48 @@ class UserSessionRepository(
 
         Returns
         -------
-        UserSessionDTO
-            Доменное DTO пользовательской сессии.
+        bool
+            True если пользовательская сессия успешно создана.
         """
         result = await self.connection.execute(
-            insert(user_sessions_table)
-            .values(**create_dto.to_create_values())
-            .returning(user_sessions_table)
+            insert(user_sessions_table).values(**create_dto.to_create_values())
         )
 
-        return UserSessionDTO.model_validate(result.mappings().one())
+        return result.rowcount == 1
 
-    async def get_one(self, record_id: UUID) -> UserSessionDTO | None:
-        """Возвращает DTO пользовательской сессии по её идентификатору.
+    async def create_many(self, create_dtos: Sequence[CreateUserSessionDTO]) -> int:
+        """Не поддерживается для данной сущности.
+
+        Не предусмотрено создание множества сессий за одну транзакцию,
+        т.к. на каждый пользовательский логин создаётся только одна сессия.
+        """
+        raise NotImplementedError(
+            "Method 'create_many' is not implemented in UserSessionRepository"
+        )
+
+    async def read_one(
+        self, filter_dto: FilterOneUserSessionDTO, access_ctx: AccessContext
+    ) -> UserSessionDTO | None:
+        """Возвращает DTO пользовательской сессии.
 
         Parameters
         ----------
-        record_id : UUID
-            Идентификатор пользовательской сессии.
+        filter_dto : FilterOneUserSessionDTO
+            Параметры фильтрации.
+        access_ctx : AccessContext
+            Контекст доступа.
 
         Returns
         -------
         UserSessionDTO | None
-            Доменное DTO записи сессии, None - если сессия с таким UUID не найдена.
+            Доменное DTO записи сессии, None - если сессия по заданному фильтру
+            не найдена.
         """
         result = await self.connection.execute(
-            select(user_sessions_table).where(user_sessions_table.c.id == record_id)
+            select(user_sessions_table).where(
+                *self._build_filter_clauses(filter_dto, user_sessions_table),
+                access_ctx.as_where_clause(user_sessions_table),
+            )
         )
 
         if not (row := result.mappings().first()):
@@ -85,71 +101,150 @@ class UserSessionRepository(
 
         return UserSessionDTO.model_validate(row)
 
-    async def update_filtered(
-        self,
-        filter_dto: FilterUserSessionDTO,
-        update_dto: UpdateUserSessionDTO,
+    async def read_one_for_update(
+        self, filter_dto: FilterOneUserSessionDTO, access_ctx: AccessContext
     ) -> UserSessionDTO | None:
-        """Обновляет данные сессии по хэшу токена обновления.
+        """Не поддерживается для данной сущности.
 
-        Используется при ротации refresh-токена - заменяет хэш токена,
-        обновляет время истечения и последнего использования сессии.
+        Не предусмотрено чтение данных сессии с блокировкой строки,
+        т.к. не существует сценария получения дополнительных данных перед обновлением.
+        """
+        raise NotImplementedError(
+            "Method 'read_one_for_update' is not implemented in UserSessionRepository"
+        )
+
+    async def read_many(
+        self,
+        filter_dto: FilterManyUserSessionsDTO,
+        access_ctx: AccessContext,
+        *,
+        offset: int = DEFAULT_OFFSET,
+        limit: int = DEFAULT_LIMIT,
+        sort_order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[UserSessionDTO], int]:
+        """Не поддерживается для данной сущности.
+
+        Не предусмотрено чтение данных множества сессий,
+        т.к. пока не существует страницы просмотра открытых сессий.
+        """
+        raise NotImplementedError(
+            "Method 'read_many' is not implemented in UserSessionRepository"
+        )
+
+    async def update_one(
+        self,
+        filter_dto: FilterOneUserSessionDTO,
+        update_dto: UpdateUserSessionDTO,
+        access_ctx: AccessContext,
+    ) -> bool:
+        """Обновляет данные пользовательской сессии.
 
         Parameters
         ----------
-        old_refresh_token_hash : str
-            Хэш текущего refresh-токена, по которому ищется сессия.
-        new_refresh_token_hash : str
-            Хэш нового refresh-токена, который заменит старый.
-        expires_at : datetime
-            Новое время истечения сессии.
-        last_used_at : datetime
-            Время последнего использования сессии.
+        filter_dto : FilterOneUserDTO
+            Параметры фильтрации.
+        update_dto : UpdateUserDTO
+            Новые данные пользовательской сессии.
+        access_ctx : AccessContext
+            Контекст доступа.
 
         Returns
         -------
         bool
-            `True` если сессия найдена и обновлена, `False` если сессия
-            с переданным хэшем не существует или уже неактивна.
+            True если сессия найдена и успешно обновлёна.
         """
         result = await self.connection.execute(
             update(user_sessions_table)
-            .where(
-                *[
-                    getattr(user_sessions_table.c, field) == value
-                    for field, value in filter_dto.to_filter_values().items()
-                ]
-            )
             .values(**update_dto.to_update_values())
-            .returning(user_sessions_table)
+            .where(
+                *self._build_filter_clauses(filter_dto, user_sessions_table),
+                access_ctx.as_where_clause(user_sessions_table),
+            )
         )
 
-        if not (row := result.mappings().first()):
-            return None
+        return result.rowcount == 1
 
-        return UserSessionDTO.model_validate(row)
-
-    async def delete(self, record_id: UUID) -> UserSessionDTO | None:
-        """Удаляет сессию по её идентификатору.
+    async def update_many(
+        self,
+        filter_dto: FilterManyUserSessionsDTO,
+        update_dto: UpdateUserSessionDTO,
+        access_ctx: AccessContext,
+    ) -> int:
+        """Обновляет данные множества пользовательских сессий.
 
         Parameters
         ----------
-        record_id : UUID
-            Идентификатор удаляемой сессии.
+        filter_dto : FilterManyUserSessionsDTO
+            Параметры фильтрации.
+        update_dto : UpdateUserSessionDTO
+            Новые данные пользовательских сессий.
+        access_ctx : AccessContext
+            Контекст доступа.
 
         Returns
         -------
-        UserSessionDTO | None
-            Доменное DTO удалённой записи сессии,
-            None - если сессия с таким UUID не найдена.
+        int
+            Количество успешно обновлённых записей.
         """
         result = await self.connection.execute(
-            delete(user_sessions_table)
-            .where(user_sessions_table.c.id == record_id)
-            .returning(user_sessions_table)
+            update(user_sessions_table)
+            .values(**update_dto.to_update_values())
+            .where(
+                *self._build_filter_clauses(filter_dto, user_sessions_table),
+                access_ctx.as_where_clause(user_sessions_table),
+            )
         )
 
-        if not (row := result.mappings().first()):
-            return None
+        return result.rowcount
 
-        return UserSessionDTO.model_validate(row)
+    async def delete_one(
+        self, filter_dto: FilterOneUserSessionDTO, access_ctx: AccessContext
+    ) -> bool:
+        """Удаляет запись о пользовательской сессии из базы данных.
+
+        Parameters
+        ----------
+        filter_dto : FilterOneNoteDTO
+            Параметры фильтрации.
+        access_ctx : AccessContext
+            Контекст доступа.
+
+        Returns
+        -------
+        bool
+            True если сессия найдена и успешно удалена.
+        """
+        result = await self.connection.execute(
+            delete(user_sessions_table).where(
+                *self._build_filter_clauses(filter_dto, user_sessions_table),
+                access_ctx.as_where_clause(user_sessions_table),
+            )
+        )
+
+        return result.rowcount == 1
+
+    async def delete_many(
+        self, filter_dto: FilterManyUserSessionsDTO, access_ctx: AccessContext
+    ) -> int:
+        """Удаляет множество записей о пользовательских сессиях из базы данных.
+
+        Parameters
+        ----------
+        filter_dto : FilterManyUserSessionsDTO
+            Параметры фильтрации.
+        access_ctx : AccessContext
+            Контекст доступа.
+
+        Returns
+        -------
+        int
+            Количество успешно удалённых записей.
+        """
+        result = await self.connection.execute(
+            delete(user_sessions_table).where(
+                *self._build_filter_clauses(filter_dto, user_sessions_table),
+                access_ctx.as_where_clause(user_sessions_table),
+            )
+        )
+
+        return result.rowcount
