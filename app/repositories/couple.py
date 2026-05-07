@@ -1,10 +1,7 @@
-from typing import Any, Literal, Sequence
+from typing import Any, Sequence
 
 from sqlalchemy import (
     ColumnElement,
-    FromClause,
-    Label,
-    RowMapping,
     Select,
     insert,
     literal,
@@ -20,15 +17,19 @@ from app.core.exceptions.couple import CoupleAlreadyExistsException
 from app.infra.postgres.tables.couple_members import couple_members_table
 from app.infra.postgres.tables.couples import couples_table
 from app.infra.postgres.tables.users import users_table
-from app.repositories.interface import AccessContext, Creator, Reader, Updater
+from app.repositories.interface import (
+    USER_PROJECTION_FIELDS,
+    AccessContext,
+    Creator,
+    Reader,
+    Updater,
+)
 from app.schemas.dto.couple import (
     CoupleDTO,
     CreateCoupleDTO,
     FilterOneCoupleDTO,
     UpdateCoupleDTO,
 )
-
-type PartnerPrefix = Literal["first_user", "second_user"]
 
 first_users_table = users_table.alias("first_users")
 second_users_table = users_table.alias("second_users")
@@ -55,56 +56,6 @@ class CoupleRepository(
     update_one(filter_dto, update_dto, access_ctx)
         Обновляет пару по фильтрам.
     """
-
-    @classmethod
-    def _partner_columns(
-        cls, alias: FromClause, prefix: PartnerPrefix
-    ) -> list[Label[Any]]:
-        """Именованные колонки пользователя для SELECT.
-
-        Parameters
-        ----------
-        alias : FromClause
-            Псевдоним таблицы users.
-        prefix : PartnerPrefix
-            Префикс колонок - `"first_user"` или `"second_user"`.
-
-        Returns
-        -------
-        list[Label[Any]]
-            Список лейблированных колонок users_table.
-        """
-        return cls._label_columns(
-            [
-                alias.c.id,
-                alias.c.created_at,
-                alias.c.username,
-                alias.c.avatar_url,
-                alias.c.is_active,
-            ],
-            prefix,
-        )
-
-    @classmethod
-    def _extract_partner(cls, row: RowMapping, prefix: PartnerPrefix) -> dict[str, Any]:
-        """Извлекает данные партнёра из плоской строки JOIN-результата.
-
-        Parameters
-        ----------
-        row : RowMapping
-            Плоская строка результата запроса с лейблированными
-            колонками пользователя.
-        prefix : PartnerPrefix
-            Префикс колонок - `"first_user"` или `"second_user"`.
-
-        Returns
-        -------
-        dict[str, Any]
-            Словарь с данными партнёра, готовый для вложенной валидации DTO.
-        """
-        return cls._extract_prefixed(
-            row, prefix, ["id", "created_at", "username", "avatar_url", "is_active"]
-        )
 
     async def create_one(self, create_dto: CreateCoupleDTO) -> bool:
         """Создаёт пару и атомарно добавляет обоих участников.
@@ -203,8 +154,12 @@ class CoupleRepository(
         return (
             select(
                 couples_table,
-                *cls._partner_columns(first_users_table, "first_user"),
-                *cls._partner_columns(second_users_table, "second_user"),
+                *cls._label_columns(
+                    first_users_table, USER_PROJECTION_FIELDS, "first_user"
+                ),
+                *cls._label_columns(
+                    second_users_table, USER_PROJECTION_FIELDS, "second_user"
+                ),
             )
             .select_from(couple_members_table)
             .join(
@@ -258,8 +213,12 @@ class CoupleRepository(
         return CoupleDTO.model_validate(
             {
                 **row,
-                "first_user": self._extract_partner(row, "first_user"),
-                "second_user": self._extract_partner(row, "second_user"),
+                "first_user": self._extract_prefixed(
+                    row, "first_user", USER_PROJECTION_FIELDS
+                ),
+                "second_user": self._extract_prefixed(
+                    row, "second_user", USER_PROJECTION_FIELDS
+                ),
             }
         )
 
@@ -299,8 +258,12 @@ class CoupleRepository(
         return CoupleDTO.model_validate(
             {
                 **row,
-                "first_user": self._extract_partner(row, "first_user"),
-                "second_user": self._extract_partner(row, "second_user"),
+                "first_user": self._extract_prefixed(
+                    row, "first_user", USER_PROJECTION_FIELDS
+                ),
+                "second_user": self._extract_prefixed(
+                    row, "second_user", USER_PROJECTION_FIELDS
+                ),
             }
         )
 

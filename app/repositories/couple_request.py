@@ -1,11 +1,8 @@
 import asyncio
-from typing import Any, Literal, Sequence
+from typing import Any, Sequence
 
 from sqlalchemy import (
     ColumnElement,
-    FromClause,
-    Label,
-    RowMapping,
     Select,
     insert,
     select,
@@ -21,7 +18,13 @@ from app.core.exceptions.couple import (
 )
 from app.infra.postgres.tables.couple_requests import couple_requests_table
 from app.infra.postgres.tables.users import users_table
-from app.repositories.interface import AccessContext, Creator, Reader, Updater
+from app.repositories.interface import (
+    USER_PROJECTION_FIELDS,
+    AccessContext,
+    Creator,
+    Reader,
+    Updater,
+)
 from app.schemas.dto.couple import (
     CoupleRequestDTO,
     CreateCoupleRequestDTO,
@@ -29,8 +32,6 @@ from app.schemas.dto.couple import (
     FilterOneCoupleRequestDTO,
     UpdateCoupleRequestDTO,
 )
-
-type PartnerPrefix = Literal["initiator", "recipient"]
 
 initiators_table = users_table.alias("initiators")
 recipients_table = users_table.alias("recipients")
@@ -48,70 +49,17 @@ class CoupleRequestRepository(
     Реализация паттерна Репозиторий. Является объектом доступа к данным (DAO).
     Реализует основные CRUD операции с парами пользователей.
 
-    Attributes
-    ----------
-    session : AsyncSession
-        Объект асинхронной сессии запроса.
-
     Methods
     -------
-    add_couple_request(initiator_id, recipient_id)
-        Создание запроса на регистрацию пары между пользователями.
-    get_pending_requests_for_recipient(recipient_id)
-        Получение входящих запросов для пользователя.
-    update_request_status_by_id_and_recipient_id(couple_request_id, recipient_id, new_status)
-        Обновление статуса входящего запроса на создание пары.
+    create_one(create_dto)
+        Создаёт новый запрос на создание пары.
+    read_one_for_update(filter_dto, access_ctx)
+        Возвращает запрос на пару с блокировкой строки (`FOR UPDATE`).
+    read_many(filter_dto, access_ctx, offset, limit, sort_order)
+        Возвращает список запросов с пагинацией и общим количеством записей.
+    update_one(filter_dto, update_dto, access_ctx)
+        Обновляет один запрос на создание пары.
     """
-
-    @classmethod
-    def _partner_columns(
-        cls, alias: FromClause, prefix: PartnerPrefix
-    ) -> list[Label[Any]]:
-        """Именованные колонки пользователя для SELECT.
-
-        Parameters
-        ----------
-        alias : FromClause
-            Псевдоним таблицы users.
-        prefix : PartnerPrefix
-            Префикс колонок - `"initiator"` или `"recipient"`.
-
-        Returns
-        -------
-        list[Label[Any]]
-            Список лейблированных колонок users_table.
-        """
-        return cls._label_columns(
-            [
-                alias.c.id,
-                alias.c.created_at,
-                alias.c.username,
-                alias.c.avatar_url,
-                alias.c.is_active,
-            ],
-            prefix,
-        )
-
-    @classmethod
-    def _extract_partner(cls, row: RowMapping, prefix: PartnerPrefix) -> dict[str, Any]:
-        """Извлекает данные партнёра из плоской строки JOIN-результата.
-
-        Parameters
-        ----------
-        row : RowMapping
-            Плоская строка результата запроса с лейблированными
-            колонками пользователя.
-        prefix : PartnerPrefix
-            Префикс колонок - `"initiator"` или `"recipient"`.
-
-        Returns
-        -------
-        dict[str, Any]
-            Словарь с данными партнёра, готовый для вложенной валидации DTO.
-        """
-        return cls._extract_prefixed(
-            row, prefix, ["id", "created_at", "username", "avatar_url", "is_active"]
-        )
 
     async def create_one(self, create_dto: CreateCoupleRequestDTO) -> bool:
         """Создаёт новый запрос на создание пары.
@@ -186,8 +134,12 @@ class CoupleRequestRepository(
         return (
             select(
                 couple_requests_table,
-                *cls._partner_columns(initiators_table, "initiator"),
-                *cls._partner_columns(recipients_table, "recipient"),
+                *cls._label_columns(
+                    initiators_table, USER_PROJECTION_FIELDS, "initiator"
+                ),
+                *cls._label_columns(
+                    recipients_table, USER_PROJECTION_FIELDS, "recipient"
+                ),
             )
             .join(
                 initiators_table,
@@ -249,8 +201,12 @@ class CoupleRequestRepository(
         return CoupleRequestDTO.model_validate(
             {
                 **row,
-                "initiator": self._extract_partner(row, "initiator"),
-                "recipient": self._extract_partner(row, "recipient"),
+                "initiator": self._extract_prefixed(
+                    row, "initiator", USER_PROJECTION_FIELDS
+                ),
+                "recipient": self._extract_prefixed(
+                    row, "recipient", USER_PROJECTION_FIELDS
+                ),
             }
         )
 
@@ -318,8 +274,12 @@ class CoupleRequestRepository(
                 CoupleRequestDTO.model_validate(
                     {
                         **row,
-                        "initiator": self._extract_partner(row, "initiator"),
-                        "recipient": self._extract_partner(row, "recipient"),
+                        "initiator": self._extract_prefixed(
+                            row, "initiator", USER_PROJECTION_FIELDS
+                        ),
+                        "recipient": self._extract_prefixed(
+                            row, "recipient", USER_PROJECTION_FIELDS
+                        ),
                     }
                 )
                 for row in result.mappings().all()

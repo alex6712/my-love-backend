@@ -1,8 +1,13 @@
+from typing import Annotated
+from uuid import UUID
+
 from app.core.enums import NoteType
-from app.core.types import UNSET, Maybe
+from app.core.filtering import ColumnAlias
+from app.core.types import UNIQUE, UNSET, Maybe
 from app.schemas.dto.base import (
     BaseCreateDTO,
-    BaseFilterDTO,
+    BaseFilterManyDTO,
+    BaseFilterOneDTO,
     BaseSQLCoreDTO,
     BaseUpdateDTO,
 )
@@ -31,16 +36,42 @@ class NoteDTO(BaseSQLCoreDTO):
     creator: CreatorDTO
 
 
-class FilterNoteDTO(BaseFilterDTO):
-    """DTO для фильтрации заметок.
+class FilterOneNoteDTO(BaseFilterOneDTO):
+    """DTO для поиска одной заметки по идентификатору или типу.
+
+    Требует передачи хотя бы одного из уникальных полей: `id` или `type`.
+    Используется в сервисах, где заметку можно найти по её идентификатору или по типу.
 
     Attributes
     ----------
-    type : NoteType | None
-        Тип заметки. Если `UNSET` - поле не изменяется.
+    id : Maybe[UUID]
+        Идентификатор заметки. Является уникальным полем - достаточно передать
+        только его для однозначного нахождения записи.
+    types : Maybe[list[NoteType]]
+        Список типов заметок. Используется для фильтрации по типу.
     """
 
-    type: Maybe[NoteType | None] = UNSET
+    id: Annotated[Maybe[UUID], UNIQUE] = UNSET
+
+    types: Annotated[Maybe[list[NoteType]], ColumnAlias("type")] = UNSET
+
+
+class FilterManyNotesDTO(BaseFilterManyDTO):
+    """DTO для фильтрации множества заметок.
+
+    Все поля опциональны - пустой DTO возвращает все записи.
+    При передаче нескольких полей условия комбинируются через AND.
+
+    Attributes
+    ----------
+    ids : Maybe[list[UUID]]
+        Список идентификаторов заметок.
+    types : Maybe[list[NoteType]]
+        Список типов заметок.
+    """
+
+    ids: Annotated[Maybe[list[UUID]], ColumnAlias("id")] = UNSET
+    types: Annotated[Maybe[list[NoteType]], ColumnAlias("type")] = UNSET
 
 
 class CreateNoteDTO(BaseCreateDTO):
@@ -54,11 +85,14 @@ class CreateNoteDTO(BaseCreateDTO):
         Заголовок заметки.
     content : str
         Содержание заметки.
+    created_by : UUID
+        Идентификатор создателя заметки.
     """
 
     type: NoteType
     title: str
     content: str
+    created_by: UUID
 
 
 class UpdateNoteDTO(BaseUpdateDTO):

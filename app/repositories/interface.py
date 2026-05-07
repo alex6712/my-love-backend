@@ -48,6 +48,8 @@ FilterManyDTO = TypeVar("FilterManyDTO", bound=BaseFilterManyDTO)
 CreateDTO = TypeVar("CreateDTO", bound=BaseCreateDTO)
 UpdateDTO = TypeVar("UpdateDTO", bound=BaseUpdateDTO)
 
+USER_PROJECTION_FIELDS = ["id", "created_at", "username", "avatar_url", "is_active"]
+
 
 class AccessContext(ABC, BaseModel):
     """Абстрактный контекст доступа для формирования SQL-ограничений.
@@ -61,13 +63,14 @@ class AccessContext(ABC, BaseModel):
     """
 
     @abstractmethod
-    def as_where_clause(self, created_by_col: Column[UUID]) -> ColumnElement[bool]:
+    def as_where_clause(self, table: Table) -> ColumnElement[bool]:
         """Сформировать WHERE-условие для ограничения доступа.
 
         Parameters
         ----------
-        created_by_col : Column[UUID]
-            Колонка, содержащая идентификатор владельца записи.
+        table : Table
+            SQLAlchemy Core-таблица. Реализации сами извлекают
+            необходимые колонки через `table.c`.
 
         Returns
         -------
@@ -82,6 +85,39 @@ class AccessContext(ABC, BaseModel):
         """
         ...
 
+    @staticmethod
+    def _require_col(table: Table, name: str) -> Column[Any]:
+        """Вернуть колонку таблицы по имени или выбросить исключение.
+
+        Вспомогательный метод для реализаций `as_where_clause`.
+        Используется вместо прямого обращения к `table.c[name]`,
+        чтобы заменить неинформативный `KeyError` на явное сообщение.
+
+        Parameters
+        ----------
+        table : Table
+            SQLAlchemy Core-таблица, из которой извлекается колонка.
+        name : str
+            Имя колонки.
+
+        Returns
+        -------
+        Column[Any]
+            Колонка таблицы с указанным именем.
+
+        Raises
+        ------
+        ValueError
+            Если колонка с указанным именем отсутствует в таблице.
+        """
+        if name not in table.c:
+            raise ValueError(
+                f"Table {table.name!r} doesn't contain column named '{name!r}'. "
+                f"There're columns: {list(table.c.keys())}"
+            )
+
+        return table.c[name]
+
 
 class PublicAccessContext(AccessContext):
     """Контекст доступа без ограничений видимости.
@@ -91,14 +127,13 @@ class PublicAccessContext(AccessContext):
     допускает все записи.
     """
 
-    def as_where_clause(self, created_by_col: Column[UUID]) -> ColumnElement[bool]:
+    def as_where_clause(self, table: Table) -> ColumnElement[bool]:
         """Сформировать WHERE-условие без ограничений доступа.
 
         Parameters
         ----------
-        created_by_col : Column[UUID]
-            Колонка, содержащая идентификатор владельца записи.
-            Не используется.
+        table : Table
+            SQLAlchemy Core-таблица. Не используется.
 
         Returns
         -------
@@ -128,23 +163,30 @@ class CoupleAccessContext(AccessContext):
     user_id: UUID
     partner_id: UUID | None = None
 
-    def as_where_clause(self, created_by_col: Column[UUID]) -> ColumnElement[bool]:
+    def as_where_clause(self, table: Table) -> ColumnElement[bool]:
         """Строит WHERE-условие для фильтрации записей по правам доступа.
 
         Parameters
         ----------
-        created_by_col : Column[UUID]
-            Колонка таблицы, содержащая идентификатор создателя записи.
+        table : Table
+            SQLAlchemy Core-таблица. Ожидается наличие колонки `created_by`.
 
         Returns
         -------
         ColumnElement[bool]
             SQLAlchemy-выражение, готовое к использованию в `.where()`.
-        """
-        if self.partner_id is not None:
-            return created_by_col.in_([self.user_id, self.partner_id])
 
-        return created_by_col == self.user_id
+        Raises
+        ------
+        ValueError
+            Если в таблице отсутствует колонка `created_by`.
+        """
+        col = self._require_col(table, "created_by")
+
+        if self.partner_id is not None:
+            return col.in_([self.user_id, self.partner_id])
+
+        return col == self.user_id
 
 
 class RepositoryInterface(ABC):
@@ -211,7 +253,7 @@ class RepositoryInterface(ABC):
 
     @staticmethod
     def _label_columns(
-        columns: Iterable[ColumnElement[Any]], prefix: str
+        table: FromClause, column_names: Iterable[str], prefix: str
     ) -> list[Label[Any]]:
         """Применяет префиксные лейблы к колонкам для SELECT.
 
@@ -221,8 +263,10 @@ class RepositoryInterface(ABC):
 
         Parameters
         ----------
-        columns : Iterable[ColumnElement[Any]]
-            Колонки для лейблирования.
+        table : FromClause
+            Таблица (или выражение), колонки которой лейблируются.
+        column_names : Iterable[str]
+            Наименования колонок для лейблирования.
         prefix : str
             Префикс, добавляемый к имени каждой колонки.
 
@@ -231,7 +275,7 @@ class RepositoryInterface(ABC):
         list[Label[Any]]
             Список лейблированных колонок.
         """
-        return [col.label(f"_{prefix}_{col.key}") for col in columns]
+        return [table.c[name].label(f"_{prefix}_{name}") for name in column_names]
 
     @staticmethod
     def _extract_prefixed(
@@ -258,20 +302,6 @@ class RepositoryInterface(ABC):
             Словарь вида `{field: value}`.
         """
         return {field: row[f"_{prefix}_{field}"] for field in fields}
-
-    @staticmethod
-    def _get_where_clauses() -> list[ColumnElement[bool]]:
-        """Возвращает базовые WHERE-условия для запросов репозитория.
-
-        Предназначен для переопределения в подклассах, где требуется
-        добавить фиксированные условия фильтрации (например, `is_deleted = False`).
-
-        Returns
-        -------
-        list[ColumnElement[bool]]
-            Пустой список - базовая реализация не накладывает ограничений.
-        """
-        return []
 
     @staticmethod
     def _build_filter_clauses(
@@ -636,5 +666,33 @@ class Deleter(RepositoryInterface, Generic[FilterOneDTO, FilterManyDTO]):
         -------
         int
             Количество удалённых сущностей.
+        """
+        ...
+
+
+class Counter(RepositoryInterface, Generic[FilterManyDTO]):
+    """Интерфейс для подсчёта сущностей.
+
+    Type Parameters
+    ---------------
+    FilterManyDTO : TypeVar
+        Тип DTO для фильтрации записей.
+    """
+
+    @abstractmethod
+    async def count(self, filter_dto: FilterManyDTO, access_ctx: AccessContext) -> int:
+        """Подсчитать количество сущностей по фильтру.
+
+        Parameters
+        ----------
+        filter_dto : FilterManyDTO
+            DTO с критериями фильтрации.
+        access_ctx : AccessContext
+            Контекст доступа для ограничения видимости.
+
+        Returns
+        -------
+        int
+            Количество сущностей, соответствующих критериям фильтрации.
         """
         ...

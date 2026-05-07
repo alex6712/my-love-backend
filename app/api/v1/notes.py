@@ -139,7 +139,12 @@ async def post_notes(
         Успешный ответ о создании новой заметки.
     """
     await services.note.create_note(
-        CreateNoteDTO.from_request_schema(body), payload.sub
+        CreateNoteDTO.model_validate(
+            {
+                **body.model_dump(),
+                "created_by": payload.sub,
+            }
+        )
     )
 
     return StandardResponse(detail="New note created successfully.")
