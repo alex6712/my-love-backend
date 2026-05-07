@@ -814,6 +814,7 @@ class FileService:
             for file in await self._file_repo.read_many(
                 FilterManyFilesDTO(ids=files_ids),
                 CoupleAccessContext(user_id=user_id, partner_id=partner_id),
+                limit=len(files_ids),
             )
         }
 

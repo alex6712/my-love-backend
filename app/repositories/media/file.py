@@ -236,13 +236,11 @@ class FileRepository(
         list[FileDTO]
             Список DTO найденных записей медиа-файлов, удовлетворяющих фильтру.
         """
-        where_clauses = [
-            *self._build_filter_clauses(filter_dto, files_table),
-            access_ctx.as_where_clause(files_table),
-        ]
-
         result = await self.connection.execute(
-            self._build_read_statement(*where_clauses)
+            self._build_read_statement(
+                *self._build_filter_clauses(filter_dto, files_table),
+                access_ctx.as_where_clause(files_table),
+            )
             .order_by(self._build_order_clause(files_table.c.created_at, sort_order))
             .slice(offset, offset + limit)
         )
