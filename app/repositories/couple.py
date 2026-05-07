@@ -275,7 +275,7 @@ class CoupleRepository(
         offset: int = DEFAULT_OFFSET,
         limit: int = DEFAULT_LIMIT,
         sort_order: SortOrder = SortOrder.DESC,
-    ) -> tuple[list[CoupleDTO], int]:
+    ) -> list[CoupleDTO]:
         """Не поддерживается для данной сущности.
 
         Не предусмотрено чтение множества пар за одну транзакцию,

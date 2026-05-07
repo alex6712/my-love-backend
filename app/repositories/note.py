@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any, Sequence
 
 from sqlalchemy import ColumnElement, Select, delete, insert, select, update
@@ -114,7 +113,7 @@ class NoteRepository(
                 notes_table,
                 *cls._label_columns(users_table, USER_PROJECTION_FIELDS, "creator"),
             )
-            .join(users_table, users_table.c.id == notes_table.c.creator_id)
+            .join(users_table, users_table.c.id == notes_table.c.created_by)
             .where(*where_clauses)
         )
 
@@ -203,12 +202,10 @@ class NoteRepository(
         offset: int = DEFAULT_OFFSET,
         limit: int = DEFAULT_LIMIT,
         sort_order: SortOrder = SortOrder.DESC,
-    ) -> tuple[list[NoteDTO], int]:
-        """Возвращает отфильтрованный постраничный список заметок и их общее количество.
+    ) -> list[NoteDTO]:
+        """Возвращает отфильтрованный постраничный список заметок.
 
         Условие доступа и фильтры применяются на уровне запроса атомарно.
-        Общее количество возвращается без учёта пагинации - для формирования
-        метаданных ответа на клиенте.
 
         Parameters
         ----------
@@ -226,43 +223,31 @@ class NoteRepository(
 
         Returns
         -------
-        tuple[list[NoteDTO], int]
-            Список DTO найденных заметок и общее количество записей,
-            соответствующих фильтрам. Пустой список и 0,
-            если заметок нет или доступ ко всем из них запрещён.
+        list[NoteDTO]
+            Список DTO найденных заметок, удовлетворяющих фильтру.
         """
         where_clauses = [
             *self._build_filter_clauses(filter_dto, notes_table),
             access_ctx.as_where_clause(notes_table),
         ]
 
-        result, total = await asyncio.gather(
-            self.connection.execute(
-                self._build_read_statement(*where_clauses)
-                .order_by(
-                    self._build_order_clause(notes_table.c.created_at, sort_order)
-                )
-                .slice(offset, offset + limit)
-            ),
-            self.connection.scalar(
-                self._build_count_query(notes_table, *where_clauses)
-            ),
+        result = await self.connection.execute(
+            self._build_read_statement(*where_clauses)
+            .order_by(self._build_order_clause(notes_table.c.created_at, sort_order))
+            .slice(offset, offset + limit)
         )
 
-        return (
-            [
-                NoteDTO.model_validate(
-                    {
-                        **row,
-                        "creator": self._extract_prefixed(
-                            row, "creator", USER_PROJECTION_FIELDS
-                        ),
-                    }
-                )
-                for row in result.mappings().all()
-            ],
-            total or 0,
-        )
+        return [
+            NoteDTO.model_validate(
+                {
+                    **row,
+                    "creator": self._extract_prefixed(
+                        row, "creator", USER_PROJECTION_FIELDS
+                    ),
+                }
+            )
+            for row in result.mappings().all()
+        ]
 
     async def update_one(
         self,
@@ -310,7 +295,7 @@ class NoteRepository(
         """Не поддерживается для данной сущности.
 
         Не предусмотрено обновление множества заметок за одну транзакцию,
-        т.к. такой пользовательский сценарий не существует..
+        т.к. такой пользовательский сценарий не существует.
         """
         raise NotImplementedError(
             "Method 'update_many' is not implemented in NoteRepository"

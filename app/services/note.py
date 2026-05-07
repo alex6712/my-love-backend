@@ -1,3 +1,4 @@
+import asyncio
 from uuid import UUID
 
 from app.core.enums import NoteType, SortOrder
@@ -36,12 +37,12 @@ class NoteService:
         Создание новой пользовательской заметки.
     get_notes(note_type, offset, limit, sort_order, user_id)
         Получение всех заметок по UUID создателя.
+    count_notes(user_id)
+        Получение количества всех доступных пользователю заметок.
     update_note(note_id, title, content, user_id)
         Обновление атрибутов заметки по его UUID.
     delete_note(note_id, user_id)
         Удаление заметки по его UUID.
-    count_notes(user_id)
-        Получение количества всех доступных пользователю заметок.
     """
 
     _COUNT_CACHE_TTL = 3600
@@ -101,15 +102,50 @@ class NoteService:
         tuple[list[NoteDTO], int]
             Кортеж из списка заметок и общего количества.
         """
-        return await self._note_repo.read_many(
-            FilterManyNotesDTO(types=[note_type])
-            if note_type
-            else FilterManyNotesDTO(),
-            CoupleAccessContext(user_id=user_id, partner_id=partner_id),
-            offset=offset,
-            limit=limit,
-            sort_order=sort_order,
+        return await asyncio.gather(
+            self._note_repo.read_many(
+                FilterManyNotesDTO(types=[note_type])
+                if note_type
+                else FilterManyNotesDTO(),
+                CoupleAccessContext(user_id=user_id, partner_id=partner_id),
+                offset=offset,
+                limit=limit,
+                sort_order=sort_order,
+            ),
+            self.count_notes(user_id, partner_id),
         )
+
+    async def count_notes(self, user_id: UUID, partner_id: UUID | None) -> int:
+        """Получение количества всех доступных пользователю заметок.
+
+        Возвращает закэшированное значение из Redis, если оно есть.
+        В случае cache miss обращается к БД и прогревает кэш.
+
+        Parameters
+        ----------
+        user_id : UUID
+            UUID пользователя.
+        partner_id : UUID | None
+            UUID партнёра пользователя или None.
+
+        Returns
+        -------
+        int
+            Количество доступных пользователю заметок.
+        """
+        if cached := await self._redis_client.get_count("notes", user_id):
+            return cached
+
+        count = await self._note_repo.count(
+            FilterManyNotesDTO(),
+            CoupleAccessContext(user_id=user_id, partner_id=partner_id),
+        )
+
+        await self._redis_client.set_count(
+            "notes", user_id, count, self._COUNT_CACHE_TTL
+        )
+
+        return count
 
     async def update_note(
         self,
@@ -184,35 +220,3 @@ class NoteService:
             )
 
         await self._redis_client.decrement_count("notes", user_id)
-
-    async def count_notes(self, user_id: UUID, partner_id: UUID | None) -> int:
-        """Получение количества всех доступных пользователю заметок.
-
-        Возвращает закэшированное значение из Redis, если оно есть.
-        В случае cache miss обращается к БД и прогревает кэш.
-
-        Parameters
-        ----------
-        user_id : UUID
-            UUID пользователя.
-        partner_id : UUID | None
-            UUID партнёра пользователя или None.
-
-        Returns
-        -------
-        int
-            Количество доступных пользователю заметок.
-        """
-        if cached := await self._redis_client.get_count("notes", user_id):
-            return cached
-
-        count = await self._note_repo.count(
-            FilterManyNotesDTO(),
-            CoupleAccessContext(user_id=user_id, partner_id=partner_id),
-        )
-
-        await self._redis_client.set_count(
-            "notes", user_id, count, self._COUNT_CACHE_TTL
-        )
-
-        return count

@@ -266,15 +266,13 @@ class CoupleService:
         list[CoupleRequestDTO]
             Список всех текущих запросов на создание пары.
         """
-        return (
-            await self._couple_request_repo.read_many(
-                FilterManyCoupleRequestsDTO(
-                    recipient_ids=[user_id],
-                    statuses=[CoupleRequestStatus.PENDING],
-                ),
-                PublicAccessContext(),
-            )
-        )[0]
+        return await self._couple_request_repo.read_many(
+            FilterManyCoupleRequestsDTO(
+                recipient_ids=[user_id],
+                statuses=[CoupleRequestStatus.PENDING],
+            ),
+            PublicAccessContext(),
+        )
 
     async def update_couple(
         self, couple_id: UUID, update_dto: UpdateCoupleDTO, user_id: UUID

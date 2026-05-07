@@ -33,13 +33,15 @@ from app.core.exceptions.media import (
 from app.infra.postgres.uow import UnitOfWork
 from app.infra.redis import RedisClient
 from app.repositories.couple import CoupleRepository
-from app.repositories.interface import AccessContext
+from app.repositories.interface import CoupleAccessContext
 from app.repositories.media import FileRepository
 from app.schemas.dto.file import (
     CreateFileDTO,
     DownloadFileErrorDTO,
     FileDTO,
     FileMetadataDTO,
+    FilterManyFilesDTO,
+    FilterOneFileDTO,
     UpdateFileDTO,
     UploadFileErrorDTO,
 )
@@ -320,11 +322,15 @@ class FileService:
         tuple[list[FileDTO], int]
             Кортеж из списка файлов и общего количества.
         """
-        return await self._file_repo.get_all(
-            AccessContext(user_id=user_id, partner_id=partner_id),
-            offset=offset,
-            limit=limit,
-            sort_order=sort_order,
+        return await asyncio.gather(
+            self._file_repo.read_many(
+                FilterManyFilesDTO(),
+                CoupleAccessContext(user_id=user_id, partner_id=partner_id),
+                offset=offset,
+                limit=limit,
+                sort_order=sort_order,
+            ),
+            self.count_files(user_id, partner_id),
         )
 
     async def count_files(self, user_id: UUID, partner_id: UUID | None) -> int:
@@ -347,7 +353,8 @@ class FileService:
             return cached
 
         count = await self._file_repo.count(
-            AccessContext(user_id=user_id, partner_id=partner_id)
+            FilterManyFilesDTO(),
+            CoupleAccessContext(user_id=user_id, partner_id=partner_id),
         )
 
         await self._redis_client.set_count(
@@ -406,10 +413,12 @@ class FileService:
 
         create_dto = CreateFileDTO(
             **validated_file.model_dump(exclude={"client_ref_id"}),
+            id=(file_id := uuid4()),
             object_key=object_key,
             status=FileStatus.PENDING,
+            created_by=user_id,
         )
-        file = await self._file_repo.create(create_dto, created_by=user_id)
+        await self._file_repo.create_one(create_dto)
 
         try:
             url = await self._s3_client.generate_presigned_url(
@@ -426,7 +435,7 @@ class FileService:
             ) from exc
 
         result = PresignedURLWithRefDTO(
-            file_id=file.id,
+            file_id=file_id,
             presigned_url=AnyHttpUrl(url),
             client_ref_id=file_metadata.client_ref_id,
         )
@@ -518,12 +527,19 @@ class FileService:
         create_dtos = [
             CreateFileDTO(
                 **metadata.model_dump(exclude={"client_ref_id"}),
+                id=uuid4(),
                 object_key=self._generate_object_key(user_id, batch_id),
                 status=FileStatus.PENDING,
+                created_by=user_id,
             )
             for metadata in valid_files
         ]
-        files = await self._file_repo.create_batch(create_dtos, user_id)
+        await self._file_repo.create_many(create_dtos)
+
+        files = await self._file_repo.read_many(
+            FilterManyFilesDTO(ids=[dto.id for dto in create_dtos]),
+            CoupleAccessContext(user_id=user_id),
+        )
 
         tasks = [
             self._s3_client.generate_presigned_url(
@@ -561,8 +577,9 @@ class FileService:
                 )
 
         if failed_file_ids:
-            await self._file_repo.delete_batch(
-                failed_file_ids, AccessContext(user_id=user_id)
+            await self._file_repo.delete_many(
+                FilterManyFilesDTO(ids=failed_file_ids),
+                CoupleAccessContext(user_id=user_id),
             )
 
         await self._redis_client.finalize_idempotency_key(
@@ -665,9 +682,12 @@ class FileService:
             Если файл не найден в объектном хранилище, то есть
             загрузка не была завершена или файл был удалён.
         """
-        access_ctx = AccessContext(user_id=user_id)
+        filter_dto, access_ctx = (
+            FilterOneFileDTO(id=file_id),
+            CoupleAccessContext(user_id=user_id),
+        )
 
-        file = await self._file_repo.get_one(file_id, access_ctx)
+        file = await self._file_repo.read_one_for_update(filter_dto, access_ctx)
         if file is None:
             raise MediaNotFoundException(
                 media_type="file",
@@ -687,8 +707,8 @@ class FileService:
                 detail=f"File with id={file_id} has not been found in object storage yet.",
             )
 
-        await self._file_repo.update(
-            file.id,
+        await self._file_repo.update_one(
+            filter_dto,
             UpdateFileDTO(status=FileStatus.UPLOADED),
             access_ctx,
         )
@@ -733,8 +753,9 @@ class FileService:
             Статус файла в БД не распознан бизнес-логикой. Сигнализирует
             о баге или рассинхроне схемы БД с кодом приложения.
         """
-        file = await self._file_repo.get_one(
-            file_id, AccessContext(user_id=user_id, partner_id=partner_id)
+        file = await self._file_repo.read_one(
+            FilterOneFileDTO(id=file_id),
+            CoupleAccessContext(user_id=user_id, partner_id=partner_id),
         )
 
         validated_file = self._validate_file_for_download(file, file_id)
@@ -790,8 +811,9 @@ class FileService:
         """
         files = {
             file.id: file
-            for file in await self._file_repo.get_by_ids(
-                files_ids, AccessContext(user_id=user_id, partner_id=partner_id)
+            for file in await self._file_repo.read_many(
+                FilterManyFilesDTO(ids=files_ids),
+                CoupleAccessContext(user_id=user_id, partner_id=partner_id),
             )
         }
 
@@ -973,8 +995,10 @@ class FileService:
         if update_dto.is_empty():
             raise NothingToUpdateException(detail="No fields provided for update.")
 
-        if not await self._file_repo.update(
-            file_id, update_dto, AccessContext(user_id=user_id)
+        if not await self._file_repo.update_one(
+            FilterOneFileDTO(id=file_id),
+            update_dto,
+            CoupleAccessContext(user_id=user_id),
         ):
             raise MediaNotFoundException(
                 media_type="file",
@@ -1001,12 +1025,19 @@ class FileService:
             Возникает в случае, если файл с переданным UUID не существует
             или текущий пользователь не является создателем файла.
         """
-        file = await self._file_repo.delete(file_id, AccessContext(user_id=user_id))
+        filter_dto, access_ctx = (
+            FilterOneFileDTO(id=file_id),
+            CoupleAccessContext(user_id=user_id),
+        )
+
+        file = await self._file_repo.read_one_for_update(filter_dto, access_ctx)
         if file is None:
             raise MediaNotFoundException(
                 media_type="file",
                 detail=f"File with id={file_id} not found, or you're not this file's creator.",
             )
+
+        await self._file_repo.delete_one(filter_dto, access_ctx)
 
         try:
             await self._s3_client.delete_object(

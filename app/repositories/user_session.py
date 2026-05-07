@@ -121,7 +121,7 @@ class UserSessionRepository(
         offset: int = DEFAULT_OFFSET,
         limit: int = DEFAULT_LIMIT,
         sort_order: SortOrder = SortOrder.DESC,
-    ) -> tuple[list[UserSessionDTO], int]:
+    ) -> list[UserSessionDTO]:
         """Не поддерживается для данной сущности.
 
         Не предусмотрено чтение данных множества сессий,

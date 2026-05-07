@@ -163,7 +163,7 @@ class UserRepository(
         offset: int = DEFAULT_OFFSET,
         limit: int = DEFAULT_LIMIT,
         sort_order: SortOrder = SortOrder.DESC,
-    ) -> tuple[list[UserWithCredentialsDTO], int]:
+    ) -> list[UserWithCredentialsDTO]:
         """Не поддерживается для данной сущности.
 
         Не предусмотрено чтение данных множества пользователей,

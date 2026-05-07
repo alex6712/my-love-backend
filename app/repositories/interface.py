@@ -532,7 +532,7 @@ class Reader(RepositoryInterface, Generic[FilterOneDTO, FilterManyDTO, EntityDTO
         offset: int = DEFAULT_OFFSET,
         limit: int = DEFAULT_LIMIT,
         sort_order: SortOrder = SortOrder.DESC,
-    ) -> tuple[list[EntityDTO], int]:
+    ) -> list[EntityDTO]:
         """Получить список сущностей.
 
         Parameters
@@ -551,8 +551,8 @@ class Reader(RepositoryInterface, Generic[FilterOneDTO, FilterManyDTO, EntityDTO
 
         Returns
         -------
-        tuple[list[EntityDTO], int]
-            Список DTO и общее количество записей без учёта пагинации.
+        list[EntityDTO]
+            Список DTO.
         """
         ...
 

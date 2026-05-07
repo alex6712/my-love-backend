@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any, Sequence
 
 from sqlalchemy import (
@@ -217,11 +216,11 @@ class CoupleRequestRepository(
         offset: int = DEFAULT_OFFSET,
         limit: int = DEFAULT_LIMIT,
         sort_order: SortOrder = SortOrder.DESC,
-    ) -> tuple[list[CoupleRequestDTO], int]:
-        """Возвращает отфильтрованный список запросов на пару с общим их количеством.
+    ) -> list[CoupleRequestDTO]:
+        """Возвращает отфильтрованный список запросов на пару.
 
-        Выполняет два запроса параллельно: выборку страницы с JOIN-ами на обоих
-        партнёров и подсчёт общего количества записей без учёта пагинации.
+        Выполняет два запроса параллельно: выборку страницы с JOIN-ами
+        на обоих партнёров.
 
         Parameters
         ----------
@@ -239,9 +238,8 @@ class CoupleRequestRepository(
 
         Returns
         -------
-        tuple[list[CoupleRequestDTO], int]
-            Список DTO запросов на текущей странице и общее количество записей,
-            удовлетворяющих фильтру. Второй элемент равен `0`, если записей нет.
+        list[CoupleRequestDTO]
+            Список DTO запросов на текущей странице, удовлетворяющих фильтру.
 
         Notes
         -----
@@ -254,38 +252,28 @@ class CoupleRequestRepository(
             access_ctx.as_where_clause(couple_requests_table),
         ]
 
-        result, total = await asyncio.gather(
-            self.connection.execute(
-                self._build_read_statement(*where_clauses)
-                .order_by(
-                    self._build_order_clause(
-                        couple_requests_table.c.created_at, sort_order
-                    )
-                )
-                .slice(offset, offset + limit)
-            ),
-            self.connection.scalar(
-                self._build_count_query(couple_requests_table, *where_clauses)
-            ),
+        result = await self.connection.execute(
+            self._build_read_statement(*where_clauses)
+            .order_by(
+                self._build_order_clause(couple_requests_table.c.created_at, sort_order)
+            )
+            .slice(offset, offset + limit)
         )
 
-        return (
-            [
-                CoupleRequestDTO.model_validate(
-                    {
-                        **row,
-                        "initiator": self._extract_prefixed(
-                            row, "initiator", USER_PROJECTION_FIELDS
-                        ),
-                        "recipient": self._extract_prefixed(
-                            row, "recipient", USER_PROJECTION_FIELDS
-                        ),
-                    }
-                )
-                for row in result.mappings().all()
-            ],
-            total or 0,
-        )
+        return [
+            CoupleRequestDTO.model_validate(
+                {
+                    **row,
+                    "initiator": self._extract_prefixed(
+                        row, "initiator", USER_PROJECTION_FIELDS
+                    ),
+                    "recipient": self._extract_prefixed(
+                        row, "recipient", USER_PROJECTION_FIELDS
+                    ),
+                }
+            )
+            for row in result.mappings().all()
+        ]
 
     async def update_one(
         self,

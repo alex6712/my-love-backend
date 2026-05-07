@@ -1,12 +1,15 @@
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from app.core.enums import DownloadFileErrorCode, FileStatus, UploadFileErrorCode
-from app.core.types import UNSET, Maybe
+from app.core.filtering import ColumnAlias
+from app.core.types import UNIQUE, UNSET, Maybe
 from app.schemas.dto.base import (
     BaseCreateDTO,
     BaseDTO,
     BaseErrorDTO,
+    BaseFilterManyDTO,
+    BaseFilterOneDTO,
     BaseSQLCoreDTO,
     BaseUpdateDTO,
 )
@@ -65,6 +68,52 @@ class FileDTO(BaseSQLCoreDTO, InternalFileMetadataDTO):
     creator: CreatorDTO
 
 
+class FilterOneFileDTO(BaseFilterOneDTO):
+    """DTO для поиска одной записи файла по идентификатору или объектному ключу.
+
+    Требует передачи хотя бы одного из уникальных полей: `id` или `object_key`.
+    Используется в сервисах, где файл можно найти по его идентификатору
+    или по уникальному ключу объекта.
+
+    Attributes
+    ----------
+    id : Maybe[UUID]
+        Идентификатор файла. Является уникальным полем — достаточно передать
+        только его для однозначного нахождения записи.
+    object_key : Maybe[str]
+        Объектный ключ файла. Является уникальным полем — достаточно передать
+        только его для однозначного нахождения записи.
+    statuses : Maybe[list[FileStatus]]
+        Список статусов файла. Используется для дополнительной фильтрации.
+    """
+
+    id: Annotated[Maybe[UUID], UNIQUE] = UNSET
+    object_key: Annotated[Maybe[str], UNIQUE] = UNSET
+
+    statuses: Annotated[Maybe[list[FileStatus]], ColumnAlias("status")] = UNSET
+
+
+class FilterManyFilesDTO(BaseFilterManyDTO):
+    """DTO для фильтрации множества файлов.
+
+    Все поля опциональны — пустой DTO возвращает все записи.
+    При передаче нескольких полей условия комбинируются через AND.
+
+    Attributes
+    ----------
+    ids : Maybe[list[UUID]]
+        Список идентификаторов файлов.
+    object_keys : Maybe[list[str]]
+        Список объектных ключей файлов.
+    statuses : Maybe[list[FileStatus]]
+        Список статусов файлов.
+    """
+
+    ids: Annotated[Maybe[list[UUID]], ColumnAlias("id")] = UNSET
+    object_keys: Annotated[Maybe[list[str]], ColumnAlias("object_key")] = UNSET
+    statuses: Annotated[Maybe[list[FileStatus]], ColumnAlias("status")] = UNSET
+
+
 class CreateFileDTO(BaseCreateDTO, InternalFileMetadataDTO):
     """DTO для создания нового файла.
 
@@ -75,14 +124,20 @@ class CreateFileDTO(BaseCreateDTO, InternalFileMetadataDTO):
 
     Attributes
     ----------
+    id : UUID
+        Идентификатор медиа-файла.
     object_key : str
         Уникальный ключ объекта в файловом хранилище.
     status : FileStatus
         Статус создаваемой записи медиа-файла.
+    created_by : UUID
+        Идентификатор создателя файла.
     """
 
+    id: UUID
     object_key: str
     status: FileStatus
+    created_by: UUID
 
 
 class UpdateFileDTO(BaseUpdateDTO):

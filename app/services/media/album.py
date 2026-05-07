@@ -36,7 +36,7 @@ class AlbumService:
     -------
     create_album(title, description, cover_url, is_private, created_by)
         Создание нового медиа альбома.
-    get_albums(offset, limit, creator_id)
+    get_albums(offset, limit, created_by)
         Получение всех медиа альбомов по UUID создателя.
     search_albums(search_query, threshold, limit, created_by)
         Производит поиск альбомов по переданному запросу.
