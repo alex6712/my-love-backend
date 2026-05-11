@@ -167,8 +167,7 @@ class CreatorAccessContext(AccessContext):
     user_id: UUID
 
     def as_where_clause(self, table: Table) -> ColumnElement[bool]:
-        """
-        Сформировать SQLAlchemy WHERE-условие для ограничения доступа по создателю.
+        """Сформировать SQLAlchemy WHERE-условие для ограничения доступа по создателю.
 
         Параметры
         ----------
@@ -187,8 +186,7 @@ class CreatorAccessContext(AccessContext):
         ValueError
             Если в таблице отсутствует колонка `created_by`.
         """
-        col = self._require_col(table, "created_by")
-        return col == self.user_id
+        return self._require_col(table, "created_by") == self.user_id
 
 
 class CoupleAccessContext(AccessContext):
