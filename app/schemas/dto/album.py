@@ -127,6 +127,8 @@ class CreateAlbumDTO(BaseCreateDTO):
         URL обложки альбома.
     is_private : bool
         Видимость альбома (True - личный, False - публичный).
+    created_by : UUID
+        Идентификатор создателя файла.
 
     Notes
     -----
@@ -138,6 +140,7 @@ class CreateAlbumDTO(BaseCreateDTO):
     description: str | None
     cover_url: str | None
     is_private: bool
+    created_by: UUID
 
 
 class UpdateAlbumDTO(BaseUpdateDTO):
