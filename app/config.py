@@ -22,12 +22,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Класс конфигурации проекта.
 
-    Использует `pydantic`_ + `python-dotenv`_ для загрузки настроек приложения из .env-файла.
-
-    .. _`pydantic`:
-        https://docs.pydantic.dev/
-    .. _`python-dotenv`:
-        https://pypi.org/project/python-dotenv/
+    Использует `pydantic` + `pydantic_settings` для загрузки настроек приложения из .env-файла.
 
     See Also
     --------
