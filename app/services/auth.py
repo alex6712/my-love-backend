@@ -392,7 +392,8 @@ class AuthService:
         Parameters
         ----------
         access_token : str | None
-            Access-токен из заголовка Authorization.
+            Access-токен, извлечённый из auth-cookie
+            (`ACCESS_TOKEN_COOKIE_NAME`, по умолчанию `ml_at`).
 
         Returns
         -------
@@ -412,7 +413,7 @@ class AuthService:
         """
         if access_token is None:
             raise TokenNotPassedException(
-                detail="Access token not found in Authorization header. Make sure to add it with Bearer scheme.",
+                detail="Access token not found in auth cookie. Make sure to log in first.",
                 token_type="access",
             )
 

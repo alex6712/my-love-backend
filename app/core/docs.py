@@ -310,12 +310,6 @@ AUTHORIZATION_ERROR_SCHEMA: dict[str, Any] = {
             },
         }
     },
-    "headers": {
-        "WWW-Authenticate": {
-            "description": "Схема аутентификации",
-            "schema": {"type": "string"},
-        }
-    },
 }
 """OpenAPI примеры ошибок авторизации пользователя."""
 
