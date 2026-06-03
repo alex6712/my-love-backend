@@ -112,10 +112,15 @@ class NoteService:
                 limit=limit,
                 sort_order=sort_order,
             ),
-            self.count_notes(user_id, partner_id),
+            self.count_notes(user_id, partner_id, [note_type] if note_type else None),
         )
 
-    async def count_notes(self, user_id: UUID, partner_id: UUID | None) -> int:
+    async def count_notes(
+        self,
+        user_id: UUID,
+        partner_id: UUID | None,
+        note_types: list[NoteType] | None = None,
+    ) -> int:
         """Получение количества всех доступных пользователю заметок.
 
         Возвращает закэшированное значение из Redis, если оно есть.
@@ -127,6 +132,10 @@ class NoteService:
             UUID пользователя.
         partner_id : UUID | None
             UUID партнёра пользователя или None.
+        note_types : list[NoteType] | None
+            Список типов заметок для подсчёта. Если
+            передан None, то подсчёт будет проводиться
+            без фильтрации.
 
         Returns
         -------
@@ -137,7 +146,9 @@ class NoteService:
             return cached
 
         count = await self._note_repo.count(
-            FilterManyNotesDTO(),
+            FilterManyNotesDTO(types=note_types)
+            if note_types
+            else FilterManyNotesDTO(),
             CoupleAccessContext(user_id=user_id, partner_id=partner_id),
         )
 

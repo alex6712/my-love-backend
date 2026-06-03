@@ -203,7 +203,7 @@ sqlalchemy==2.0.50
     #   alembic
 starlette==1.2.1
     # via fastapi
-typer==0.26.6
+typer==0.26.7
     # via
     #   fastapi-cli
     #   fastapi-cloud-cli
