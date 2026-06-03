@@ -97,9 +97,7 @@ async def _resolve_auth(
 
 
 async def _try_refresh_session(
-    request: Request,
-    response: Response,
-    settings: SettingsDependency,
+    request: Request, response: Response, settings: SettingsDependency
 ) -> AccessTokenPayload | None:
     """Пытается прозрачно обновить пару токенов по refresh-cookie.
 
