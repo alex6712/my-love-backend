@@ -283,11 +283,7 @@ def hash_token(
             )
         )
 
-    return hmac.new(
-        secret_key,
-        token.encode(),
-        hashlib.sha256,
-    ).hexdigest()
+    return hmac.new(secret_key, token.encode(), hashlib.sha256).hexdigest()
 
 
 def encrypt_data(
