@@ -1,4 +1,3 @@
-from typing import cast
 from uuid import UUID
 
 import redis.asyncio as redis
@@ -364,7 +363,7 @@ class RedisClient:
             await self.client.hset(redis_key, "response", "")  # type: ignore
             await self.client.expire(redis_key, ttl)
 
-        return cast(bool, created == 1)
+        return created == 1
 
     async def get_idempotency_state(
         self, scope: str, user_id: UUID, key: UUID

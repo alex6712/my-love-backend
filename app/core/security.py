@@ -88,7 +88,35 @@ def jwt_decode(token: str, token_type: TokenType) -> AnyTokenPayload:
     return RefreshTokenPayload.model_validate(decoded)
 
 
-def create_jwt(
+@overload
+def construct_payload(
+    sub: UUID,
+    iat: datetime,
+    session_id: UUID,
+    *,
+    exp: datetime | None = ...,
+    jti: UUID | None = ...,
+    iss: str = ...,
+    expires_delta: timedelta | None = ...,
+    couple_id: Unset = ...,
+) -> RefreshTokenPayload: ...
+
+
+@overload
+def construct_payload(
+    sub: UUID,
+    iat: datetime,
+    session_id: UUID,
+    *,
+    exp: datetime | None = ...,
+    jti: UUID | None = ...,
+    iss: str = ...,
+    expires_delta: timedelta | None = ...,
+    couple_id: UUID | None,
+) -> AccessTokenPayload: ...
+
+
+def construct_payload(
     sub: UUID,
     iat: datetime,
     session_id: UUID,
@@ -98,12 +126,13 @@ def create_jwt(
     iss: str = "my-love-backend",
     expires_delta: timedelta | None = None,
     couple_id: Maybe[UUID | None] = UNSET,
-) -> str:
-    """Создаёт и возвращает подписанный JWT.
+) -> AnyTokenPayload:
+    """Формирует и возвращает payload JWT-токена.
 
-    Формирует payload из переданных аргументов и передаёт его в `_jwt_encode`.
-    Время истечения токена `exp` вычисляется одним из двух способов -
-    если ни один не передан, выбрасывается `RuntimeError`.
+    Содержит всю логику построения payload, вынесенную из `create_jwt`.
+    Тип возвращаемого payload зависит от значения `couple_id`:
+    если передан `UNSET` - возвращается `RefreshTokenPayload`,
+    иначе - `AccessTokenPayload`.
 
     Parameters
     ----------
@@ -127,18 +156,15 @@ def create_jwt(
     couple_id : Maybe[UUID | None], optional
         Опциональный доменный claim, добавляемый только в access-токен.
 
-        Используется для передачи дополнительного контекста авторизации,
-        связанного с пользователем (идентификатора пары пользователя).
-
         Поведение зависит от переданного значения:
-        - UNSET - claim не добавляется в payload (используется refresh-токен);
-        - UUID - claim добавляется с указанным значением;
-        - None - claim добавляется с null-значением.
+        - UNSET - возвращается `RefreshTokenPayload` без данного claim;
+        - UUID - возвращается `AccessTokenPayload` с указанным значением;
+        - None - возвращается `AccessTokenPayload` с null-значением.
 
     Returns
     -------
-    str
-        Подписанный JSON Web Token.
+    AnyTokenPayload
+        Сформированный payload - `AccessTokenPayload` или `RefreshTokenPayload`.
 
     Raises
     ------
@@ -174,11 +200,117 @@ def create_jwt(
     }
 
     if not isinstance(couple_id, Unset):
-        to_encode = AccessTokenPayload(**data, couple_id=couple_id)
-    else:
-        to_encode = RefreshTokenPayload(**data)
+        return AccessTokenPayload(**data, couple_id=couple_id)
 
-    return _jwt_encode(to_encode)
+    return RefreshTokenPayload(**data)
+
+
+@overload
+def create_jwt(sub_or_payload: AnyTokenPayload) -> str: ...
+
+
+@overload
+def create_jwt(
+    sub_or_payload: UUID,
+    iat: datetime,
+    session_id: UUID,
+    *,
+    exp: datetime | None = ...,
+    jti: UUID | None = ...,
+    iss: str = ...,
+    expires_delta: timedelta | None = ...,
+    couple_id: Maybe[UUID | None] = ...,
+) -> str: ...
+
+
+def create_jwt(
+    sub_or_payload: UUID | AnyTokenPayload,
+    iat: datetime | None = None,
+    session_id: UUID | None = None,
+    *,
+    exp: datetime | None = None,
+    jti: UUID | None = None,
+    iss: str = "my-love-backend",
+    expires_delta: timedelta | None = None,
+    couple_id: Maybe[UUID | None] = UNSET,
+) -> str:
+    """Создаёт и возвращает подписанный JWT.
+
+    Поддерживает два режима вызова:
+
+    1. Передача готового payload-объекта (`AnyTokenPayload`) -
+       полезно, когда payload уже сформирован заранее через `construct_payload`.
+
+    2. Передача сырых значений - payload формируется внутри через
+       `construct_payload`. Время истечения токена `exp` вычисляется одним из
+       двух способов; если ни один не передан, выбрасывается `RuntimeError`.
+
+    Parameters
+    ----------
+    sub_or_payload : UUID | AnyTokenPayload
+        Либо субъект токена (идентификатор пользователя) при сырых значениях,
+        либо готовый payload-объект.
+    iat : datetime | None, optional
+        Время выпуска токена. Обязателен при передаче сырых значений.
+    session_id : UUID | None, optional
+        Идентификатор сессии пользователя. Обязателен при передаче сырых значений.
+    exp : datetime | None, optional
+        Точное время истечения токена.
+        Игнорируется, если передан `expires_delta`.
+    jti : UUID | None, optional
+        Уникальный идентификатор токена.
+        Если не передан - генерируется автоматически через `uuid.uuid4()`.
+    iss : str, optional
+        Издатель токена. По умолчанию `"my-love-backend"`.
+    expires_delta : timedelta | None, optional
+        Время жизни токена относительно `iat`.
+        Имеет приоритет над `exp`, если передан.
+    couple_id : Maybe[UUID | None], optional
+        Опциональный доменный claim, добавляемый только в access-токен.
+
+        Поведение зависит от переданного значения:
+        - UNSET - claim не добавляется в payload (используется refresh-токен);
+        - UUID - claim добавляется с указанным значением;
+        - None - claim добавляется с null-значением.
+
+    Returns
+    -------
+    str
+        Подписанный JSON Web Token.
+
+    Raises
+    ------
+    RuntimeError
+        Если не передан ни `exp`, ни `expires_delta` при использовании
+        сырых значений.
+    TypeError
+        Если `sub_or_payload` является `UUID`, но `iat` или `session_id`
+        не переданы.
+
+    Notes
+    -----
+    Если переданы оба аргумента `exp` и `expires_delta`,
+    приоритет имеет `expires_delta`.
+    """
+    if isinstance(sub_or_payload, (AccessTokenPayload, RefreshTokenPayload)):
+        return _jwt_encode(sub_or_payload)
+
+    if iat is None or session_id is None:
+        raise TypeError(
+            "'iat' and 'session_id' are required when 'sub_or_payload' is UUID."
+        )
+
+    payload = construct_payload(
+        sub_or_payload,
+        iat,
+        session_id,
+        exp=exp,
+        jti=jti,
+        iss=iss,
+        expires_delta=expires_delta,
+        couple_id=couple_id,
+    )
+    return _jwt_encode(payload)
 
 
 _pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")

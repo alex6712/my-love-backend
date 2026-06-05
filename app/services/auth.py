@@ -31,13 +31,13 @@ from app.repositories.couple import CoupleRepository
 from app.repositories.interface import PublicAccessContext
 from app.repositories.user import UserRepository
 from app.repositories.user_session import UserSessionRepository
+from app.schemas.dto.auth import LoginResult, Tokens
 from app.schemas.dto.couple import FilterOneCoupleDTO
 from app.schemas.dto.payload import (
     AccessTokenPayload,
     AnyTokenPayload,
     RefreshTokenPayload,
 )
-from app.schemas.dto.token import LoginResult, Tokens
 from app.schemas.dto.user import CreateUserDTO, FilterOneUserDTO, UpdateUserDTO
 from app.schemas.dto.user_session import (
     CreateUserSessionDTO,
