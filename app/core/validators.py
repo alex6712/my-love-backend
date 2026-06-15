@@ -13,6 +13,9 @@ USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
 PASSWORD_MIN_LENGTH = 12
 """Минимальная длина пароля в символах."""
 
+SPECIAL_CHAR_PATTERN = r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]"
+"""Регулярное выражение для проверки наличия специальных символов."""
+
 
 def validate_password_strength(value: str) -> str:
     """Проверяет пароль на соответствие требованиям безопасности.
@@ -53,7 +56,7 @@ def validate_password_strength(value: str) -> str:
     if not re.search(r"[0-9]", value):
         raise ValueError("Password must contain at least one digit.")
 
-    if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]", value):
+    if not re.search(SPECIAL_CHAR_PATTERN, value):
         raise ValueError("Password must contain at least one special character.")
 
     return value

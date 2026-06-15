@@ -5,8 +5,12 @@ from fastapi import APIRouter, Body, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
+from app.core.enums import PasswordRuleType
+from app.core.validators import PASSWORD_MIN_LENGTH, SPECIAL_CHAR_PATTERN
+from app.schemas.dto.password import PasswordRule
 from app.schemas.dto.user import UpdateUserDTO
 from app.schemas.v1.requests.users import PatchProfileRequest
+from app.schemas.v1.responses.password_policy import PasswordPolicyResponse
 from app.schemas.v1.responses.standard import StandardResponse
 from app.schemas.v1.responses.user import UserResponse
 
@@ -54,15 +58,13 @@ async def get_me(
 
 @router.get(
     "/password-policy",
-    response_model=StandardResponse,
+    response_model=PasswordPolicyResponse,
     status_code=status.HTTP_200_OK,
     summary="Получение информации о политиках валидации паролей.",
     response_description="Информация о политиках валидации паролей",
 )
-async def get_password_policy() -> StandardResponse:
+async def get_password_policy() -> PasswordPolicyResponse:
     """Запрос на получение информации о политиках валидации паролей.
-
-    Находится в разработке.
 
     Возвращает структурированный ответ об используемых политиках валидации
     пользовательских паролей. Не требует аутентификации, т.к. является
@@ -70,10 +72,54 @@ async def get_password_policy() -> StandardResponse:
 
     Returns
     -------
-    StandardResponse
+    PasswordPolicyResponse
         Ответ с информацией о политиках валидации паролей.
     """
-    return StandardResponse(detail="Now in development.")
+    return PasswordPolicyResponse(
+        detail="Password validation policy.",
+        rules=[
+            PasswordRule(
+                id="min_length",
+                description=(
+                    f"Password must be at least {PASSWORD_MIN_LENGTH} characters long."
+                ),
+                type=PasswordRuleType.MIN,
+                value=PASSWORD_MIN_LENGTH,
+                unit="characters",
+            ),
+            PasswordRule(
+                id="require_uppercase",
+                description="Password must contain at least one uppercase letter.",
+                type=PasswordRuleType.BOOLEAN,
+                value=True,
+            ),
+            PasswordRule(
+                id="require_lowercase",
+                description="Password must contain at least one lowercase letter.",
+                type=PasswordRuleType.BOOLEAN,
+                value=True,
+            ),
+            PasswordRule(
+                id="require_digit",
+                description="Password must contain at least one digit.",
+                type=PasswordRuleType.BOOLEAN,
+                value=True,
+            ),
+            PasswordRule(
+                id="require_special_character",
+                description="Password must contain at least one special character.",
+                type=PasswordRuleType.BOOLEAN,
+                value=True,
+            ),
+            PasswordRule(
+                id="special_character_set",
+                description="Set of allowed special characters.",
+                type=PasswordRuleType.CHARSET,
+                value=SPECIAL_CHAR_PATTERN,
+            ),
+        ],
+        version="1.0.0",
+    )
 
 
 @router.patch(
@@ -118,8 +164,7 @@ async def patch_profile(
         Ответ об успешном изменении профиля.
     """
     await services.user.update_profile(
-        UpdateUserDTO.from_request_schema(body),
-        payload.sub,
+        UpdateUserDTO.from_request_schema(body), payload.sub
     )
 
     return StandardResponse(detail="User's profile updated successfully.")
