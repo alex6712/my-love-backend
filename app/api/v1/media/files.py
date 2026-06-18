@@ -40,7 +40,7 @@ router = APIRouter(
     "",
     response_model=FilesResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение списка всех доступных пользователю медиа файлов.",
+    summary="Получение списка всех доступных пользователю медиафайлов.",
     response_description="Список всех доступных файлов",
 )
 async def get_files(
@@ -62,9 +62,9 @@ async def get_files(
         SortOrder, Query(description="Направление сортировки файлов.")
     ] = SortOrder.ASC,
 ) -> FilesResponse:
-    """Получение списка всех доступных пользователю медиа файлов с пагинацией.
+    """Получение списка всех доступных пользователю медиафайлов с пагинацией.
 
-    Возвращает список медиа файлов, доступных пользователю с UUID, переданным в токене доступа.
+    Возвращает список медиафайлов, доступных пользователю с UUID, переданным в токене доступа.
     Поддерживает пагинацию для работы с большими объемами данных.
 
     Parameters
@@ -90,7 +90,7 @@ async def get_files(
     Returns
     -------
     FilesResponse
-        Объект ответа, содержащий список доступных пользователю медиа файлов
+        Объект ответа, содержащий список доступных пользователю медиафайлов
         в пределах заданной пагинации и общее количество найденных файлов.
     """
     files, total = await services.file.get_files(
@@ -108,17 +108,17 @@ async def get_files(
     "/count",
     response_model=CountResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение количества всех доступных пользователю медиа файлов.",
-    response_description="Количество доступных пользователю медиа файлов.",
+    summary="Получение количества всех доступных пользователю медиафайлов.",
+    response_description="Количество доступных пользователю медиафайлов.",
 )
 async def count_files(
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     partner_id: PartnerIdDependency,
 ) -> CountResponse:
-    """Получение количества всех доступных пользователю медиа файлов.
+    """Получение количества всех доступных пользователю медиафайлов.
 
-    Возвращает общее количество медиа файлов, доступных пользователю
+    Возвращает общее количество медиафайлов, доступных пользователю
     с UUID, переданным в токене доступа, включая файлы его партнёра.
 
     Parameters
@@ -139,7 +139,7 @@ async def count_files(
     -------
     CountResponse
         Объект ответа, содержащий общее количество доступных
-        пользователю медиа файлов.
+        пользователю медиафайлов.
     """
     count = await services.file.count_files(payload.sub, partner_id)
 
@@ -150,20 +150,20 @@ async def count_files(
     "/upload",
     response_model=PresignedURLResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение Presigned URL для загрузки медиа-файла в приватное хранилище.",
+    summary="Получение Presigned URL для загрузки медиафайла в приватное хранилище.",
     response_description="URL для прямой загрузки получена успешно",
     responses={400: IDEMPOTENCY_CONFLICT_ERROR_REF},
 )
 async def upload(
     body: Annotated[
         UploadFileRequest,
-        Body(description="Схема получения метаданных загружаемого медиа-файла."),
+        Body(description="Схема получения метаданных загружаемого медиафайла."),
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLResponse:
-    """Получение presigned-url для загрузки медиа-файла в приватное хранилище.
+    """Получение presigned-url для загрузки медиафайла в приватное хранилище.
 
     Предоставляет подписанную ссылку для прямой загрузки файла в объектное
     хранилище.
@@ -202,20 +202,20 @@ async def upload(
     "/upload/batch",
     response_model=PresignedURLsUploadBatchResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение Presigned URL для загрузки пакета медиа-файлов в приватное хранилище.",
+    summary="Получение Presigned URL для загрузки пакета медиафайлов в приватное хранилище.",
     response_description="URLs для прямой загрузки получены успешно",
     responses={400: IDEMPOTENCY_CONFLICT_ERROR_REF},
 )
 async def upload_batch(
     body: Annotated[
         UploadFilesBatchRequest,
-        Body(description="Схема получения метаданных загружаемых медиа-файлов."),
+        Body(description="Схема получения метаданных загружаемых медиафайлов."),
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     idempotency_key: IdempotencyKeyDependency,
 ) -> PresignedURLsUploadBatchResponse:
-    """Получение presigned-url для загрузки пакета медиа-файлов в приватное хранилище.
+    """Получение presigned-url для загрузки пакета медиафайлов в приватное хранилище.
 
     Предоставляет подписанные ссылки для прямой загрузки нескольких файлов в объектное
     хранилище.
@@ -266,7 +266,7 @@ async def upload_batch(
 async def upload_confirm(
     body: Annotated[
         ConfirmUploadRequest,
-        Body(description="Схема получения UUID медиа-файла для подтверждения загрузки"),
+        Body(description="Схема получения UUID медиафайла для подтверждения загрузки"),
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
@@ -305,7 +305,7 @@ async def upload_confirm(
     "/{file_id}/download",
     response_model=PresignedURLResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение Presigned URL для получения медиа-файла из приватного хранилища.",
+    summary="Получение Presigned URL для получения медиафайла из приватного хранилища.",
     response_description="URL для скачивания получена успешно",
 )
 async def download(
@@ -314,7 +314,7 @@ async def download(
     payload: StrictAuthenticationDependency,
     partner_id: PartnerIdDependency,
 ) -> PresignedURLResponse:
-    """Получение presigned-url для скачивания медиа-файла из приватного хранилища.
+    """Получение presigned-url для скачивания медиафайла из приватного хранилища.
 
     Предоставляет подписанную ссылку для прямого скачивания файла из объектного
     хранилища.
@@ -352,7 +352,7 @@ async def download(
     "/download/batch",
     response_model=PresignedURLsDownloadBatchResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение Presigned URL для получения пакета медиа-файлов из приватного хранилища.",
+    summary="Получение Presigned URL для получения пакета медиафайлов из приватного хранилища.",
     response_description="URLs для скачивания получены успешно",
 )
 async def download_batch(
@@ -364,7 +364,7 @@ async def download_batch(
     payload: StrictAuthenticationDependency,
     partner_id: PartnerIdDependency,
 ) -> PresignedURLsDownloadBatchResponse:
-    """Получение presigned-url для скачивания пакета медиа-файлов в приватное хранилище.
+    """Получение presigned-url для скачивания пакета медиафайлов в приватное хранилище.
 
     Предоставляет подписанные ссылки для прямого скачивания нескольких файлов из объектного
     хранилища на клиент.
@@ -406,11 +406,11 @@ async def download_batch(
     "/{file_id}",
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
-    summary="Частичное изменение атрибутов существующего медиа-файла.",
+    summary="Частичное изменение атрибутов существующего медиафайла.",
     response_description="Данные успешно изменены",
 )
 async def patch_file(
-    file_id: Annotated[UUID, Path(description="UUID медиа файла к изменению.")],
+    file_id: Annotated[UUID, Path(description="UUID медиафайла к изменению.")],
     body: Annotated[
         PatchFileRequest,
         Body(description="Схема частичного обновления атрибутов файла"),
@@ -418,7 +418,7 @@ async def patch_file(
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
-    """Частичное изменение медиа файла по его UUID.
+    """Частичное изменение медиафайла по его UUID.
 
     Проверяет права владения текущего пользователя над файлом с
     переданным UUID, изменяет только переданные атрибуты при достатке прав.
@@ -445,7 +445,7 @@ async def patch_file(
     Returns
     -------
     StandardResponse
-        Ответ о результате изменения медиа файла.
+        Ответ о результате изменения медиафайла.
     """
     await services.file.update_file(
         file_id, UpdateFileDTO.from_request_schema(body), payload.sub
@@ -457,7 +457,7 @@ async def patch_file(
 @router.delete(
     "/{file_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Удаление медиа-файла из системы.",
+    summary="Удаление медиафайла из системы.",
     response_description="Файл удалён успешно",
 )
 async def delete_file(
@@ -465,7 +465,7 @@ async def delete_file(
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> None:
-    """Удаление медиа-файла по его UUID.
+    """Удаление медиафайла по его UUID.
 
     Удаляет файл по переданному UUID, что открепляет его от файла.
     Необходимы права на выполнение операции удаления.

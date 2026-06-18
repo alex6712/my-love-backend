@@ -16,9 +16,9 @@ class UploadFileRequest(BaseModel):
     content_type : str
         MIME-тип отправляемого файла.
     title : str
-        Наименование медиа-файла.
+        Наименование медиафайла.
     description : str | None
-        Описание медиа-файла.
+        Описание медиафайла.
     """
 
     client_ref_id: str = Field(
@@ -30,11 +30,11 @@ class UploadFileRequest(BaseModel):
         examples=["image/png"],
     )
     title: str = Field(
-        description="Наименование медиа файла.",
+        description="Наименование медиафайла.",
         examples=["яскотятами"],
     )
     description: str | None = Field(
-        description="Описание медиа файла.",
+        description="Описание медиафайла.",
         examples=["Файл смерти: кто прочитал, тот..."],
     )
 
@@ -57,7 +57,7 @@ class UploadFilesBatchRequest(BaseModel):
 
 
 class ConfirmUploadRequest(BaseModel):
-    """Схема запроса на подтверждения завершения загрузки медиа-файла.
+    """Схема запроса на подтверждения завершения загрузки медиафайла.
 
     Attributes
     ----------
@@ -77,12 +77,12 @@ class DownloadFilesBatchRequest(BaseModel):
     Attributes
     ----------
     files_uuids : list[UUID]
-        Список UUID медиа-файлов для скачивания.
+        Список UUID медиафайлов для скачивания.
         Ограничения: минимум один UUID, максимум `MAX_LIMIT` UUID.
     """
 
     files_uuids: list[UUID] = Field(
-        description="Список UUID медиа-файлов, которые необходимо скачать на клиент.",
+        description="Список UUID медиафайлов, которые необходимо скачать на клиент.",
         examples=[
             [
                 "681cbf12-fe3f-41f4-92f1-c8cb33dfe47e",
@@ -95,7 +95,7 @@ class DownloadFilesBatchRequest(BaseModel):
 
 
 class PatchFileRequest(BaseModel):
-    """Схема запроса на частичное редактирование медиа-файла.
+    """Схема запроса на частичное редактирование медиафайла.
 
     Используется в качестве представления данных для частичного
     обновления полей файла. Все поля опциональны - передаются
@@ -104,21 +104,21 @@ class PatchFileRequest(BaseModel):
     Attributes
     ----------
     title : Maybe[str]
-        Наименование медиа файла. Если не передано - остаётся `UNSET`
+        Наименование медиафайла. Если не передано - остаётся `UNSET`
         и текущее значение в базе данных не изменяется.
     description : Maybe[str | None]
-        Описание медиа файла. Если не передано - остаётся `UNSET`
+        Описание медиафайла. Если не передано - остаётся `UNSET`
         и текущее значение не изменяется. Может быть явно передан
         как None для удаления описания.
     """
 
     title: Maybe[str] = Field(
         default_factory=lambda: UNSET,
-        description="Наименование медиа файла",
+        description="Наименование медиафайла",
         examples=["яскотятами"],
     )
     description: Maybe[str | None] = Field(
         default_factory=lambda: UNSET,
-        description="Описание медиа файла",
+        description="Описание медиафайла",
         examples=["Файл смерти: кто прочитал, тот..."],
     )

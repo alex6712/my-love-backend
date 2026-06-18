@@ -17,16 +17,16 @@ from app.schemas.dto.user import CreatorDTO
 
 
 class InternalFileMetadataDTO(BaseDTO):
-    """Базовое DTO для представления метаданных медиа-файла.
+    """Базовое DTO для представления метаданных медиафайла.
 
     Attributes
     ----------
     content_type : str
-        Тип сохранённого медиа-файла.
+        Тип сохранённого медиафайла.
     title : str
-        Наименование медиа-файла.
+        Наименование медиафайла.
     description : str | None
-        Описание медиа-файла.
+        Описание медиафайла.
     geo_data : dict[str, Any] | None, optional
         Данные о местоположении сохранённого медиа
     """
@@ -38,7 +38,7 @@ class InternalFileMetadataDTO(BaseDTO):
 
 
 class FileMetadataDTO(InternalFileMetadataDTO):
-    """DTO для представления метаданных медиа-файла.
+    """DTO для представления метаданных медиафайла.
 
     Attributes
     ----------
@@ -50,14 +50,14 @@ class FileMetadataDTO(InternalFileMetadataDTO):
 
 
 class PublicFileDTO(BaseSQLCoreDTO, InternalFileMetadataDTO):
-    """Публичное DTO для представления медиа-файла.
+    """Публичное DTO для представления медиафайла.
 
     Attributes
     ----------
     status : FileStatus
-        Текущий статус медиа-файла.
+        Текущий статус медиафайла.
     creator : CreatorDTO
-        DTO пользователя, создавшего медиа-файл.
+        DTO пользователя, создавшего медиафайл.
     """
 
     status: FileStatus
@@ -66,7 +66,7 @@ class PublicFileDTO(BaseSQLCoreDTO, InternalFileMetadataDTO):
 
 
 class InternalFileDTO(PublicFileDTO):
-    """Внутреннее DTO для представления медиа-файла.
+    """Внутреннее DTO для представления медиафайла.
 
     Attributes
     ----------
@@ -127,18 +127,18 @@ class CreateFileDTO(BaseCreateDTO, InternalFileMetadataDTO):
     """DTO для создания нового файла.
 
     Объединяет базовые поля создания сущности (`BaseCreateDTO`)
-    и метаданные медиа-файла (`InternalFileMetadataDTO`).
+    и метаданные медиафайла (`InternalFileMetadataDTO`).
     Также содержит информацию, необходимую для доступа к
     объекту в файловом хранилище.
 
     Attributes
     ----------
     id : UUID
-        Идентификатор медиа-файла.
+        Идентификатор медиафайла.
     object_key : str
         Уникальный ключ объекта в файловом хранилище.
     status : FileStatus
-        Статус создаваемой записи медиа-файла.
+        Статус создаваемой записи медиафайла.
     created_by : UUID
         Идентификатор создателя файла.
     """
@@ -150,12 +150,12 @@ class CreateFileDTO(BaseCreateDTO, InternalFileMetadataDTO):
 
 
 class UpdateFileDTO(BaseUpdateDTO):
-    """DTO для частичного обновления медиа-файла.
+    """DTO для частичного обновления медиафайла.
 
     Attributes
     ----------
     status : FileStatus
-        Новый статус медиа-файла. Если `UNSET`- поле не изменяется.
+        Новый статус медиафайла. Если `UNSET`- поле не изменяется.
     title : Maybe[str]
         Новое наименование файла. Если `UNSET`- поле не изменяется.
     description : Maybe[str | None]

@@ -31,7 +31,7 @@ router = APIRouter(
     "",
     response_model=AlbumsResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение списка всех доступных пользователю медиа альбомов.",
+    summary="Получение списка всех доступных пользователю медиаальбомов.",
     response_description="Список всех доступных альбомов",
 )
 async def get_albums(
@@ -53,9 +53,9 @@ async def get_albums(
         SortOrder, Query(description="Направление сортировки альбомов.")
     ] = SortOrder.ASC,
 ) -> AlbumsResponse:
-    """Получение списка всех доступных пользователю медиа альбомов с пагинацией.
+    """Получение списка всех доступных пользователю медиаальбомов с пагинацией.
 
-    Возвращает список медиа альбомов, доступных пользователю с UUID, переданным в токене доступа.
+    Возвращает список медиаальбомов, доступных пользователю с UUID, переданным в токене доступа.
     Поддерживает пагинацию для работы с большими объемами данных.
 
     Parameters
@@ -81,7 +81,7 @@ async def get_albums(
     Returns
     -------
     AlbumsResponse
-        Объект ответа, содержащий список доступных пользователю медиа альбомов
+        Объект ответа, содержащий список доступных пользователю медиаальбомов
         в пределах заданной пагинации и общее количество найденных альбомов.
     """
     albums, total = await services.album.get_albums(
@@ -97,17 +97,17 @@ async def get_albums(
     "",
     response_model=StandardResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Создать новый медиа альбом.",
+    summary="Создать новый медиаальбом.",
     response_description="Медиа-альбом создан успешно",
 )
 async def post_album(
     body: Annotated[
-        CreateAlbumRequest, Body(description="Схема получения данных о медиа альбоме.")
+        CreateAlbumRequest, Body(description="Схема получения данных о медиаальбоме.")
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
-    """Создание нового медиа альбома.
+    """Создание нового медиаальбома.
 
     Создаёт новую запись в базе данных, устанавливая переданные в теле
     запроса атрибуты.
@@ -171,7 +171,7 @@ async def search_albums(
 ) -> AlbumsResponse:
     """Поиск альбомов по переданному тексту.
 
-    Возвращает список медиа альбомов, доступных пользователю с UUID, переданным в токене доступа,
+    Возвращает список медиаальбомов, доступных пользователю с UUID, переданным в токене доступа,
     в наименовании или описании которых был найден поисковый запрос.
 
     Поиск проводится не только по полному вхождению, но и по триграммам.
@@ -216,8 +216,8 @@ async def search_albums(
     "/{album_id}",
     response_model=AlbumResponse,
     status_code=status.HTTP_200_OK,
-    summary="Получение подробной информации о медиа-альбоме.",
-    response_description="Информация о медиа-альбоме вместе с его элементами",
+    summary="Получение подробной информации о медиаальбоме.",
+    response_description="Информация о медиаальбоме вместе с его элементами",
 )
 async def get_album(
     album_id: Annotated[UUID, Path(description="UUID запрашиваемого альбома.")],
@@ -236,10 +236,10 @@ async def get_album(
         int, Query(ge=1, le=MAX_LIMIT, description="Количество возвращаемых элементов.")
     ] = 20,
 ) -> AlbumResponse:
-    """Получение подробной информации о медиа-альбоме.
+    """Получение подробной информации о медиаальбоме.
 
     Возвращает подробный DTO с полной информацией о конкретном
-    медиа альбоме, чей UUID был передан.
+    медиаальбоме, чей UUID был передан.
 
     Если текущий пользователь не имеет доступа к этому альбому
     или альбом с переданным UUID не существует, будет
@@ -268,7 +268,7 @@ async def get_album(
     Returns
     -------
     AlbumResponse
-        Подробная информация о конкретном медиа-альбоме.
+        Подробная информация о конкретном медиаальбоме.
     """
     album = await services.album.get_album(
         album_id, offset, limit, payload.sub, partner_id
@@ -284,11 +284,11 @@ async def get_album(
     "/{album_id}",
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
-    summary="Частичное изменение атрибутов существующего медиа-альбома.",
+    summary="Частичное изменение атрибутов существующего медиаальбома.",
     response_description="Данные успешно изменены",
 )
 async def patch_album(
-    album_id: Annotated[UUID, Path(description="UUID медиа альбома к изменению.")],
+    album_id: Annotated[UUID, Path(description="UUID медиаальбома к изменению.")],
     body: Annotated[
         PatchAlbumRequest,
         Body(description="Схема частичного обновления атрибутов альбома"),
@@ -297,7 +297,7 @@ async def patch_album(
     payload: StrictAuthenticationDependency,
     partner_id: PartnerIdDependency,
 ) -> StandardResponse:
-    """Частичное изменение медиа альбома по его UUID.
+    """Частичное изменение медиаальбома по его UUID.
 
     Проверяет права владения текущего пользователя над альбомом с
     переданным UUID, изменяет только переданные атрибуты при достатке прав.
@@ -326,7 +326,7 @@ async def patch_album(
     Returns
     -------
     StandardResponse
-        Ответ о результате изменения медиа альбома.
+        Ответ о результате изменения медиаальбома.
     """
     await services.album.update_album(
         album_id, UpdateAlbumDTO.from_request_schema(body), payload.sub, partner_id
@@ -338,15 +338,15 @@ async def patch_album(
 @router.delete(
     "/{album_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Удаление медиа альбома по его UUID.",
+    summary="Удаление медиаальбома по его UUID.",
     response_description="Медиа-альбом удалён успешно",
 )
 async def delete_album(
-    album_id: Annotated[UUID, Path(description="UUID медиа альбома к удалению.")],
+    album_id: Annotated[UUID, Path(description="UUID медиаальбома к удалению.")],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
 ) -> None:
-    """Удаление медиа альбома по его UUID.
+    """Удаление медиаальбома по его UUID.
 
     Проверяет права владения текущего пользователя над альбомом с
     переданным UUID, удаляет его при достатке прав.
@@ -372,7 +372,7 @@ async def delete_album(
     "/{album_id}/attach",
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
-    summary="Привязка медиа-файлов к альбому.",
+    summary="Привязка медиафайлов к альбому.",
     response_description="Медиа-файлы добавлены в альбом",
 )
 async def attach(
@@ -380,23 +380,23 @@ async def attach(
         UUID, Path(description="UUID альбома, в который добавляются файлы.")
     ],
     body: Annotated[
-        AttachFilesRequest, Body(description="Список UUID медиа файлов к добавлению.")
+        AttachFilesRequest, Body(description="Список UUID медиафайлов к добавлению.")
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     partner_id: PartnerIdDependency,
 ) -> StandardResponse:
-    """Привязка медиа-файлов к медиа-альбому.
+    """Привязка медиафайлов к медиаальбому.
 
-    Получает в теле запроса список UUID медиа-файлов, которые
-    будут добавлены в медиа альбом.
+    Получает в теле запроса список UUID медиафайлов, которые
+    будут добавлены в медиаальбом.
 
     Parameters
     ----------
     album_id : UUID
-        UUID альбома, к которому добавляются медиа-файлы.
+        UUID альбома, к которому добавляются медиафайлы.
     body : AttachFilesRequest
-        Список UUID медиа-файлов к добавлению.
+        Список UUID медиафайлов к добавлению.
     services : ServiceManager
         Менеджер сервисов уровня запроса (request-scoped).
 
@@ -425,7 +425,7 @@ async def attach(
     "/{album_id}/detach",
     response_model=StandardResponse,
     status_code=status.HTTP_200_OK,
-    summary="Отвязка медиа-файлов от альбома.",
+    summary="Отвязка медиафайлов от альбома.",
     response_description="Медиа-файлы удалены из альбома",
 )
 async def detach(
@@ -433,23 +433,23 @@ async def detach(
         UUID, Path(description="UUID альбома, из которого удаляются файлы.")
     ],
     body: Annotated[
-        AttachFilesRequest, Body(description="Список UUID медиа-файлов к удалению.")
+        AttachFilesRequest, Body(description="Список UUID медиафайлов к удалению.")
     ],
     services: ServiceManagerDependency,
     payload: StrictAuthenticationDependency,
     partner_id: PartnerIdDependency,
 ) -> StandardResponse:
-    """Отвязка медиа-файлов от медиа-альбома.
+    """Отвязка медиафайлов от медиаальбома.
 
-    Получает в теле запроса список UUID медиа-файлов, которые
-    будут удалены из медиа альбома.
+    Получает в теле запроса список UUID медиафайлов, которые
+    будут удалены из медиаальбома.
 
     Parameters
     ----------
     album_id : UUID
         UUID альбома, из которого удаляются файлы.
     body : AttachFilesRequest
-        Список UUID медиа-файлов к удалению.
+        Список UUID медиафайлов к удалению.
     services : ServiceManager
         Менеджер сервисов уровня запроса (request-scoped).
 

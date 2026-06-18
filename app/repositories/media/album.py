@@ -54,9 +54,9 @@ class AlbumRepository(
     Counter[FilterManyAlbumsDTO],
     Searcher[SearchAlbumDTO, FilterManyAlbumsDTO, AlbumDTO],
 ):
-    """Репозиторий медиа-альбомов.
+    """Репозиторий медиаальбомов.
 
-    Реализация паттерна Репозиторий для работы с медиа-альбомами.
+    Реализация паттерна Репозиторий для работы с медиаальбомами.
     Отвечает за CRUD операции с альбомами и управление связями с файлами.
 
     Methods
@@ -70,15 +70,15 @@ class AlbumRepository(
     search_by_trigram(access_ctx, search_query, threshold, offset, limit)
         Производит поиск альбомов по переданному запросу.
     get_with_items(record_id, access_ctx, offset, limit)
-        Возвращает DTO альбома с постраничным списком медиа-файлов.
+        Возвращает DTO альбома с постраничным списком медиафайлов.
     update(record_id, update_dto, access_ctx)
         Обновляет атрибуты альбома в базе данных.
     delete(record_id, access_ctx)
-        Удаляет запись о медиа альбоме из базы данных.
+        Удаляет запись о медиаальбоме из базы данных.
     attach_files(record_id, files_ids, access_ctx)
-        Прикрепляет медиа-файлы к альбому.
+        Прикрепляет медиафайлы к альбому.
     detach_files(record_id, files_ids, access_ctx)
-        Открепляет медиа-файлы от альбома.
+        Открепляет медиафайлы от альбома.
     get_attached_files_ids(album_id, files_ids)
         Возвращает UUID файлов, уже прикреплённых к альбому.
     """
@@ -87,17 +87,17 @@ class AlbumRepository(
     """Символы экранирования для операции LIKE (и ILIKE)."""
 
     async def create_one(self, create_dto: CreateAlbumDTO) -> bool:
-        """Создаёт новую запись о медиа-альбоме с привязкой к владельцу.
+        """Создаёт новую запись о медиаальбоме с привязкой к владельцу.
 
         Parameters
         ----------
         create_dto : CreateAlbumDTO
-            Данные для создания записи медиа-альбома.
+            Данные для создания записи медиаальбома.
 
         Returns
         -------
         bool
-            True если запись медиа-альбома успешно создана.
+            True если запись медиаальбома успешно создана.
         """
         result = await self.connection.execute(
             insert(albums_table).values(**create_dto.to_create_values())
@@ -108,7 +108,7 @@ class AlbumRepository(
     async def create_many(self, create_dtos: Sequence[CreateAlbumDTO]) -> int:
         """Не поддерживается для данной сущности.
 
-        Не предусмотрено создание множества медиа-альбомов за одну транзакцию,
+        Не предусмотрено создание множества медиаальбомов за одну транзакцию,
         т.к. такой пользовательский сценарий не существует.
         """
         raise NotImplementedError(
@@ -117,7 +117,7 @@ class AlbumRepository(
 
     @classmethod
     def _build_read_statement(cls, *where_clauses: ColumnElement[bool]) -> Select[Any]:
-        """Строит SELECT-запрос для чтения записи о медиа-альбоме.
+        """Строит SELECT-запрос для чтения записи о медиаальбоме.
 
         Принимает готовые WHERE-условия и выполняет JOIN `users_table`
         для получения DTO создателя.
@@ -147,7 +147,7 @@ class AlbumRepository(
     async def read_one(
         self, filter_dto: FilterOneAlbumDTO, access_ctx: AccessContext
     ) -> AlbumDTO | None:
-        """Возвращает DTO пользовательского медиа-альбома.
+        """Возвращает DTO пользовательского медиаальбома.
 
         Parameters
         ----------
@@ -159,7 +159,7 @@ class AlbumRepository(
         Returns
         -------
         AlbumDTO | None
-            DTO записи медиа-альбома или None, если запись не найдена.
+            DTO записи медиаальбома или None, если запись не найдена.
         """
         result = await self.connection.execute(
             self._build_read_statement(
@@ -183,7 +183,7 @@ class AlbumRepository(
     async def read_one_for_update(
         self, filter_dto: FilterOneAlbumDTO, access_ctx: AccessContext
     ) -> AlbumDTO | None:
-        """Возвращает DTO пользовательского медиа-альбома с блокировкой строки для последующего изменения.
+        """Возвращает DTO пользовательского медиаальбома с блокировкой строки для последующего изменения.
 
         Делегирует построение запроса в `_build_read_statement`.
         Устанавливает `SELECT ... FOR UPDATE` - строка блокируется
@@ -199,7 +199,7 @@ class AlbumRepository(
         Returns
         -------
         AlbumDTO | None
-            Найденная запись о медиа-альбоме с вложенным DTO создателя
+            Найденная запись о медиаальбоме с вложенным DTO создателя
             или None, если ни одна запись не соответствует фильтрам.
         """
         result = await self.connection.execute(
@@ -230,7 +230,7 @@ class AlbumRepository(
         limit: int = DEFAULT_LIMIT,
         sort_order: SortOrder = SortOrder.DESC,
     ) -> list[AlbumDTO]:
-        """Возвращает отфильтрованный постраничный список медиа-альбомов.
+        """Возвращает отфильтрованный постраничный список медиаальбомов.
 
         Условие доступа и фильтры применяются на уровне запроса атомарно.
 
@@ -251,7 +251,7 @@ class AlbumRepository(
         Returns
         -------
         list[AlbumDTO]
-            Список DTO найденных записей медиа-альбомов, удовлетворяющих фильтру.
+            Список DTO найденных записей медиаальбомов, удовлетворяющих фильтру.
         """
         where_clauses = [
             *self._build_filter_clauses(filter_dto, albums_table),
@@ -300,7 +300,7 @@ class AlbumRepository(
         Returns
         -------
         bool
-            True если запись о медиа-альбоме найдена и успешно обновлёна.
+            True если запись о медиаальбоме найдена и успешно обновлёна.
         """
         result = await self.connection.execute(
             update(albums_table)
@@ -321,7 +321,7 @@ class AlbumRepository(
     ) -> int:
         """Не поддерживается для данной сущности.
 
-        Не предусмотрено обновление множества медиа-альбомов за одну транзакцию,
+        Не предусмотрено обновление множества медиаальбомов за одну транзакцию,
         т.к. такой пользовательский сценарий не существует.
         """
         raise NotImplementedError(
@@ -331,7 +331,7 @@ class AlbumRepository(
     async def delete_one(
         self, filter_dto: FilterOneAlbumDTO, access_ctx: AccessContext
     ) -> bool:
-        """Удаляет запись о медиа-альбоме из базы данных.
+        """Удаляет запись о медиаальбоме из базы данных.
 
         Parameters
         ----------
@@ -343,7 +343,7 @@ class AlbumRepository(
         Returns
         -------
         bool
-            True если запись о медиа-альбоме найдена и успешно удалена.
+            True если запись о медиаальбоме найдена и успешно удалена.
         """
         result = await self.connection.execute(
             delete(albums_table).where(
@@ -359,7 +359,7 @@ class AlbumRepository(
     ) -> int:
         """Не поддерживается для данной сущности.
 
-        Не предусмотрено удаление множества медиа-альбомов за одну транзакцию,
+        Не предусмотрено удаление множества медиаальбомов за одну транзакцию,
         т.к. такой пользовательский сценарий не существует.
         """
         raise NotImplementedError(
@@ -369,7 +369,7 @@ class AlbumRepository(
     async def count(
         self, filter_dto: FilterManyAlbumsDTO, access_ctx: AccessContext
     ) -> int:
-        """Возвращает количество медиа-альбомов по фильтру и контексту доступа.
+        """Возвращает количество медиаальбомов по фильтру и контексту доступа.
 
         Parameters
         ----------
@@ -382,7 +382,7 @@ class AlbumRepository(
         Returns
         -------
         int
-            Количество медиа-альбомов, удовлетворяющих параметрам фильтрации
+            Количество медиаальбомов, удовлетворяющих параметрам фильтрации
             и контексту доступа.
         """
         return (
@@ -513,10 +513,10 @@ class AlbumRepository(
         offset: int = DEFAULT_OFFSET,
         limit: int = DEFAULT_LIMIT,
     ) -> InternalAlbumWithItemsDTO | None:
-        """Получает DTO альбома с постраничным списком медиа-файлов.
+        """Получает DTO альбома с постраничным списком медиафайлов.
 
         Параллельно выполняет три запроса: получение альбома с создателем,
-        постраничную выборку медиа-файлов и подсчёт их общего количества.
+        постраничную выборку медиафайлов и подсчёт их общего количества.
         Файлы фильтруются по тому же контексту доступа, что и альбом.
         Если альбом не найден или недоступен - возвращает None.
 
@@ -525,7 +525,7 @@ class AlbumRepository(
         filter_dto : FilterOneAlbumDTO
             Параметры фильтрации.
         access_ctx : AccessContext
-            Контекст доступа. Применяется как к альбому, так и к его медиа-файлам.
+            Контекст доступа. Применяется как к альбому, так и к его медиафайлам.
         offset : int, optional
             Количество пропускаемых записей, по умолчанию `DEFAULT_OFFSET`.
         limit : int, optional
@@ -534,7 +534,7 @@ class AlbumRepository(
         Returns
         -------
         InternalAlbumWithItemsDTO | None
-            DTO альбома с медиа-файлами, или None если альбом не найден.
+            DTO альбома с медиафайлами, или None если альбом не найден.
         """
         album_result, items_result, total = await asyncio.gather(
             # альбом с данными создателя
@@ -600,7 +600,7 @@ class AlbumRepository(
     async def attach_files(
         self, record_id: UUID, files_ids: list[UUID], access_ctx: AccessContext
     ) -> None:
-        """Прикрепляет медиа-файлы к альбому.
+        """Прикрепляет медиафайлы к альбому.
 
         Прикрепляет только те файлы, к которым есть доступ по контексту,
         и только если альбом также доступен. Дубликаты молча игнорируются.
@@ -610,7 +610,7 @@ class AlbumRepository(
         record_id : UUID
             UUID альбома.
         files_ids : list[UUID]
-            Список UUID медиа-файлов для прикрепления.
+            Список UUID медиафайлов для прикрепления.
         access_ctx : AccessContext
             Контекст доступа с идентификаторами владельца и партнёра.
         """
@@ -638,7 +638,7 @@ class AlbumRepository(
     async def detach_files(
         self, record_id: UUID, files_ids: list[UUID], access_ctx: AccessContext
     ) -> None:
-        """Открепляет медиа-файлы от альбома.
+        """Открепляет медиафайлы от альбома.
 
         Удаление выполняется только если пользователь имеет доступ
         как к самому альбому, так и к каждому из открепляемых файлов.
@@ -651,7 +651,7 @@ class AlbumRepository(
         record_id : UUID
             UUID альбома.
         files_ids : list[UUID]
-            Список UUID медиа-файлов для удаления.
+            Список UUID медиафайлов для удаления.
         access_ctx : AccessContext
             Контекст доступа с идентификаторами владельца и партнёра.
         """

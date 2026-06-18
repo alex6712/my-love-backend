@@ -19,7 +19,7 @@ files_table = Table(
         "content_type",
         String(64),
         nullable=False,
-        comment="Тип медиа файла",
+        comment="Тип медиафайла",
     ),
     Column(
         "status",
@@ -31,20 +31,20 @@ files_table = Table(
         default=FileStatus.PENDING,
         nullable=False,
         index=True,
-        comment="Текущий статус медиа-файла",
+        comment="Текущий статус медиафайла",
     ),
     Column(
         "title",
         String(64),
         default="Новый файл",
         nullable=False,
-        comment="Наименование медиа файла",
+        comment="Наименование медиафайла",
     ),
     Column(
         "description",
         Text(),
         nullable=True,
-        comment="Описание медиа файла",
+        comment="Описание медиафайла",
     ),
     Column(
         "geo_data",
@@ -54,5 +54,5 @@ files_table = Table(
         comment="Данные о местоположении сохранённого медиа",
     ),
     *owned_columns(),
-    comment="Загруженные пользователями медиа файлы",
+    comment="Загруженные пользователями медиафайлы",
 )

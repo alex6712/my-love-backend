@@ -6,7 +6,7 @@ from app.core.types import UNSET, Maybe
 
 
 class CreateAlbumRequest(BaseModel):
-    """Схема запроса на создание медиа-альбома.
+    """Схема запроса на создание медиаальбома.
 
     Используется в качестве представления информации о новом альбоме.
 
@@ -24,17 +24,17 @@ class CreateAlbumRequest(BaseModel):
 
     title: str = Field(
         default="Новый альбом",
-        description="Наименование медиа альбома",
+        description="Наименование медиаальбома",
         examples=["Поездка в Париж 2004"],
     )
     description: str | None = Field(
         default=None,
-        description="Описание медиа альбома",
+        description="Описание медиаальбома",
         examples=["Альбом с романтичными видами Города Любви!"],
     )
     cover_url: str | None = Field(
         default=None,
-        description="Ссылка на обложку медиа альбома",
+        description="Ссылка на обложку медиаальбома",
         examples=[
             "https://camo.githubusercontent.com/78a574a2925825ac33911b5a8bad6176bea158260c4581a72129bfa8d2ce87f3/68747470733a2f2f7777772e6963656769662e636f6d2f77702d636f6e74656e742f75706c6f6164732f323032332f30312f6963656769662d3136322e676966"
         ],
@@ -47,7 +47,7 @@ class CreateAlbumRequest(BaseModel):
 
 
 class PatchAlbumRequest(BaseModel):
-    """Схема запроса на частичное редактирование медиа-альбома.
+    """Схема запроса на частичное редактирование медиаальбома.
 
     Используется в качестве представления данных для частичного
     обновления полей альбома. Все поля опциональны - передаются
@@ -74,17 +74,17 @@ class PatchAlbumRequest(BaseModel):
 
     title: Maybe[str] = Field(
         default_factory=lambda: UNSET,
-        description="Наименование медиа альбома",
+        description="Наименование медиаальбома",
         examples=["Поездка в Париж 2004"],
     )
     description: Maybe[str | None] = Field(
         default_factory=lambda: UNSET,
-        description="Описание медиа альбома",
+        description="Описание медиаальбома",
         examples=["Альбом с романтичными видами Города Любви!"],
     )
     cover_url: Maybe[str | None] = Field(
         default_factory=lambda: UNSET,
-        description="Ссылка на обложку медиа альбома",
+        description="Ссылка на обложку медиаальбома",
         examples=[
             "https://camo.githubusercontent.com/78a574a2925825ac33911b5a8bad6176bea158260c4581a72129bfa8d2ce87f3/68747470733a2f2f7777772e6963656769662e636f6d2f77702d636f6e74656e742f75706c6f6164732f323032332f30312f6963656769662d3136322e676966"
         ],
@@ -97,19 +97,19 @@ class PatchAlbumRequest(BaseModel):
 
 
 class AttachFilesRequest(BaseModel):
-    """Схема запроса на добавления медиа-файлов к альбому.
+    """Схема запроса на добавления медиафайлов к альбому.
 
     Используется в качестве представления информации о списке
-    добавляемых в медиа альбом файлов.
+    добавляемых в медиаальбом файлов.
 
     Attributes
     ----------
     files_uuids : list[UUID]
-        Список UUID медиа-файлов к добавлению.
+        Список UUID медиафайлов к добавлению.
     """
 
     files_uuids: list[UUID] = Field(
-        description="Список UUID медиа-файлов, которые необходимо добавить в альбом.",
+        description="Список UUID медиафайлов, которые необходимо добавить в альбом.",
         examples=[
             [
                 "681cbf12-fe3f-41f4-92f1-c8cb33dfe47e",

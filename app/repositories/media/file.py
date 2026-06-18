@@ -31,45 +31,45 @@ class FileRepository(
     Deleter[FilterOneFileDTO, FilterManyFilesDTO],
     Counter[FilterManyFilesDTO],
 ):
-    """Репозиторий медиа-файлов.
+    """Репозиторий медиафайлов.
 
-    Реализация паттерна Репозиторий для работы с медиа-файлами.
+    Реализация паттерна Репозиторий для работы с медиафайлами.
     Отвечает за CRUD операции с файлами и управление их статусами.
 
     Methods
     -------
     create_one(create_dto)
-        Создаёт новую запись о медиа-файле.
+        Создаёт новую запись о медиафайле.
     create_many(create_dtos)
-        Массово создаёт записи о медиа-файлах.
+        Массово создаёт записи о медиафайлах.
     read_one(filter_dto, access_ctx)
-        Возвращает один медиа-файл по фильтрам.
+        Возвращает один медиафайл по фильтрам.
     read_one_for_update(filter_dto, access_ctx)
-        Возвращает медиа-файл с блокировкой строки (`FOR UPDATE`).
+        Возвращает медиафайл с блокировкой строки (`FOR UPDATE`).
     read_many(filter_dto, access_ctx, offset, limit, sort_order)
-        Возвращает список медиа-файлов с пагинацией.
+        Возвращает список медиафайлов с пагинацией.
     update_one(filter_dto, update_dto, access_ctx)
-        Обновляет один медиа-файл по фильтрам.
+        Обновляет один медиафайл по фильтрам.
     delete_one(filter_dto, access_ctx)
-        Удаляет один медиа-файл по фильтрам.
+        Удаляет один медиафайл по фильтрам.
     delete_many(filter_dto, access_ctx)
-        Удаляет множество медиа-файлов по фильтрам.
+        Удаляет множество медиафайлов по фильтрам.
     count(filter_dto, access_ctx)
-        Возвращает количество медиа-файлов, удовлетворяющих фильтрам.
+        Возвращает количество медиафайлов, удовлетворяющих фильтрам.
     """
 
     async def create_one(self, create_dto: CreateFileDTO) -> bool:
-        """Создаёт новую запись о медиа-файле с привязкой к владельцу.
+        """Создаёт новую запись о медиафайле с привязкой к владельцу.
 
         Parameters
         ----------
         create_dto : CreateFileDTO
-            Данные для создания записи медиа-файла.
+            Данные для создания записи медиафайла.
 
         Returns
         -------
         bool
-            True если запись медиа-файла успешно создана.
+            True если запись медиафайла успешно создана.
         """
         result = await self.connection.execute(
             insert(files_table).values(**create_dto.to_create_values())
@@ -78,12 +78,12 @@ class FileRepository(
         return result.rowcount == 1
 
     async def create_many(self, create_dtos: Sequence[CreateFileDTO]) -> int:
-        """Создает множество записей медиа-файлов с привязкой к владельцу.
+        """Создает множество записей медиафайлов с привязкой к владельцу.
 
         Parameters
         ----------
         create_dtos : Sequence[CreateFileDTO]
-            Данные для создания записей медиа-файлов.
+            Данные для создания записей медиафайлов.
 
         Returns
         -------
@@ -100,7 +100,7 @@ class FileRepository(
 
     @classmethod
     def _build_read_statement(cls, *where_clauses: ColumnElement[bool]) -> Select[Any]:
-        """Строит SELECT-запрос для чтения записи о медиа-файле.
+        """Строит SELECT-запрос для чтения записи о медиафайле.
 
         Принимает готовые WHERE-условия и выполняет JOIN `users_table`
         для получения DTO создателя.
@@ -130,7 +130,7 @@ class FileRepository(
     async def read_one(
         self, filter_dto: FilterOneFileDTO, access_ctx: AccessContext
     ) -> InternalFileDTO | None:
-        """Возвращает DTO пользовательского медиа-файла.
+        """Возвращает DTO пользовательского медиафайла.
 
         Parameters
         ----------
@@ -142,7 +142,7 @@ class FileRepository(
         Returns
         -------
         InternalFileDTO | None
-            DTO записи медиа-файла или None, если запись не найдена.
+            DTO записи медиафайла или None, если запись не найдена.
         """
         result = await self.connection.execute(
             self._build_read_statement(
@@ -166,7 +166,7 @@ class FileRepository(
     async def read_one_for_update(
         self, filter_dto: FilterOneFileDTO, access_ctx: AccessContext
     ) -> InternalFileDTO | None:
-        """Возвращает DTO пользовательского медиа-файла с блокировкой строки для последующего изменения.
+        """Возвращает DTO пользовательского медиафайла с блокировкой строки для последующего изменения.
 
         Делегирует построение запроса в `_build_read_statement`.
         Устанавливает `SELECT ... FOR UPDATE` - строка блокируется
@@ -182,7 +182,7 @@ class FileRepository(
         Returns
         -------
         InternalFileDTO | None
-            Найденная запись о медиа-файле с вложенным DTO создателя
+            Найденная запись о медиафайле с вложенным DTO создателя
             или None, если ни одна запись не соответствует фильтрам.
         """
         result = await self.connection.execute(
@@ -213,7 +213,7 @@ class FileRepository(
         limit: int = DEFAULT_LIMIT,
         sort_order: SortOrder = SortOrder.DESC,
     ) -> list[InternalFileDTO]:
-        """Возвращает отфильтрованный постраничный список медиа-файлов.
+        """Возвращает отфильтрованный постраничный список медиафайлов.
 
         Условие доступа и фильтры применяются на уровне запроса атомарно.
 
@@ -234,7 +234,7 @@ class FileRepository(
         Returns
         -------
         list[InternalFileDTO]
-            Список DTO найденных записей медиа-файлов, удовлетворяющих фильтру.
+            Список DTO найденных записей медиафайлов, удовлетворяющих фильтру.
         """
         result = await self.connection.execute(
             self._build_read_statement(
@@ -281,7 +281,7 @@ class FileRepository(
         Returns
         -------
         bool
-            True если запись о медиа-файле найдена и успешно обновлёна.
+            True если запись о медиафайле найдена и успешно обновлёна.
         """
         result = await self.connection.execute(
             update(files_table)
@@ -302,7 +302,7 @@ class FileRepository(
     ) -> int:
         """Не поддерживается для данной сущности.
 
-        Не предусмотрено обновление множества медиа-файлов за одну транзакцию,
+        Не предусмотрено обновление множества медиафайлов за одну транзакцию,
         т.к. такой пользовательский сценарий не существует.
         """
         raise NotImplementedError(
@@ -312,7 +312,7 @@ class FileRepository(
     async def delete_one(
         self, filter_dto: FilterOneFileDTO, access_ctx: AccessContext
     ) -> bool:
-        """Удаляет запись о медиа-файле из базы данных.
+        """Удаляет запись о медиафайле из базы данных.
 
         Parameters
         ----------
@@ -324,7 +324,7 @@ class FileRepository(
         Returns
         -------
         bool
-            True если запись о медиа-файле найдена и успешно удалена.
+            True если запись о медиафайле найдена и успешно удалена.
         """
         result = await self.connection.execute(
             delete(files_table).where(
@@ -338,7 +338,7 @@ class FileRepository(
     async def delete_many(
         self, filter_dto: FilterManyFilesDTO, access_ctx: AccessContext
     ) -> int:
-        """Удаляет множество записей о медиа-файлов из базы данных.
+        """Удаляет множество записей о медиафайлов из базы данных.
 
         Parameters
         ----------
@@ -364,7 +364,7 @@ class FileRepository(
     async def count(
         self, filter_dto: FilterManyFilesDTO, access_ctx: AccessContext
     ) -> int:
-        """Возвращает количество медиа-файлов по фильтру и контексту доступа.
+        """Возвращает количество медиафайлов по фильтру и контексту доступа.
 
         Parameters
         ----------
@@ -377,7 +377,7 @@ class FileRepository(
         Returns
         -------
         int
-            Количество медиа-файлов, удовлетворяющих параметрам фильтрации
+            Количество медиафайлов, удовлетворяющих параметрам фильтрации
             и контексту доступа.
         """
         return (

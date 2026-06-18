@@ -18,7 +18,7 @@ T = TypeVar("T", bound=PublicFileDTO)
 
 
 class AlbumDTO(BaseSQLCoreDTO):
-    """DTO для представления медиа альбома.
+    """DTO для представления медиаальбома.
 
     Attributes
     ----------
@@ -43,17 +43,17 @@ class AlbumDTO(BaseSQLCoreDTO):
 
 
 class AlbumWithItemsDTO[T](AlbumDTO):
-    """DTO для представления подробной информации о медиа-альбоме.
+    """DTO для представления подробной информации о медиаальбоме.
 
     Наследуется от `AlbumDTO` и добавляет атрибут `items`,
-    в котором сохранены все медиа-файлы, добавленные в
-    медиа-альбом, а также `total` - общее количество
+    в котором сохранены все медиафайлы, добавленные в
+    медиаальбом, а также `total` - общее количество
     элементов.
 
     Attributes
     ----------
     items : list[T]
-        Все добавленные в альбом медиа-файлы.
+        Все добавленные в альбом медиафайлы.
     total : int
         Общее количество элементов в альбоме.
     """
@@ -63,10 +63,10 @@ class AlbumWithItemsDTO[T](AlbumDTO):
 
 
 PublicAlbumWithItemsDTO = AlbumWithItemsDTO[PublicFileDTO]
-"""Публичный DTO альбома с вложенными медиа-файлами, который сериализуется в API-ответах."""
+"""Публичный DTO альбома с вложенными медиафайлами, который сериализуется в API-ответах."""
 
 InternalAlbumWithItemsDTO = AlbumWithItemsDTO[InternalFileDTO]
-"""Внутренний DTO альбома с вложенными медиа-файлами, который используется в сервисах и репозиториях."""
+"""Внутренний DTO альбома с вложенными медиафайлами, который используется в сервисах и репозиториях."""
 
 
 class FilterOneAlbumDTO(BaseFilterOneDTO):
@@ -125,7 +125,7 @@ class SearchAlbumDTO(BaseSearchDTO):
 
 
 class CreateAlbumDTO(BaseCreateDTO):
-    """DTO для создания нового медиа-альбома.
+    """DTO для создания нового медиаальбома.
 
     Attributes
     ----------

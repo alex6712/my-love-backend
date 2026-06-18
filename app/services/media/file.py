@@ -76,7 +76,7 @@ Notes
 
 
 class FileService:
-    """Сервис работы с медиа-файлами.
+    """Сервис работы с медиафайлами.
 
     Реализует бизнес-логику для:
     - Загрузки файлов в приватное хранилище;
@@ -101,7 +101,7 @@ class FileService:
     get_files(offset, limit, user_id)
         Получение всех файлов по UUID создателя.
     count_files(user_id)
-        Получение количества всех доступных пользователю медиа-файлов.
+        Получение количества всех доступных пользователю медиафайлов.
     get_upload_presigned_url(files_metadata, user_id, idempotency_key)
         Получение presigned-url для загрузки файла напрямую в S3.
     get_upload_presigned_urls(files_metadata, user_id, idempotency_key)
@@ -111,7 +111,7 @@ class FileService:
     get_download_presigned_url(file_id, user_id)
         Получение presigned-url для получения файла из приватного хранилища.
     update_file(file_id, title, description, user_id)
-        Обновление атрибутов медиа-файла по его UUID.
+        Обновление атрибутов медиафайла по его UUID.
     delete_file(file_id, user_id)
         Удаление файла по его UUID.
     """
@@ -334,7 +334,7 @@ class FileService:
         )
 
     async def count_files(self, user_id: UUID, partner_id: UUID | None) -> int:
-        """Получение количества всех доступных пользователю медиа-файлов.
+        """Получение количества всех доступных пользователю медиафайлов.
 
         Возвращает закэшированное значение из Redis, если оно есть.
         В случае cache miss обращается к БД и прогревает кэш.
@@ -347,7 +347,7 @@ class FileService:
         Returns
         -------
         int
-            Количество доступных пользователю медиа-файлов.
+            Количество доступных пользователю медиафайлов.
         """
         if cached := await self._redis_client.get_count("files", user_id):
             return cached
@@ -664,7 +664,7 @@ class FileService:
         Parameters
         ----------
         file_id : UUID
-            UUID медиа-файла для подтверждения загрузки.
+            UUID медиафайла для подтверждения загрузки.
         user_id : UUID
             UUID пользователя-создателя файла.
             Используется для проверки прав доступа.
@@ -972,7 +972,7 @@ class FileService:
     async def update_file(
         self, file_id: UUID, update_dto: UpdateFileDTO, user_id: UUID
     ) -> None:
-        """Обновление атрибутов медиа-файла по его UUID.
+        """Обновление атрибутов медиафайла по его UUID.
 
         Передаёт данные в репозиторий для обновления альбома с учётом прав доступа.
         Обновляет только явно переданные поля (не равные `UNSET`).
@@ -1009,7 +1009,7 @@ class FileService:
     async def delete_file(self, file_id: UUID, user_id: UUID) -> None:
         """Удаление файла по его UUID.
 
-        Получает UUID медиа-файла и UUID пользователя, совершающего действие удаления.
+        Получает UUID медиафайла и UUID пользователя, совершающего действие удаления.
         Если UUID пользователя не совпадает с UUID создателя файла, завершает
         действие исключением. В ином случае удаляет файл.
 

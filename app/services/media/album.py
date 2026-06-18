@@ -20,12 +20,12 @@ from app.schemas.dto.album import (
 
 
 class AlbumService:
-    """Сервис работы с медиа-альбомами.
+    """Сервис работы с медиаальбомами.
 
     Реализует бизнес-логику для:
-    - Регистрации и получения медиа альбомов;
+    - Регистрации и получения медиаальбомов;
     - Управления медиа внутри и между альбомами;
-    - Привязки медиа-файлов к альбомам.
+    - Привязки медиафайлов к альбомам.
 
     Attributes
     ----------
@@ -39,21 +39,21 @@ class AlbumService:
     Methods
     -------
     create_album(title, description, cover_url, is_private, created_by)
-        Создание нового медиа альбома.
+        Создание нового медиаальбома.
     get_albums(offset, limit, created_by)
-        Получение всех медиа альбомов по UUID создателя.
+        Получение всех медиаальбомов по UUID создателя.
     search_albums(search_query, threshold, limit, created_by)
         Производит поиск альбомов по переданному запросу.
     get_album(album_id, user_id)
         Получение подробной информации об альбоме по его UUID.
     update_album(album_id, title, description, cover_url, is_private, user_id)
-        Обновление атрибутов медиа-альбома по его UUID.
+        Обновление атрибутов медиаальбома по его UUID.
     delete_album(album_id, user_id)
         Удаление альбома по его UUID.
     attach(album_id, files_uuids, user_id)
-        Прикрепляет медиа-файлы к альбому.
+        Прикрепляет медиафайлы к альбому.
     detach(album_id, files_uuids, user_id)
-        Открепляет медиа-файлы от альбома.
+        Открепляет медиафайлы от альбома.
     """
 
     def __init__(self, uow: UnitOfWork):
@@ -62,7 +62,7 @@ class AlbumService:
         self._couple_repo = uow.get_repository(CoupleRepository)
 
     async def create_album(self, create_dto: CreateAlbumDTO) -> None:
-        """Создание нового медиа альбома.
+        """Создание нового медиаальбома.
 
         Parameters
         ----------
@@ -172,14 +172,14 @@ class AlbumService:
     ) -> InternalAlbumWithItemsDTO:
         """Получение подробной информации об альбоме по его UUID.
 
-        Получает на вход UUID медиа-альбома и UUID текущего пользователя,
-        возвращает DTO медиа-альбома с подробным представлением входящих
-        в него медиа-файлов.
+        Получает на вход UUID медиаальбома и UUID текущего пользователя,
+        возвращает DTO медиаальбома с подробным представлением входящих
+        в него медиафайлов.
 
         Parameters
         ----------
         album_id : UUID
-            UUID медиа-альбома к получению.
+            UUID медиаальбома к получению.
         offset : int
             Смещение для пагинации.
         limit : int | None
@@ -192,7 +192,7 @@ class AlbumService:
         Returns
         -------
         InternalAlbumWithItemsDTO
-            Подробный DTO медиа-альбома.
+            Подробный DTO медиаальбома.
 
         Raises
         ------
@@ -221,7 +221,7 @@ class AlbumService:
         user_id: UUID,
         partner_id: UUID | None,
     ) -> None:
-        """Частичное обновление атрибутов медиа-альбома по его UUID.
+        """Частичное обновление атрибутов медиаальбома по его UUID.
 
         Получает идентификатор партнёра текущего пользователя и передаёт данные
         в репозиторий для обновления альбома с учётом прав доступа.
@@ -293,7 +293,7 @@ class AlbumService:
         user_id: UUID,
         partner_id: UUID | None,
     ) -> None:
-        """Прикрепляет медиа-файлы к альбому.
+        """Прикрепляет медиафайлы к альбому.
 
         Не добавляет файлы, если они не существуют, пользователь
         не имеет прав на операции с ними или они уже прикреплены
@@ -304,7 +304,7 @@ class AlbumService:
         album_id : UUID
             UUID альбома.
         files_ids : list[UUID]
-            Список UUID медиа-файлов для прикрепления.
+            Список UUID медиафайлов для прикрепления.
         user_id : UUID
             UUID пользователя, выполняющего операцию.
         partner_id : UUID | None
@@ -338,7 +338,7 @@ class AlbumService:
         user_id: UUID,
         partner_id: UUID | None,
     ) -> None:
-        """Открепляет медиа-файлы от альбома.
+        """Открепляет медиафайлы от альбома.
 
         Не открепляет файлы, если они не существуют, пользователь
         не имеет прав на операции с ними или они не прикреплены
@@ -353,7 +353,7 @@ class AlbumService:
         album_id : UUID
             UUID альбома.
         files_ids : list[UUID]
-            Список UUID медиа-файлов для открепления.
+            Список UUID медиафайлов для открепления.
         user_id : UUID
             UUID пользователя, выполняющего операцию.
         partner_id : UUID | None
