@@ -32,7 +32,6 @@ from app.repositories.interface import PublicAccessContext
 from app.repositories.user import UserRepository
 from app.repositories.user_session import UserSessionRepository
 from app.schemas.dto.auth import Tokens
-from app.schemas.dto.couple import FilterOneCoupleDTO
 from app.schemas.dto.payload import (
     AccessTokenPayload,
     AnyTokenPayload,
@@ -41,6 +40,7 @@ from app.schemas.dto.payload import (
 from app.schemas.dto.user import CreateUserDTO, FilterOneUserDTO, UpdateUserDTO
 from app.schemas.dto.user_session import (
     CreateUserSessionDTO,
+    FilterManyUserSessionsDTO,
     FilterOneUserSessionDTO,
     UpdateUserSessionDTO,
 )
@@ -149,17 +149,17 @@ class AuthService:
                 detail="Incorrect username or password."
             )
 
-        couple = await self._couple_repo.read_one(
-            FilterOneCoupleDTO(user_id=user.id), PublicAccessContext()
-        )
-
         current_time = datetime.now(timezone.utc)
         expires_at = current_time + timedelta(
             days=self._settings.REFRESH_TOKEN_LIFETIME_DAYS
         )
 
         refresh_token = create_jwt(
-            user.id, current_time, session_id := uuid4(), exp=expires_at
+            user.id,
+            current_time,
+            session_id := uuid4(),
+            token_type="refresh",
+            exp=expires_at,
         )
 
         await self._user_session_repo.create_one(
@@ -177,10 +177,10 @@ class AuthService:
                 user.id,
                 current_time,
                 session_id,
+                token_type="access",
                 expires_delta=timedelta(
                     minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES
                 ),
-                couple_id=couple.id if couple else None,
             ),
             refresh=refresh_token,
         )
@@ -228,7 +228,11 @@ class AuthService:
         )
 
         new_refresh_token = create_jwt(
-            payload.sub, current_time, payload.session_id, exp=expires_at
+            payload.sub,
+            current_time,
+            payload.sid,
+            token_type="refresh",
+            exp=expires_at,
         )
 
         # атомарное обновление хэша токена обновления
@@ -247,69 +251,17 @@ class AuthService:
                 token_type="refresh",
             )
 
-        couple = await self._couple_repo.read_one(
-            FilterOneCoupleDTO(user_id=payload.sub), PublicAccessContext()
-        )
-
         return Tokens(
             access=create_jwt(
                 payload.sub,
                 current_time,
-                payload.session_id,
+                payload.sid,
+                token_type="access",
                 expires_delta=timedelta(
                     minutes=self._settings.ACCESS_TOKEN_LIFETIME_MINUTES
                 ),
-                couple_id=couple.id if couple else None,
             ),
             refresh=new_refresh_token,
-        )
-
-    @overload
-    async def _invalidate_token_and_session(
-        self, payload: AccessTokenPayload, token_type: Literal["access"]
-    ) -> None: ...
-
-    @overload
-    async def _invalidate_token_and_session(
-        self, payload: RefreshTokenPayload, token_type: Literal["refresh"]
-    ) -> None: ...
-
-    async def _invalidate_token_and_session(
-        self, payload: AnyTokenPayload, token_type: TokenType
-    ) -> None:
-        """Инвалидирует токен и связанную пользовательскую сессию.
-
-        Выполняет:
-        - добавление `jti` токена в Redis blacklist с TTL;
-        - удаление пользовательской сессии по `session_id`.
-
-        Parameters
-        ----------
-        payload : AnyTokenPayload
-            Валидированный payload токена.
-
-            Обязательные поля:
-            - jti : UUID - идентификатор токена;
-            - exp : datetime - время истечения;
-            - session_id : UUID - идентификатор сессии.
-        token_type : TokenType
-            Тип токена (access или refresh).
-
-        Notes
-        -----
-        TTL рассчитывается как разница между `exp` и текущим временем.
-        Если TTL <= 0, токен считается уже истёкшим и не добавляется в blacklist.
-        """
-        current_ts = datetime.now(timezone.utc).timestamp()
-        ttl = ceil(payload.exp.timestamp() - current_ts)
-
-        if ttl > 0:
-            await self._redis_client.revoke_token(
-                jti=payload.jti, ttl=ttl, token_type=token_type
-            )
-
-        await self._user_session_repo.delete_one(
-            FilterOneUserSessionDTO(id=payload.session_id), PublicAccessContext()
         )
 
     async def logout(self, payload: AccessTokenPayload) -> None:
@@ -323,7 +275,17 @@ class AuthService:
         payload : AccessTokenPayload
             Полезная нагрузка (payload) access-токена текущего пользователя.
         """
-        await self._invalidate_token_and_session(payload, "access")
+        current_ts = datetime.now(timezone.utc).timestamp()
+        ttl = ceil(payload.exp.timestamp() - current_ts)
+
+        if ttl > 0:
+            await self._redis_client.revoke_token(
+                jti=payload.jti, ttl=ttl, token_type="access"
+            )
+
+        await self._user_session_repo.delete_one(
+            FilterOneUserSessionDTO(id=payload.sid), PublicAccessContext()
+        )
 
     async def change_password(
         self, current_password: str, new_password: str, payload: AccessTokenPayload
@@ -375,7 +337,9 @@ class AuthService:
                 detail="Failed to update password: no rows were affected."
             )
 
-        await self._invalidate_token_and_session(payload, "access")
+        await self._user_session_repo.delete_many(
+            FilterManyUserSessionsDTO(user_ids=[payload.sub]), PublicAccessContext()
+        )
 
     async def validate_access_token(
         self, access_token: str | None

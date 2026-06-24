@@ -10,7 +10,7 @@ class _Payload(BaseModel):
     Attributes
     ----------
     sub : UUID
-        Субъект токена - идентификатор пользователя.
+        Субъект (subject) токена - идентификатор пользователя.
     iat : datetime
         Время выпуска токена (issued at).
     exp : datetime
@@ -19,8 +19,8 @@ class _Payload(BaseModel):
         Уникальный идентификатор токена (JWT ID).
     iss : str
         Издатель токена (issuer).
-    session_id : UUID
-        Идентификатор сессии пользователя.
+    sid : UUID
+        Идентификатор сессии пользователя (session ID).
     """
 
     sub: UUID
@@ -28,7 +28,7 @@ class _Payload(BaseModel):
     exp: datetime
     jti: UUID
     iss: str
-    session_id: UUID
+    sid: UUID
 
     @field_serializer("iat", "exp")
     def serialize_datetime(self, value: datetime) -> int:
@@ -91,13 +91,6 @@ class AccessTokenPayload(_Payload):
     защищённом запросе, поэтому баланс между размером payload и
     количеством включённых данных должен быть тщательно контролируем.
 
-    Attributes
-    ----------
-    couple_id : UUID | None
-        Идентификатор пары пользователя. Используется в сценариях,
-        где доступ к ресурсам зависит от дополнительного контекста,
-        связанного с пользователем. Может отсутствовать.
-
     Notes
     -----
     - Может расширяться новыми полями без изменения refresh-токена.
@@ -109,7 +102,7 @@ class AccessTokenPayload(_Payload):
     RefreshTokenPayload : Минимальный payload для обновления токенов.
     """
 
-    couple_id: UUID | None
+    pass
 
 
 type AnyTokenPayload = AccessTokenPayload | RefreshTokenPayload

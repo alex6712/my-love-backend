@@ -19,7 +19,7 @@ from passlib.context import CryptContext
 
 from app.config import get_settings
 from app.core.exceptions.base import WeakServerSecretException
-from app.core.types import UNSET, Maybe, TokenType, Unset
+from app.core.types import TokenType
 from app.schemas.dto.payload import (
     AccessTokenPayload,
     AnyTokenPayload,
@@ -68,6 +68,8 @@ def jwt_decode(token: str, token_type: TokenType) -> AnyTokenPayload:
     ----------
     token : str
         JWT, из которого будет получен словарь.
+    token_type : TokenType
+        Тип токена для декодировки.
 
     Returns
     -------
@@ -82,10 +84,16 @@ def jwt_decode(token: str, token_type: TokenType) -> AnyTokenPayload:
         algorithms=[_settings.JWT_ALGORITHM],
     )
 
-    if token_type == "access":
-        return AccessTokenPayload.model_validate(decoded)
+    match token_type:
+        case "access":
+            return AccessTokenPayload.model_validate(decoded)
+        case "refresh":
+            return RefreshTokenPayload.model_validate(decoded)
 
-    return RefreshTokenPayload.model_validate(decoded)
+    raise ValueError(
+        f"Cannot decode a payload for {token_type} token type."
+        "It's value must be 'access' or 'refresh'."
+    )
 
 
 @overload
@@ -94,11 +102,11 @@ def construct_payload(
     iat: datetime,
     session_id: UUID,
     *,
+    token_type: Literal["refresh"],
     exp: datetime | None = ...,
     jti: UUID | None = ...,
     iss: str = ...,
     expires_delta: timedelta | None = ...,
-    couple_id: Unset = ...,
 ) -> RefreshTokenPayload: ...
 
 
@@ -108,11 +116,11 @@ def construct_payload(
     iat: datetime,
     session_id: UUID,
     *,
+    token_type: Literal["access"],
     exp: datetime | None = ...,
     jti: UUID | None = ...,
     iss: str = ...,
     expires_delta: timedelta | None = ...,
-    couple_id: UUID | None,
 ) -> AccessTokenPayload: ...
 
 
@@ -121,18 +129,19 @@ def construct_payload(
     iat: datetime,
     session_id: UUID,
     *,
+    token_type: TokenType,
     exp: datetime | None = None,
     jti: UUID | None = None,
     iss: str = "my-love-backend",
     expires_delta: timedelta | None = None,
-    couple_id: Maybe[UUID | None] = UNSET,
 ) -> AnyTokenPayload:
     """Формирует и возвращает payload JWT-токена.
 
     Содержит всю логику построения payload, вынесенную из `create_jwt`.
-    Тип возвращаемого payload зависит от значения `couple_id`:
-    если передан `UNSET` - возвращается `RefreshTokenPayload`,
-    иначе - `AccessTokenPayload`.
+    Тип возвращаемого payload зависит от значения `token_type`:
+    если передан `"refresh"` - возвращается `RefreshTokenPayload`,
+    если `"access"` - `AccessTokenPayload`, если значение иное, то вызывается
+    `ValueError`.
 
     Parameters
     ----------
@@ -142,6 +151,10 @@ def construct_payload(
         Время выпуска токена.
     session_id : UUID
         Идентификатор сессии пользователя.
+    token_type : TokenType
+        Тип токена, для которого создаётся полезная нагрузка:
+        - `"access"` - возвращается `AccessTokenPayload`;
+        - `"refresh"` - возвращается `RefreshTokenPayload`.
     exp : datetime | None, optional
         Точное время истечения токена.
         Игнорируется, если передан `expires_delta`.
@@ -153,13 +166,6 @@ def construct_payload(
     expires_delta : timedelta | None, optional
         Время жизни токена относительно `iat`.
         Имеет приоритет над `exp`, если передан.
-    couple_id : Maybe[UUID | None], optional
-        Опциональный доменный claim, добавляемый только в access-токен.
-
-        Поведение зависит от переданного значения:
-        - UNSET - возвращается `RefreshTokenPayload` без данного claim;
-        - UUID - возвращается `AccessTokenPayload` с указанным значением;
-        - None - возвращается `AccessTokenPayload` с null-значением.
 
     Returns
     -------
@@ -170,6 +176,8 @@ def construct_payload(
     ------
     RuntimeError
         Если не передан ни `exp`, ни `expires_delta`.
+    ValueError
+        Если переданное значение параметра `token_type` неизвестно.
 
     Notes
     -----
@@ -196,17 +204,31 @@ def construct_payload(
         "exp": resolved_exp,
         "jti": jti,
         "iss": iss,
-        "session_id": session_id,
+        "sid": session_id,
     }
 
-    if not isinstance(couple_id, Unset):
-        return AccessTokenPayload(**data, couple_id=couple_id)
+    match token_type:
+        case "access":
+            return AccessTokenPayload(**data)
+        case "refresh":
+            return RefreshTokenPayload(**data)
 
-    return RefreshTokenPayload(**data)
+    raise ValueError(
+        f"Cannot build a payload for {token_type} token type."
+        "It's value must be 'access' or 'refresh'."
+    )
 
 
 @overload
-def create_jwt(sub_or_payload: AnyTokenPayload) -> str: ...
+def create_jwt(
+    sub_or_payload: RefreshTokenPayload, *, token_type: Literal["refresh"]
+) -> str: ...
+
+
+@overload
+def create_jwt(
+    sub_or_payload: AccessTokenPayload, *, token_type: Literal["access"]
+) -> str: ...
 
 
 @overload
@@ -215,11 +237,11 @@ def create_jwt(
     iat: datetime,
     session_id: UUID,
     *,
+    token_type: TokenType,
     exp: datetime | None = ...,
     jti: UUID | None = ...,
     iss: str = ...,
     expires_delta: timedelta | None = ...,
-    couple_id: Maybe[UUID | None] = ...,
 ) -> str: ...
 
 
@@ -228,11 +250,11 @@ def create_jwt(
     iat: datetime | None = None,
     session_id: UUID | None = None,
     *,
+    token_type: TokenType,
     exp: datetime | None = None,
     jti: UUID | None = None,
     iss: str = "my-love-backend",
     expires_delta: timedelta | None = None,
-    couple_id: Maybe[UUID | None] = UNSET,
 ) -> str:
     """Создаёт и возвращает подписанный JWT.
 
@@ -254,6 +276,10 @@ def create_jwt(
         Время выпуска токена. Обязателен при передаче сырых значений.
     session_id : UUID | None, optional
         Идентификатор сессии пользователя. Обязателен при передаче сырых значений.
+    token_type : TokenType
+        Тип токена, для которого создаётся полезная нагрузка:
+        - `"access"` - возвращается `AccessTokenPayload`;
+        - `"refresh"` - возвращается `RefreshTokenPayload`.
     exp : datetime | None, optional
         Точное время истечения токена.
         Игнорируется, если передан `expires_delta`.
@@ -265,13 +291,6 @@ def create_jwt(
     expires_delta : timedelta | None, optional
         Время жизни токена относительно `iat`.
         Имеет приоритет над `exp`, если передан.
-    couple_id : Maybe[UUID | None], optional
-        Опциональный доменный claim, добавляемый только в access-токен.
-
-        Поведение зависит от переданного значения:
-        - UNSET - claim не добавляется в payload (используется refresh-токен);
-        - UUID - claim добавляется с указанным значением;
-        - None - claim добавляется с null-значением.
 
     Returns
     -------
@@ -304,11 +323,11 @@ def create_jwt(
         sub_or_payload,
         iat,
         session_id,
+        token_type=token_type,
         exp=exp,
         jti=jti,
         iss=iss,
         expires_delta=expires_delta,
-        couple_id=couple_id,
     )
 
     return _jwt_encode(payload)

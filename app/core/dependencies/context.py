@@ -8,8 +8,7 @@ from app.core.dependencies.services import ServiceManagerDependency
 
 
 async def get_partner_id(
-    services: ServiceManagerDependency,
-    payload: StrictAuthenticationDependency,
+    services: ServiceManagerDependency, payload: StrictAuthenticationDependency
 ) -> UUID | None:
     """Зависимость, которая возвращает partner_id для текущего пользователя.
 

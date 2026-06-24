@@ -298,6 +298,7 @@ async def change_password(
         Body(description="Схема запроса на изменение пароля пользователя."),
     ],
     services: ServiceManagerDependency,
+    settings: SettingsDependency,
     payload: StrictAuthenticationDependency,
 ) -> StandardResponse:
     """Смена пароля текущего пользователя.
@@ -322,6 +323,9 @@ async def change_password(
         Предоставляет доступ к бизнес-сервисам приложения
         (например, auth, user, note, file и др.) через единый
         контейнер зависимостей.
+    settings : Settings
+        Конфигурация приложения, описывающая имена и
+        атрибуты сookie.
     payload : AccessTokenPayload
         Полезная нагрузка (payload) токена доступа.
         Получена автоматически из зависимости на строгую аутентификацию.
@@ -334,5 +338,7 @@ async def change_password(
     await services.auth.change_password(
         body.current_password, body.new_password, payload
     )
+
+    delete_refresh_token_cookie(response, settings=settings)
 
     return StandardResponse(detail="User's password successfully changed.")
