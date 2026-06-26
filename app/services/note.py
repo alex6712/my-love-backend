@@ -140,7 +140,9 @@ class NoteService:
         int
             Количество доступных пользователю заметок.
         """
-        if cached := await self._redis_client.get_count("notes", user_id):
+        if (without_filters := note_types is None) and (
+            cached := await self._redis_client.get_count("notes", user_id)
+        ):
             return cached
 
         count = await self._note_repo.count(
@@ -150,9 +152,10 @@ class NoteService:
             CoupleAccessContext(user_id=user_id, partner_id=partner_id),
         )
 
-        await self._redis_client.set_count(
-            "notes", user_id, count, self._COUNT_CACHE_TTL
-        )
+        if without_filters:
+            await self._redis_client.set_count(
+                "notes", user_id, count, self._COUNT_CACHE_TTL
+            )
 
         return count
 
