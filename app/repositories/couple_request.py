@@ -249,10 +249,8 @@ class CoupleRequestRepository(
         """
         result = await self.connection.execute(
             self._build_read_statement(
-                *[
-                    *self._build_filter_clauses(filter_dto, couple_requests_table),
-                    access_ctx.as_where_clause(couple_requests_table),
-                ]
+                *self._build_filter_clauses(filter_dto, couple_requests_table),
+                access_ctx.as_where_clause(couple_requests_table),
             )
             .order_by(
                 self._build_order_clause(couple_requests_table.c.created_at, sort_order)
