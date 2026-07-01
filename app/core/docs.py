@@ -1,6 +1,13 @@
 from typing import Any
 
 from app.core.enums import APICode
+from app.core.validation import (
+    DISPLAY_NAME_MAX_LENGTH,
+    DISPLAY_NAME_MIN_LENGTH,
+    PASSWORD_MIN_LENGTH,
+    USERNAME_MAX_LENGTH,
+    USERNAME_MIN_LENGTH,
+)
 
 RATE_LIMIT_ERROR_SCHEMA: dict[str, Any] = {
     "content": {
@@ -52,7 +59,7 @@ def _get_password_validations_examples(filed_name: str) -> dict[str, Any]:
                     {
                         "type": "value_error",
                         "loc": ["body", filed_name],
-                        "msg": "Value error, Password must be at least 12 characters long.",
+                        "msg": f"Value error, Password must be at least {PASSWORD_MIN_LENGTH} characters long.",
                         "input": "a",
                         "ctx": {"error": {}},
                     }
@@ -152,8 +159,23 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
                             {
                                 "type": "value_error",
                                 "loc": ["body", "username"],
-                                "msg": "Value error, Username must be 3-32 characters long and contain only letters (a-z, A-Z), numbers (0-9), underscores (_), and hyphens (-).",
+                                "msg": f"Value error, Username must be {USERNAME_MIN_LENGTH}-{USERNAME_MAX_LENGTH} characters long and contain only letters (a-z, A-Z), numbers (0-9), underscores (_), and hyphens (-).",
                                 "input": "notV@lidUsern'me",
+                                "ctx": {"error": {}},
+                            }
+                        ],
+                    },
+                },
+                "notValidDisplayName": {
+                    "description": "Отображаемое имя пользователя имеет недопустимую длину",
+                    "value": {
+                        "code": APICode.VALIDATION_ERROR,
+                        "detail": [
+                            {
+                                "type": "value_error",
+                                "loc": ["body", "display_name"],
+                                "msg": f"Value error, Display name must be {DISPLAY_NAME_MIN_LENGTH}-{DISPLAY_NAME_MAX_LENGTH} characters long.",
+                                "input": "                   ",
                                 "ctx": {"error": {}},
                             }
                         ],
@@ -168,7 +190,7 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
                             {
                                 "type": "value_error",
                                 "loc": ["body", "username"],
-                                "msg": "Value error, Username must be 3-32 characters long and contain only letters (a-z, A-Z), numbers (0-9), underscores (_), and hyphens (-).",
+                                "msg": "Value error, Username must be {USERNAME_MIN_LENGTH}-{USERNAME_MAX_LENGTH} characters long and contain only letters (a-z, A-Z), numbers (0-9), underscores (_), and hyphens (-).",
                                 "input": "xxx_re@ll'_c00|_xxx",
                                 "ctx": {"error": {}},
                             },
