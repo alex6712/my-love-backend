@@ -57,21 +57,24 @@ class ChangePasswordRequest(BaseModel):
     ------
     ValueError
         Если `new_password` и `confirm_password` не совпадают.
+
+    Notes
+    -----
+    Атрибут `current_password` не проверяется валидатором.
+    Правила сложности паролей могут меняться со временем.
+    Если проверять старый пароль по новым правилам, смена пароля
+    может стать невозможной для пользователя.
     """
 
     current_password: str = Field(
-        description="Текущий пароль пользователя",
-        examples=["SecureP@ss111!"],
-        json_schema_extra={"minLength": 12},
+        description="Текущий пароль пользователя", examples=["SecureP@ss111!"]
     )
     new_password: ValidatedPassword = Field(
-        description="Новый пароль пользователя",
-        examples=["SecureP@ss222!"],
+        description="Новый пароль пользователя", examples=["SecureP@ss222!"]
     )
     confirm_password: str = Field(
         description="Подтверждение нового пароля пользователя",
         examples=["SecureP@ss333!"],
-        json_schema_extra={"minLength": 12},
     )
 
     @model_validator(mode="after")

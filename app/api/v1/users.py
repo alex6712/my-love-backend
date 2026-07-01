@@ -5,8 +5,7 @@ from fastapi import APIRouter, Body, status
 from app.core.dependencies.auth import StrictAuthenticationDependency
 from app.core.dependencies.services import ServiceManagerDependency
 from app.core.docs import AUTHORIZATION_ERROR_REF
-from app.core.enums import PasswordRuleType
-from app.core.validation import PASSWORD_MIN_LENGTH, SPECIAL_CHAR_PATTERN
+from app.core.validation import PASSWORD_POLICY_VERSION, PASSWORD_RULES
 from app.schemas.dto.password import PasswordRule
 from app.schemas.dto.user import UpdateUserDTO
 from app.schemas.v1.requests.users import PatchProfileRequest
@@ -77,53 +76,9 @@ async def get_password_policy() -> PasswordPolicyResponse:
     return PasswordPolicyResponse(
         detail="Password validation policy.",
         rules=[
-            PasswordRule(
-                id="min_length",
-                description=(
-                    f"Password must be at least {PASSWORD_MIN_LENGTH} characters long."
-                ),
-                type=PasswordRuleType.MIN,
-                value=PASSWORD_MIN_LENGTH,
-                unit="characters",
-            ),
-            PasswordRule(
-                id="no_space_chars",
-                description="Password must not contain whitespace characters.",
-                type=PasswordRuleType.BOOLEAN,
-                value=True,
-            ),
-            PasswordRule(
-                id="require_uppercase",
-                description="Password must contain at least one uppercase letter.",
-                type=PasswordRuleType.BOOLEAN,
-                value=True,
-            ),
-            PasswordRule(
-                id="require_lowercase",
-                description="Password must contain at least one lowercase letter.",
-                type=PasswordRuleType.BOOLEAN,
-                value=True,
-            ),
-            PasswordRule(
-                id="require_digit",
-                description="Password must contain at least one digit.",
-                type=PasswordRuleType.BOOLEAN,
-                value=True,
-            ),
-            PasswordRule(
-                id="require_special_character",
-                description="Password must contain at least one special character.",
-                type=PasswordRuleType.BOOLEAN,
-                value=True,
-            ),
-            PasswordRule(
-                id="special_character_set",
-                description="Set of allowed special characters.",
-                type=PasswordRuleType.CHARSET,
-                value=SPECIAL_CHAR_PATTERN,
-            ),
+            PasswordRule.model_validate(spec.model_dump()) for spec in PASSWORD_RULES
         ],
-        version="1.1.0",
+        version=PASSWORD_POLICY_VERSION,
     )
 
 

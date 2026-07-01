@@ -50,93 +50,117 @@ RATE_LIMIT_ERROR_REF: dict[str, Any] = {
 
 
 def _get_password_validations_examples(filed_name: str) -> dict[str, Any]:
+    """Формирует набор примеров ошибок валидации пароля для OpenAPI.
+
+    Каждый пример подобран так, чтобы нарушать ровно одно правило из
+    `PASSWORD_RULES`, при этом сам формат ошибки отражает реальное
+    поведение `validate_password_strength`: даже при единственном
+    нарушении сообщение и `ctx.errors` строятся по общей схеме
+    (список из одного элемента), в которой перечисляются id и
+    человекочитаемые описания всех сработавших правил.
+
+    Parameters
+    ----------
+    filed_name : str
+        Имя поля в теле запроса, для которого генерируются примеры
+        (например, `"password"` или `"new_password"`).
+
+    Returns
+    -------
+    dict[str, Any]
+        Словарь примеров в формате OpenAPI `examples`.
+    """
+
+    def _single_violation_example(
+        description: str, input_value: str, rule_id: str, rule_message: str
+    ) -> dict[str, Any]:
+        return {
+            "description": description,
+            "value": {
+                "code": APICode.VALIDATION_ERROR,
+                "detail": [
+                    {
+                        "type": "password_policy_violation",
+                        "loc": ["body", filed_name],
+                        "msg": f"Password does not meet security requirements: {rule_id}.",
+                        "input": input_value,
+                        "ctx": {
+                            "ids": rule_id,
+                            "errors": [{"id": rule_id, "message": rule_message}],
+                        },
+                    }
+                ],
+            },
+        }
+
     return {
-        "passwordMinLength": {
-            "description": "Пароль слишком короткий",
+        "passwordMinLength": _single_violation_example(
+            description="Пароль слишком короткий",
+            input_value="a",
+            rule_id="min_length",
+            rule_message=f"Password must be at least {PASSWORD_MIN_LENGTH} characters long.",
+        ),
+        "noSpaceChars": _single_violation_example(
+            description="Пароль не должен содержать пробельных символов",
+            input_value="aaaaaaaaaaa a",
+            rule_id="no_space_chars",
+            rule_message="Password must not contain whitespace characters.",
+        ),
+        "uppercaseLetters": _single_violation_example(
+            description="Пароль должен содержать хотя бы одну латинскую букву в верхнем регистре",
+            input_value="aaaaaaaaaaaa1!",
+            rule_id="require_uppercase",
+            rule_message="Password must contain at least one uppercase letter.",
+        ),
+        "lowercaseLetters": _single_violation_example(
+            description="Пароль должен содержать хотя бы одну латинскую букву в нижнем регистре",
+            input_value="AAAAAAAAAAAA1!",
+            rule_id="require_lowercase",
+            rule_message="Password must contain at least one lowercase letter.",
+        ),
+        "oneDigit": _single_violation_example(
+            description="Пароль должен содержать хотя бы одну цифру",
+            input_value="AAAAAAaaaaaa!",
+            rule_id="require_digit",
+            rule_message="Password must contain at least one digit.",
+        ),
+        "oneSpecialSymbol": _single_violation_example(
+            description="Пароль должен содержать хотя бы один специальный символ",
+            input_value="Aa1Aa2Aa3Aa4",
+            rule_id="require_special_character",
+            rule_message="Password must contain at least one special character.",
+        ),
+        "multipleViolations": {
+            "description": "Пароль нарушает сразу несколько правил одновременно",
             "value": {
                 "code": APICode.VALIDATION_ERROR,
                 "detail": [
                     {
-                        "type": "value_error",
+                        "type": "password_policy_violation",
                         "loc": ["body", filed_name],
-                        "msg": f"Value error, Password must be at least {PASSWORD_MIN_LENGTH} characters long.",
-                        "input": "a",
-                        "ctx": {"error": {}},
-                    }
-                ],
-            },
-        },
-        "noSpaceChars": {
-            "description": "Пароль не должен содержать пробельных символов",
-            "value": {
-                "code": APICode.VALIDATION_ERROR,
-                "detail": [
-                    {
-                        "type": "value_error",
-                        "loc": ["body", filed_name],
-                        "msg": "Value error, Password must not contain whitespace characters.",
-                        "input": "a",
-                        "ctx": {"error": {}},
-                    }
-                ],
-            },
-        },
-        "uppercaseLetters": {
-            "description": "Пароль должен содержать хотя бы одну латинскую букву в верхнем регистре",
-            "value": {
-                "code": APICode.VALIDATION_ERROR,
-                "detail": [
-                    {
-                        "type": "value_error",
-                        "loc": ["body", filed_name],
-                        "msg": "Value error, Password must contain at least one uppercase letter.",
-                        "input": "aaaaaaaaaaaa",
-                        "ctx": {"error": {}},
-                    }
-                ],
-            },
-        },
-        "lowercaseLetters": {
-            "description": "Пароль должен содержать хотя бы одну латинскую букву в нижнем регистре",
-            "value": {
-                "code": APICode.VALIDATION_ERROR,
-                "detail": [
-                    {
-                        "type": "value_error",
-                        "loc": ["body", filed_name],
-                        "msg": "Value error, Password must contain at least one lowercase letter.",
-                        "input": "AAAAAAAAAAAA",
-                        "ctx": {"error": {}},
-                    }
-                ],
-            },
-        },
-        "oneDigit": {
-            "description": "Пароль должен содержать хотя бы одну цифру",
-            "value": {
-                "code": APICode.VALIDATION_ERROR,
-                "detail": [
-                    {
-                        "type": "value_error",
-                        "loc": ["body", filed_name],
-                        "msg": "Value error, Password must contain at least one digit.",
-                        "input": "AAAAAAaaaaaa",
-                        "ctx": {"error": {}},
-                    }
-                ],
-            },
-        },
-        "oneSpecialSymbol": {
-            "description": "Пароль должен содержать хотя бы один специальный символ",
-            "value": {
-                "code": APICode.VALIDATION_ERROR,
-                "detail": [
-                    {
-                        "type": "value_error",
-                        "loc": ["body", filed_name],
-                        "msg": "Value error, Password must contain at least one special character.",
-                        "input": "Aa1Aa2Aa3Aa4",
-                        "ctx": {"error": {}},
+                        "msg": "Password does not meet security requirements: min_length, require_uppercase, require_digit, require_special_character.",
+                        "input": "weak",
+                        "ctx": {
+                            "ids": "min_length, require_uppercase, require_digit, require_special_character",
+                            "errors": [
+                                {
+                                    "id": "min_length",
+                                    "message": f"Password must be at least {PASSWORD_MIN_LENGTH} characters long.",
+                                },
+                                {
+                                    "id": "require_uppercase",
+                                    "message": "Password must contain at least one uppercase letter.",
+                                },
+                                {
+                                    "id": "require_digit",
+                                    "message": "Password must contain at least one digit.",
+                                },
+                                {
+                                    "id": "require_special_character",
+                                    "message": "Password must contain at least one special character.",
+                                },
+                            ],
+                        },
                     }
                 ],
             },
@@ -190,16 +214,28 @@ REGISTER_ERROR_SCHEMA: dict[str, Any] = {
                             {
                                 "type": "value_error",
                                 "loc": ["body", "username"],
-                                "msg": "Value error, Username must be {USERNAME_MIN_LENGTH}-{USERNAME_MAX_LENGTH} characters long and contain only letters (a-z, A-Z), numbers (0-9), underscores (_), and hyphens (-).",
+                                "msg": f"Value error, Username must be {USERNAME_MIN_LENGTH}-{USERNAME_MAX_LENGTH} characters long and contain only letters (a-z, A-Z), numbers (0-9), underscores (_), and hyphens (-).",
                                 "input": "xxx_re@ll'_c00|_xxx",
                                 "ctx": {"error": {}},
                             },
                             {
-                                "type": "value_error",
+                                "type": "password_policy_violation",
                                 "loc": ["body", "password"],
-                                "msg": "Value error, Password must contain at least one uppercase letter.",
-                                "input": "not_secure_at_all",
-                                "ctx": {"error": {}},
+                                "msg": "Password does not meet security requirements: require_uppercase, require_digit.",
+                                "input": "not_secure_at_all!",
+                                "ctx": {
+                                    "ids": "require_uppercase, require_digit",
+                                    "errors": [
+                                        {
+                                            "id": "require_uppercase",
+                                            "message": "Password must contain at least one uppercase letter.",
+                                        },
+                                        {
+                                            "id": "require_digit",
+                                            "message": "Password must contain at least one digit.",
+                                        },
+                                    ],
+                                },
                             },
                         ],
                     },

@@ -3,6 +3,10 @@ import unicodedata
 from typing import Annotated
 
 from pydantic import AfterValidator, StringConstraints
+from pydantic_core import PydanticCustomError
+
+from app.core.enums import PasswordRuleType
+from app.schemas.dto.password import PasswordRuleSpec
 
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 """Регулярное выражение для проверки формата имени пользователя.
@@ -44,16 +48,75 @@ ValidatedUsername = Annotated[
 пользователя при десериализации данных.
 """
 
+PASSWORD_POLICY_VERSION = "1.1.0"
+"""Текущая версия парольной политики (стратегии валиации паролей)."""
+
+PASSWORD_RULES = [
+    PasswordRuleSpec(
+        id="min_length",
+        description=f"Password must be at least {PASSWORD_MIN_LENGTH} characters long.",
+        type=PasswordRuleType.MIN,
+        value=PASSWORD_MIN_LENGTH,
+        unit="characters",
+        check=lambda v: len(v) >= PASSWORD_MIN_LENGTH,
+    ),
+    PasswordRuleSpec(
+        id="no_space_characters",
+        description="Password must not contain whitespace characters.",
+        type=PasswordRuleType.BOOLEAN,
+        value=True,
+        check=lambda v: not any(char.isspace() for char in v),
+    ),
+    PasswordRuleSpec(
+        id="require_uppercase",
+        description="Password must contain at least one uppercase letter.",
+        type=PasswordRuleType.BOOLEAN,
+        value=True,
+        check=lambda v: bool(re.search(r"[A-Z]", v)),
+    ),
+    PasswordRuleSpec(
+        id="require_lowercase",
+        description="Password must contain at least one lowercase letter.",
+        type=PasswordRuleType.BOOLEAN,
+        value=True,
+        check=lambda v: bool(re.search(r"[a-z]", v)),
+    ),
+    PasswordRuleSpec(
+        id="require_digit",
+        description="Password must contain at least one digit.",
+        type=PasswordRuleType.BOOLEAN,
+        value=True,
+        check=lambda v: bool(re.search(r"[0-9]", v)),
+    ),
+    PasswordRuleSpec(
+        id="require_special_character",
+        description="Password must contain at least one special character.",
+        type=PasswordRuleType.BOOLEAN,
+        value=True,
+        check=lambda v: bool(re.search(SPECIAL_CHAR_PATTERN, v)),
+    ),
+    PasswordRuleSpec(
+        id="special_character_set",
+        description="Set of allowed special characters.",
+        type=PasswordRuleType.CHARSET,
+        value=SPECIAL_CHAR_PATTERN,
+        check=None,
+    ),
+]
+"""Единый источник правды для парольной политики: используется
+и в `validate_password_strength` (проверка), и в эндпоинте
+`GET /password-policy` (публичный контракт), чтобы исключить
+дублирование и рассинхронизацию правил.
+"""
+
 
 def validate_password_strength(value: str) -> str:
     """Проверяет пароль на соответствие требованиям безопасности.
 
-    Валидация включает следующие проверки:
-    - Отсутствие пробелов и любых пробельных символов;
-    - Наличие символов верхнего регистра (A-Z);
-    - Наличие символов нижнего регистра (a-z);
-    - Наличие цифр (0-9);
-    - Наличие специальных символов (!@#$%^&* и т.д.).
+    Проверяет пароль сразу по всем правилам из `PASSWORD_RULES`
+    (кроме информационных, у которых `check is None`) и собирает
+    все нарушения в единую структурированную ошибку, чтобы
+    пользователь мог исправить всё за один раз.
 
     Parameters
     ----------
@@ -67,25 +130,43 @@ def validate_password_strength(value: str) -> str:
 
     Raises
     ------
-    ValueError
-        Если пароль не соответствует одному из требований безопасности.
+    pydantic_core.PydanticCustomError
+        Если пароль нарушает одно или несколько правил. В `ctx`
+        ошибки передаётся список нарушенных правил вида
+        `{"id": ..., "message": ...}`.
     """
-    if any(char.isspace() for char in value):
-        raise ValueError("Password must not contain whitespace characters.")
+    failed_rules = [
+        rule
+        for rule in PASSWORD_RULES
+        if rule.check is not None and not rule.check(value)
+    ]
 
-    if not re.search(r"[A-Z]", value):
-        raise ValueError("Password must contain at least one uppercase letter.")
-
-    if not re.search(r"[a-z]", value):
-        raise ValueError("Password must contain at least one lowercase letter.")
-
-    if not re.search(r"[0-9]", value):
-        raise ValueError("Password must contain at least one digit.")
-
-    if not re.search(SPECIAL_CHAR_PATTERN, value):
-        raise ValueError("Password must contain at least one special character.")
+    if failed_rules:
+        raise PydanticCustomError(
+            "password_policy_violation",
+            "Password does not meet security requirements: {ids}.",
+            {
+                "ids": ", ".join(rule.id for rule in failed_rules),
+                "errors": [
+                    {"id": rule.id, "message": rule.description}
+                    for rule in failed_rules
+                ],
+            },
+        )
 
     return value
+
+
+ValidatedPassword = Annotated[
+    str,
+    StringConstraints(min_length=PASSWORD_MIN_LENGTH),
+    AfterValidator(validate_password_strength),
+]
+"""Типизированная аннотация для поля пароля с автоматической валидацией.
+
+Используется в Pydantic-схемах для автоматической проверки пароля
+при десериализации данных.
+"""
 
 
 def normalize_unicode_nfc(value: str) -> str:
@@ -112,17 +193,6 @@ def normalize_unicode_nfc(value: str) -> str:
     """
     return unicodedata.normalize("NFC", value)
 
-
-ValidatedPassword = Annotated[
-    str,
-    StringConstraints(min_length=PASSWORD_MIN_LENGTH),
-    AfterValidator(validate_password_strength),
-]
-"""Типизированная аннотация для поля пароля с автоматической валидацией.
-
-Используется в Pydantic-схемах для автоматической проверки пароля
-при десериализации данных.
-"""
 
 ValidatedDisplayName = Annotated[
     str,

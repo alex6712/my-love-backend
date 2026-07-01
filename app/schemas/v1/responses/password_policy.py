@@ -7,8 +7,8 @@ from app.schemas.v1.responses.standard import StandardResponse
 class PasswordPolicyResponse(StandardResponse):
     """Модель ответа на запрос политики валидации паролей.
 
-    Атрибуты
-    --------
+    Attributes
+    ----------
     rules : list[PasswordRule]
         Массив правил валидации паролей. Каждый элемент описывает
         одно требование к паролю.
