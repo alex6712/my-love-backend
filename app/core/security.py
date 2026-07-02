@@ -18,6 +18,7 @@ from jose import jwt
 from passlib.context import CryptContext
 
 from app.config import get_settings
+from app.core.consts import HMAC_MIN_KEY_LENGTH
 from app.core.exceptions.base import WeakServerSecretException
 from app.core.types import TokenType
 from app.schemas.dto.payload import (
@@ -414,7 +415,8 @@ def hash_token(
         Токен для хеширования.
     secret_key : bytes, optional
         Секретный ключ для HMAC. По умолчанию используется значение
-        из настроек приложения. Длина ключа должна быть не менее 32 байт.
+        из настроек приложения.
+        Длина ключа должна быть не менее `HMAC_MIN_KEY_LENGTH` байт.
 
     Returns
     -------
@@ -424,12 +426,12 @@ def hash_token(
     Raises
     ------
     WeakServerSecretException
-        Если длина секретного ключа меньше 32 байт.
+        Если длина секретного ключа меньше `HMAC_MIN_KEY_LENGTH` байт.
     """
-    if len(secret_key) < 32:
+    if len(secret_key) < HMAC_MIN_KEY_LENGTH:
         raise WeakServerSecretException(
             detail=(
-                f"HMAC secret key is too weak: expected at least 32 bytes, got {len(secret_key)}."
+                f"HMAC secret key is too weak: expected at least {HMAC_MIN_KEY_LENGTH} bytes, got {len(secret_key)}."
             )
         )
 

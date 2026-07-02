@@ -44,3 +44,6 @@ if DEFAULT_LIMIT > MAX_LIMIT:
     raise ValueError(
         f"Default limit value ({DEFAULT_LIMIT}) can't be larger than max value ({MAX_LIMIT})!"
     )
+
+HMAC_MIN_KEY_LENGTH = 32
+"""Минимальная длина HMAC секретного ключа в байтах."""
