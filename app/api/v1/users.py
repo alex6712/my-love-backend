@@ -75,9 +75,7 @@ async def get_password_policy() -> PasswordPolicyResponse:
     """
     return PasswordPolicyResponse(
         detail="Password validation policy.",
-        rules=[
-            PasswordRule.model_validate(spec.model_dump()) for spec in PASSWORD_RULES
-        ],
+        rules=[PasswordRule.model_validate(spec) for spec in PASSWORD_RULES],
         version=PASSWORD_POLICY_VERSION,
     )
 

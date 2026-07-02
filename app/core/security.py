@@ -100,7 +100,7 @@ def jwt_decode(token: str, token_type: TokenType) -> AnyTokenPayload:
 def construct_payload(
     sub: UUID,
     iat: datetime,
-    session_id: UUID,
+    sid: UUID,
     *,
     token_type: Literal["refresh"],
     exp: datetime | None = ...,
@@ -114,7 +114,7 @@ def construct_payload(
 def construct_payload(
     sub: UUID,
     iat: datetime,
-    session_id: UUID,
+    sid: UUID,
     *,
     token_type: Literal["access"],
     exp: datetime | None = ...,
@@ -127,7 +127,7 @@ def construct_payload(
 def construct_payload(
     sub: UUID,
     iat: datetime,
-    session_id: UUID,
+    sid: UUID,
     *,
     token_type: TokenType,
     exp: datetime | None = None,
@@ -149,7 +149,7 @@ def construct_payload(
         Субъект токена - идентификатор пользователя.
     iat : datetime
         Время выпуска токена.
-    session_id : UUID
+    sid : UUID
         Идентификатор сессии пользователя.
     token_type : TokenType
         Тип токена, для которого создаётся полезная нагрузка:
@@ -204,7 +204,7 @@ def construct_payload(
         "exp": resolved_exp,
         "jti": jti,
         "iss": iss,
-        "sid": session_id,
+        "sid": sid,
     }
 
     match token_type:
@@ -235,7 +235,7 @@ def create_jwt(
 def create_jwt(
     sub_or_payload: UUID,
     iat: datetime,
-    session_id: UUID,
+    sid: UUID,
     *,
     token_type: TokenType,
     exp: datetime | None = ...,
@@ -248,7 +248,7 @@ def create_jwt(
 def create_jwt(
     sub_or_payload: UUID | AnyTokenPayload,
     iat: datetime | None = None,
-    session_id: UUID | None = None,
+    sid: UUID | None = None,
     *,
     token_type: TokenType,
     exp: datetime | None = None,
@@ -274,7 +274,7 @@ def create_jwt(
         либо готовый payload-объект.
     iat : datetime | None, optional
         Время выпуска токена. Обязателен при передаче сырых значений.
-    session_id : UUID | None, optional
+    sid : UUID | None, optional
         Идентификатор сессии пользователя. Обязателен при передаче сырых значений.
     token_type : TokenType
         Тип токена, для которого создаётся полезная нагрузка:
@@ -303,7 +303,7 @@ def create_jwt(
         Если не передан ни `exp`, ни `expires_delta` при использовании
         сырых значений.
     TypeError
-        Если `sub_or_payload` является `UUID`, но `iat` или `session_id`
+        Если `sub_or_payload` является `UUID`, но `iat` или `sid`
         не переданы.
 
     Notes
@@ -314,15 +314,13 @@ def create_jwt(
     if isinstance(sub_or_payload, (AccessTokenPayload, RefreshTokenPayload)):
         return _jwt_encode(sub_or_payload)
 
-    if iat is None or session_id is None:
-        raise TypeError(
-            "'iat' and 'session_id' are required when 'sub_or_payload' is UUID."
-        )
+    if iat is None or sid is None:
+        raise TypeError("'iat' and 'sid' are required when 'sub_or_payload' is UUID.")
 
     payload = construct_payload(
         sub_or_payload,
         iat,
-        session_id,
+        sid,
         token_type=token_type,
         exp=exp,
         jti=jti,

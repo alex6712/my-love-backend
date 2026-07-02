@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Index, Table, UniqueConstraint, text
 from sqlalchemy.types import Boolean, String
 
+from app.core.consts import DISPLAY_NAME_MAX_LENGTH, USERNAME_MAX_LENGTH
 from app.infra.postgres.tables import base_columns, metadata
 
 users_table = Table(
@@ -9,9 +10,9 @@ users_table = Table(
     *base_columns(),
     Column(
         "username",
-        String(32),
+        String(USERNAME_MAX_LENGTH),
         nullable=False,
-        comment="Уникальный логин (макс. 32 символа)",
+        comment=f"Уникальный логин (макс. {USERNAME_MAX_LENGTH} символа)",
     ),
     Column(
         "password_hash",
@@ -21,9 +22,9 @@ users_table = Table(
     ),
     Column(
         "display_name",
-        String(64),
+        String(DISPLAY_NAME_MAX_LENGTH),
         nullable=False,
-        comment="Отображаемое имя пользователя",
+        comment=f"Отображаемое имя пользователя (макс. {DISPLAY_NAME_MAX_LENGTH} символов)",
     ),
     Column(
         "avatar_url",

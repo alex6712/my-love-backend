@@ -2,6 +2,7 @@ from datetime import date
 
 from pydantic import BaseModel, Field
 
+from app.core.consts import USERNAME_MAX_LENGTH
 from app.core.types import UNSET, Maybe
 
 
@@ -15,10 +16,10 @@ class CreateCoupleRequest(BaseModel):
     """
 
     partner_username: str = Field(
-        description="Username пользователя-партнёра.",
+        description="Username пользователя-партнёра",
         examples=["partner_username"],
         min_length=1,
-        max_length=64,
+        max_length=USERNAME_MAX_LENGTH,
     )
 
 

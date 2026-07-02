@@ -5,33 +5,17 @@ from typing import Annotated
 from pydantic import AfterValidator, StringConstraints
 from pydantic_core import PydanticCustomError
 
+from app.core.consts import (
+    DISPLAY_NAME_MAX_LENGTH,
+    DISPLAY_NAME_MIN_LENGTH,
+    PASSWORD_MIN_LENGTH,
+    SPECIAL_CHAR_PATTERN,
+    USERNAME_MAX_LENGTH,
+    USERNAME_MIN_LENGTH,
+    USERNAME_PATTERN,
+)
 from app.core.enums import PasswordRuleType
 from app.schemas.dto.password import PasswordRuleSpec
-
-USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
-"""Регулярное выражение для проверки формата имени пользователя.
-
-Разрешает латинские буквы (верхний и нижний регистр),
-цифры, нижнее подчёркивание и дефис.
-"""
-
-USERNAME_MIN_LENGTH = 3
-"""Минимальная длина имени пользователя в символах."""
-
-USERNAME_MAX_LENGTH = 32
-"""Максимальная длина имени пользователя в символах."""
-
-DISPLAY_NAME_MIN_LENGTH = 1
-"""Минимальная длина отображаемого имени пользователя в символах."""
-
-DISPLAY_NAME_MAX_LENGTH = 64
-"""Максимальная длина отображаемого имени пользователя в символах."""
-
-PASSWORD_MIN_LENGTH = 12
-"""Минимальная длина пароля в символах."""
-
-SPECIAL_CHAR_PATTERN = r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]"
-"""Регулярное выражение для проверки наличия специальных символов."""
 
 ValidatedUsername = Annotated[
     str,

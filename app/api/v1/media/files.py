@@ -198,7 +198,7 @@ async def upload(
         Успешный ответ о генерации presigned-url.
     """
     url = await services.file.get_upload_presigned_url(
-        FileMetadataDTO.model_validate(body.model_dump()), payload.sub, idempotency_key
+        FileMetadataDTO.model_validate(body), payload.sub, idempotency_key
     )
 
     return PresignedURLResponse(url=url, detail="Presigned URL generated successfully.")
@@ -250,10 +250,7 @@ async def upload_batch(
         Успешный ответ о генерации presigned-url.
     """
     successful, failed = await services.file.get_upload_presigned_urls(
-        [
-            FileMetadataWithRefDTO.model_validate(m.model_dump())
-            for m in body.files_metadata
-        ],
+        [FileMetadataWithRefDTO.model_validate(m) for m in body.files_metadata],
         payload.sub,
         idempotency_key,
     )

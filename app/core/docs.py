@@ -1,13 +1,13 @@
 from typing import Any
 
-from app.core.enums import APICode
-from app.core.validation import (
+from app.core.consts import (
     DISPLAY_NAME_MAX_LENGTH,
     DISPLAY_NAME_MIN_LENGTH,
     PASSWORD_MIN_LENGTH,
     USERNAME_MAX_LENGTH,
     USERNAME_MIN_LENGTH,
 )
+from app.core.enums import APICode
 
 RATE_LIMIT_ERROR_SCHEMA: dict[str, Any] = {
     "content": {
